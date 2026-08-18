@@ -143,8 +143,13 @@ const MENUS: MenuSeed[] = [
     ] },
   { code: 'attendance', label: 'Presensi', moduleCode: 'attendance', icon: 'clock', sortOrder: 20,
     children: [
+      // Tombol presensi diletakkan PALING ATAS dalam grupnya, dan sengaja.
+      // Ia satu-satunya menu yang dibuka setiap hari oleh setiap orang;
+      // sisanya dibuka HR sesekali.
+      { code: 'attendance.punch', label: 'Absen Sekarang', moduleCode: 'attendance',
+        permissionCode: 'attendance.punch.create.own', path: '/attendance/punch', sortOrder: 0 },
       { code: 'attendance.me', label: 'Presensi Saya', moduleCode: 'attendance',
-        permissionCode: 'attendance.record.read.own', path: '/attendance/me', sortOrder: 0 },
+        permissionCode: 'attendance.record.read.own', path: '/attendance/me', sortOrder: 5 },
       { code: 'attendance.records', label: 'Rekap Kehadiran', moduleCode: 'attendance',
         permissionCode: 'attendance.record.read.all', path: '/attendance/records', sortOrder: 10 },
       { code: 'attendance.review', label: 'Antrean Tinjauan', moduleCode: 'attendance',
@@ -312,7 +317,7 @@ async function seedCatalog(): Promise<void> {
  * endpoint-nya menolak dengan 402 meski TENANT_OWNER memegang seluruh permission.
  * Bila keduanya tidak berlaku, ada yang salah dan lebih baik ketahuan sekarang.
  */
-async function seedDemoTenant(): Promise<void> {
+async function seedDemoTenant(): Promise<string> {
   const { hashPassword } = await import('@node-rs/argon2').then((m) => ({
     hashPassword: (p: string) => m.hash(p, { memoryCost: 19_456, timeCost: 2, parallelism: 1 }),
   }));
@@ -320,7 +325,7 @@ async function seedDemoTenant(): Promise<void> {
   const tenant = await db.tenant.upsert({
     where: { code: 'demo' },
     create: {
-      code: 'demo', name: 'PT Demo Nusantara', planCode: 'starter', status: 'TRIAL',
+      code: 'demo', name: 'PT Demo Nusantara', planCode: 'basic', status: 'TRIAL',
       trialEndsAt: new Date(Date.now() + 14 * 86_400_000),
     },
     update: {},
@@ -328,7 +333,7 @@ async function seedDemoTenant(): Promise<void> {
   });
 
   const plan = await db.plan.findUniqueOrThrow({
-    where: { code: 'starter' },
+    where: { code: 'basic' },
     select: { modules: { select: { moduleCode: true } } },
   });
   for (const { moduleCode } of plan.modules) {
@@ -390,6 +395,8 @@ async function seedDemoTenant(): Promise<void> {
       update: {},
     });
   }
+
+  return tenant.id;
 }
 
 /**
@@ -401,6 +408,67 @@ async function seedDemoTenant(): Promise<void> {
  * menolak akun aktif tanpa rahasia TOTP.
  */
 const DEMO_TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+
+/**
+ * Data presensi awal untuk tenant demo.
+ *
+ * Lokasi kerja memakai koordinat Monas — titik yang mudah dikenali saat menguji
+ * geofence dari peta mana pun. Radius 150 m adalah nilai wajar untuk satu
+ * gedung perkantoran; area pabrik biasanya jauh lebih besar.
+ */
+async function seedAttendance(tenantId: string): Promise<void> {
+  await db.workSite.upsert({
+    where: { tenantId_code: { tenantId, code: 'pusat' } },
+    create: {
+      tenantId,
+      code: 'pusat',
+      name: 'Kantor Pusat',
+      latitude: -6.1753924,
+      longitude: 106.8271528,
+      radiusM: 150,
+      maxAccuracyM: 100,
+    },
+    update: {},
+  });
+
+  const shifts = [
+    // Toleransi 15 menit pada shift pagi: kemacetan Jakarta membuat toleransi
+    // 5 menit menghasilkan seluruh kantor tercatat terlambat setiap hari, dan
+    // angka yang selalu merah berhenti dibaca siapa pun.
+    { code: 'pagi', name: 'Shift Pagi', startMinute: 8 * 60, endMinute: 17 * 60, graceMinutes: 15, breakMinutes: 60 },
+    { code: 'siang', name: 'Shift Siang', startMinute: 14 * 60, endMinute: 22 * 60, graceMinutes: 10, breakMinutes: 45 },
+    // Shift malam dinyatakan melewati 1440 — 22:00 sampai 06:00 keesokan hari.
+    // Itu yang membuat satu tanggal kerja tidak terbelah dua.
+    { code: 'malam', name: 'Shift Malam', startMinute: 22 * 60, endMinute: 30 * 60, graceMinutes: 10, breakMinutes: 45 },
+  ];
+
+  for (const shift of shifts) {
+    await db.shift.upsert({
+      where: { tenantId_code: { tenantId, code: shift.code } },
+      create: { tenantId, ...shift },
+      update: { name: shift.name },
+    });
+  }
+
+  // Hari libur nasional 2026 yang tetap tanggalnya. Yang mengikuti kalender
+  // Hijriah sengaja tidak di-seed: tanggalnya ditetapkan SKB tiga menteri dan
+  // menebaknya lebih buruk daripada mengosongkannya.
+  const holidays = [
+    { date: '2026-01-01', name: 'Tahun Baru Masehi' },
+    { date: '2026-05-01', name: 'Hari Buruh Internasional' },
+    { date: '2026-06-01', name: 'Hari Lahir Pancasila' },
+    { date: '2026-08-17', name: 'Hari Kemerdekaan RI' },
+    { date: '2026-12-25', name: 'Hari Raya Natal' },
+  ];
+
+  for (const holiday of holidays) {
+    await db.holiday.upsert({
+      where: { tenantId_date: { tenantId, date: new Date(holiday.date) } },
+      create: { tenantId, date: new Date(holiday.date), name: holiday.name },
+      update: { name: holiday.name },
+    });
+  }
+}
 
 async function seedSuperuser(): Promise<void> {
   const { hash } = await import('@node-rs/argon2');
@@ -423,7 +491,8 @@ async function seedSuperuser(): Promise<void> {
 
 async function main(): Promise<void> {
   await seedCatalog();
-  await seedDemoTenant();
+  const tenantId = await seedDemoTenant();
+  await seedAttendance(tenantId);
   await seedSuperuser();
 
   const counts = {
@@ -433,10 +502,13 @@ async function main(): Promise<void> {
     menu: await db.menu.count(),
     tenant: await db.tenant.count(),
     pengguna: await db.user.count(),
+    lokasiKerja: await db.workSite.count(),
+    shift: await db.shift.count(),
+    hariLibur: await db.holiday.count(),
   };
   console.log('Seed selesai:', counts);
   console.log('Login demo — tenantCode: demo | owner@demo.test | DemoPassword123');
-  console.log('Paket starter: modul payroll sengaja TIDAK aktif (uji entitlement).');
+  console.log('Paket basic: employee, attendance, leave, payroll aktif.');
   console.log(`Admin demo — admin@hrms.test | AdminPassword123 | TOTP secret: ${DEMO_TOTP_SECRET}`);
 }
 

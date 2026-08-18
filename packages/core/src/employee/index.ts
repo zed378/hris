@@ -54,3 +54,14 @@ export {
   type ReminderThreshold,
   type ReminderScanResult,
 } from './contracts.ts';
+export {
+  listDepartments,
+  createDepartment,
+  listPositions,
+  createPosition,
+  placeEmployee,
+  placementHistory,
+  OrgError,
+  type DepartmentNode,
+  type PlacementInput,
+} from './org.ts';

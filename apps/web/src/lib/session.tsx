@@ -169,6 +169,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     accessToken.current = null;
     setBootstrap(null);
     setStatus('anonymous');
+
+    // Cache service worker dibersihkan total (dokumen 11 §5.2, risiko R50).
+    //
+    // Cache Storage bertahan setelah logout dan dapat dibaca skrip mana pun di
+    // origin yang sama. Di perangkat bersama — ruang HR, pos satpam, komputer
+    // pabrik — itu berarti data pengguna sebelumnya terbaca pengguna berikutnya.
+    //
+    // Antrean presensi luring SENGAJA tidak ikut dihapus: ia milik perangkat,
+    // bukan milik sesi, dan menghapusnya berarti membuang presensi yang belum
+    // sempat terkirim milik orang yang baru saja keluar.
+    navigator.serviceWorker?.controller?.postMessage({ type: 'HRMS_LOGOUT' });
   }, []);
 
   const value = useMemo<SessionState>(() => {

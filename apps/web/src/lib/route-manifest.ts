@@ -118,6 +118,32 @@ export const ROUTE_MANIFEST = {
   'GET /api/employees/import/[id]': { module: 'employee', permission: 'employee.import.execute' },
   'POST /api/employees/import/[id]/commit': { module: 'employee', permission: 'employee.import.execute' },
 
+  // --- Struktur organisasi (Fase 2) ---------------------------------------------
+  'GET /api/org/departments': { module: 'employee', permission: 'employee.employee.read.all' },
+  'POST /api/org/departments': { module: 'employee', permission: 'employee.employee.update' },
+  'GET /api/org/positions': { module: 'employee', permission: 'employee.employee.read.all' },
+  'POST /api/org/positions': { module: 'employee', permission: 'employee.employee.update' },
+  'POST /api/org/placements': { module: 'employee', permission: 'employee.employee.update' },
+
+  // --- Presensi (Fase 3) --------------------------------------------------------
+  // Mengetuk presensi memakai permission bercakupan `own`: karyawan hanya dapat
+  // mengetuk untuk dirinya sendiri, dan `employeeId` diturunkan dari sesi — tidak
+  // pernah dari badan request.
+  'POST /api/attendance/punch': { module: 'attendance', permission: 'attendance.punch.create.own' },
+  'GET /api/attendance/me': { module: 'attendance', permission: 'attendance.record.read.own' },
+
+  // Antrean tinjauan. Presensi bertanda TIDAK ditolak otomatis — ia menunggu
+  // keputusan manusia yang mengenal konteksnya (P14).
+  'GET /api/attendance/review': { module: 'attendance', permission: 'attendance.review.handle' },
+  'POST /api/attendance/review': { module: 'attendance', permission: 'attendance.review.handle' },
+
+  'GET /api/attendance/records': { module: 'attendance', permission: 'attendance.record.read.all' },
+  'POST /api/attendance/records': { module: 'attendance', permission: 'attendance.record.correct' },
+  'GET /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.record.read.own' },
+  'POST /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.shift.manage' },
+  'GET /api/attendance/shifts': { module: 'attendance', permission: 'attendance.record.read.own' },
+  'POST /api/attendance/shifts': { module: 'attendance', permission: 'attendance.shift.manage' },
+
   // --- Bootstrap ----------------------------------------------------------------
   // Tidak memerlukan permission: setiap pengguna terautentikasi berhak tahu apa
   // yang boleh ia lihat. Isinya sendiri sudah tersaring akses efektif.
