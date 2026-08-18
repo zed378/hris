@@ -128,7 +128,7 @@ async function main(): Promise<void> {
   const runRetention = async (): Promise<void> => {
     try {
       const result = await runPhotoRetention();
-      if (result.deleted > 0 || result.failed > 0) {
+      if (result.deleted > 0 || result.failed > 0 || result.alreadyGone > 0) {
         console.log({ scope: 'photo-retention', ...result });
       }
     } catch (error) {

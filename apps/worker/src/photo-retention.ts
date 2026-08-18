@@ -18,6 +18,8 @@ import { deletePhoto } from '@hrms/core/attendance';
 export interface RetentionResult {
   tenants: number;
   deleted: number;
+  /** Berkas yang memang sudah tidak ada. Wajar setelah pemulihan cadangan. */
+  alreadyGone: number;
   failed: number;
 }
 
@@ -29,7 +31,12 @@ export async function runPhotoRetention(): Promise<RetentionResult> {
     SELECT tenant_id FROM public.active_tenant_ids()
   `;
 
-  const result: RetentionResult = { tenants: tenants.length, deleted: 0, failed: 0 };
+  const result: RetentionResult = {
+    tenants: tenants.length,
+    deleted: 0,
+    alreadyGone: 0,
+    failed: 0,
+  };
   const now = new Date();
 
   for (const { tenant_id: tenantId } of tenants) {
@@ -51,7 +58,19 @@ export async function runPhotoRetention(): Promise<RetentionResult> {
         // Urutan sebaliknya akan meninggalkan berkas yatim bila proses mati di
         // antaranya — foto yang tidak lagi terhubung ke catatan apa pun, dan
         // karenanya tidak akan pernah terhapus oleh putaran berikutnya.
-        await deletePhoto(punch.photoKey!);
+        let outcome;
+        try {
+          outcome = await deletePhoto(punch.photoKey!);
+        } catch (error) {
+          // Rujukan basis data SENGAJA tidak dihapus. Selama ia bertahan,
+          // putaran berikutnya akan menemukan berkas ini lagi. Menghapusnya
+          // sekarang berarti berkas itu hilang dari pandangan sistem sementara
+          // tetap ada di disk — persis kegagalan yang membuat janji retensi
+          // 90 hari batal tanpa satu pun galat terlihat.
+          result.failed += 1;
+          console.error({ scope: 'photo-retention', punchId: punch.id, error });
+          continue;
+        }
 
         await withTenant(
           tenantId,
@@ -63,7 +82,8 @@ export async function runPhotoRetention(): Promise<RetentionResult> {
           { client: workerClient() },
         );
 
-        result.deleted += 1;
+        if (outcome.removed) result.deleted += 1;
+        else result.alreadyGone += 1;
       }
     } catch (error) {
       result.failed += 1;
