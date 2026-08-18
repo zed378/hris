@@ -1,0 +1,489 @@
+// HRMS — skema basis data
+//
+// Satu basis data PostgreSQL, satu schema per modul (PLAN/12 §3.1 aturan 3).
+// Schema adalah "jahitan" yang membuat pemecahan menjadi service kelak murah:
+// memindahkan satu modul berarti memindahkan satu schema, bukan membongkar tabel.
+//
+// Aturan yang mengikat berkas ini:
+//   - Setiap tabel milik tenant WAJIB punya `tenantId` dan kebijakan RLS.
+//     RLS ditulis manual di migrasi (Prisma tidak membangkitkannya). Ada gerbang
+//     CI yang menolak tabel ber-tenantId tanpa policy — lihat packages/db/test.
+//   - Uang memakai Decimal, tidak pernah Float.
+//   - Data berdimensi waktu ditutup periodenya, tidak pernah di-UPDATE di tempat (P13).
+//   - Migrasi hanya aditif (P12, PLAN/09). Linter di ops/scripts memblokir DROP/RENAME.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["tenant", "auth", "iam", "audit", "messaging", "platform"]
+}
+
+// =============================================================================
+// SCHEMA: tenant — tenant, paket, dan modul yang dilanggan
+// =============================================================================
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CHURNED
+
+  @@schema("tenant")
+}
+
+enum ModuleTier {
+  CORE // selalu aktif, tidak dapat dinonaktifkan
+  BASIC
+  ADVANCED
+  ULTIMATE
+  INDUSTRY
+
+  @@schema("tenant")
+}
+
+enum TenantModuleStatus {
+  ENABLED
+  DISABLED
+
+  @@schema("tenant")
+}
+
+/// Katalog modul. Global (bukan milik tenant), karena ini definisi produk.
+model Module {
+  code        String     @id
+  name        String
+  description String?
+  tier        ModuleTier
+  /// Modul CORE tidak pernah dapat dinonaktifkan; EntitlementGuard melewatinya.
+  isCore      Boolean    @default(false) @map("is_core")
+  sortOrder   Int        @default(0) @map("sort_order")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  planModules   PlanModule[]
+  tenantModules TenantModule[]
+  permissions   Permission[]
+  menus         Menu[]
+
+  @@map("modules")
+  @@schema("tenant")
+}
+
+/// Paket langganan. Memetakan tiering produk referensi (Basic/Advanced/Ultimate).
+model Plan {
+  code        String   @id
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  modules PlanModule[]
+  tenants Tenant[]
+
+  @@map("plans")
+  @@schema("tenant")
+}
+
+model PlanModule {
+  planCode   String @map("plan_code")
+  moduleCode String @map("module_code")
+
+  plan   Plan   @relation(fields: [planCode], references: [code], onDelete: Cascade)
+  module Module @relation(fields: [moduleCode], references: [code], onDelete: Cascade)
+
+  @@id([planCode, moduleCode])
+  @@map("plan_modules")
+  @@schema("tenant")
+}
+
+/// Baris jangkar untuk seluruh sistem. Setiap tabel ber-tenantId menunjuk ke sini.
+model Tenant {
+  id       String       @id @default(uuid()) @db.Uuid
+  /// Dipakai saat login bersama email. Huruf kecil, tanpa spasi.
+  code     String       @unique
+  name     String
+  status   TenantStatus @default(TRIAL)
+  planCode String       @map("plan_code")
+
+  /// Akhir masa uji coba. Null berarti bukan trial.
+  trialEndsAt DateTime? @map("trial_ends_at")
+  suspendedAt DateTime? @map("suspended_at")
+  churnedAt   DateTime? @map("churned_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  plan    Plan           @relation(fields: [planCode], references: [code])
+  modules TenantModule[]
+  users   User[]
+  roles   Role[]
+
+  @@index([status])
+  @@map("tenants")
+  @@schema("tenant")
+}
+
+/// Modul yang benar-benar aktif untuk satu tenant. Sumber kebenaran entitlement.
+///
+/// Menonaktifkan modul menulis status DISABLED — barisnya tidak pernah dihapus,
+/// sehingga data modul tetap utuh dan pulih saat diaktifkan kembali (PLAN/12 F6 DoD).
+model TenantModule {
+  id         String             @id @default(uuid()) @db.Uuid
+  tenantId   String             @map("tenant_id") @db.Uuid
+  moduleCode String             @map("module_code")
+  status     TenantModuleStatus @default(ENABLED)
+  enabledAt  DateTime?          @map("enabled_at")
+  disabledAt DateTime?          @map("disabled_at")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+
+  tenantRef Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  module    Module @relation(fields: [moduleCode], references: [code])
+
+  @@unique([tenantId, moduleCode])
+  @@index([tenantId, status])
+  @@map("tenant_modules")
+  @@schema("tenant")
+}
+
+// =============================================================================
+// SCHEMA: auth — identitas dan sesi
+// =============================================================================
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+
+  @@schema("auth")
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  email        String
+  passwordHash String     @map("password_hash")
+  fullName     String     @map("full_name")
+  status       UserStatus @default(ACTIVE)
+
+  /// Dipakai untuk kunci akun sementara. Direset saat login berhasil.
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
+  lastLoginAt         DateTime? @map("last_login_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenantRef     Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+  roles         UserRole[]
+  grants        UserPermissionGrant[]
+  accessVersion AccessVersion?
+
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+  @@map("users")
+  @@schema("auth")
+}
+
+/// Refresh token dengan rotasi dan deteksi pencurian (PLAN/06 §3.5).
+///
+/// Satu login membuat satu `familyId`. Setiap refresh menerbitkan token baru dalam
+/// keluarga yang sama dan menandai yang lama `replacedByTokenId`. Bila token yang
+/// SUDAH digantikan dipakai lagi, itu tanda kebocoran: seluruh keluarga dicabut.
+model RefreshToken {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  /// SHA-256 dari token. Token mentah tidak pernah disimpan.
+  tokenHash String @unique @map("token_hash")
+  familyId  String @map("family_id") @db.Uuid
+
+  replacedByTokenId String?   @map("replaced_by_token_id") @db.Uuid
+  revokedAt         DateTime? @map("revoked_at")
+  revokedReason     String?   @map("revoked_reason")
+
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  userAgent String?  @map("user_agent")
+  ip        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+  @@schema("auth")
+}
+
+// =============================================================================
+// SCHEMA: iam — peran, permission, menu, grant per pengguna (PLAN/05)
+// =============================================================================
+
+enum GrantEffect {
+  GRANT
+  DENY
+
+  @@schema("iam")
+}
+
+/// Katalog permission. Global — ini definisi produk, bukan data tenant.
+///
+/// Setiap permission dimiliki satu modul. Itulah yang membuat P8 bekerja:
+/// permission dari modul yang tidak dilanggan gugur saat resolusi, tanpa
+/// perlu mencabut peran siapa pun.
+model Permission {
+  code        String  @id
+  moduleCode  String  @map("module_code")
+  description String?
+
+  module          Module                @relation(fields: [moduleCode], references: [code], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  userGrants      UserPermissionGrant[]
+  menus           Menu[]
+
+  @@index([moduleCode])
+  @@map("permissions")
+  @@schema("iam")
+}
+
+/// Katalog menu. Global. Pohon menu efektif dirakit per pengguna saat bootstrap.
+///
+/// Menu bukan otorisasi — ia kenyamanan (P9). `permissionCode` menentukan apakah
+/// item dirender; gateway tetap memeriksa permission yang sama secara mandiri.
+model Menu {
+  id             String  @id @default(uuid()) @db.Uuid
+  code           String  @unique
+  label          String
+  parentId       String? @map("parent_id") @db.Uuid
+  moduleCode     String  @map("module_code")
+  /// Menu tanpa permission (mis. grup pembungkus) selalu tampil bila anaknya tampil.
+  permissionCode String? @map("permission_code")
+  path           String?
+  icon           String?
+  sortOrder      Int     @default(0) @map("sort_order")
+  isActive       Boolean @default(true) @map("is_active")
+
+  module     Module      @relation(fields: [moduleCode], references: [code], onDelete: Cascade)
+  permission Permission? @relation(fields: [permissionCode], references: [code])
+  parent     Menu?       @relation("MenuTree", fields: [parentId], references: [id])
+  children   Menu[]      @relation("MenuTree")
+
+  @@index([parentId])
+  @@index([moduleCode])
+  @@map("menus")
+  @@schema("iam")
+}
+
+model Role {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  code        String
+  name        String
+  description String?
+  /// Peran sistem dibuat saat provisioning dan tidak dapat dihapus tenant.
+  isSystem    Boolean @default(false) @map("is_system")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenantRef   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@unique([tenantId, code])
+  @@map("roles")
+  @@schema("iam")
+}
+
+model RolePermission {
+  tenantId       String @map("tenant_id") @db.Uuid
+  roleId         String @map("role_id") @db.Uuid
+  permissionCode String @map("permission_code")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Cascade)
+
+  @@id([roleId, permissionCode])
+  @@index([tenantId])
+  @@map("role_permissions")
+  @@schema("iam")
+}
+
+model UserRole {
+  tenantId String @map("tenant_id") @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  roleId   String @map("role_id") @db.Uuid
+
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  assignedBy String?  @map("assigned_by") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([tenantId])
+  @@map("user_roles")
+  @@schema("iam")
+}
+
+/// Hak akses khusus per pengguna, di luar perannya (PLAN/05 §4).
+///
+/// DENY selalu menang atas GRANT dan atas peran. Grant kedaluwarsa diabaikan saat
+/// resolusi, bukan dihapus — jejaknya tetap ada untuk access review.
+model UserPermissionGrant {
+  id             String      @id @default(uuid()) @db.Uuid
+  tenantId       String      @map("tenant_id") @db.Uuid
+  userId         String      @map("user_id") @db.Uuid
+  permissionCode String      @map("permission_code")
+  effect         GrantEffect
+
+  /// Wajib diisi. Grant tanpa alasan tidak dapat ditinjau ulang enam bulan kemudian.
+  reason    String
+  grantedBy String    @map("granted_by") @db.Uuid
+  expiresAt DateTime? @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Cascade)
+
+  @@unique([userId, permissionCode])
+  @@index([tenantId])
+  @@index([expiresAt])
+  @@map("user_permission_grants")
+  @@schema("iam")
+}
+
+/// Penanda versi untuk cache akses efektif (PLAN/05 §5.1).
+///
+/// Setiap perubahan peran/grant menaikkan versi dalam transaksi yang sama.
+/// Klien cache membandingkan versi, bukan menunggu TTL — sehingga pencabutan
+/// akses berlaku seketika, bukan 60 detik kemudian.
+model AccessVersion {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @id @map("user_id") @db.Uuid
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("access_versions")
+  @@schema("iam")
+}
+
+// =============================================================================
+// SCHEMA: audit — jejak append-only (P5)
+// =============================================================================
+
+/// Append-only. Tidak ada UPDATE maupun DELETE — ditegakkan trigger di migrasi,
+/// bukan kesepakatan. Retensi 7 tahun (PLAN/00 §4).
+model AuditLog {
+  id       BigInt @id @default(autoincrement())
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Null untuk aksi sistem (job terjadwal, konsumer event).
+  actorUserId String? @map("actor_user_id") @db.Uuid
+  action      String
+  entityType  String  @map("entity_type")
+  entityId    String? @map("entity_id")
+
+  /// Hanya kolom yang berubah, bukan seluruh baris.
+  before Json?
+  after  Json?
+
+  ip            String?
+  userAgent     String? @map("user_agent")
+  correlationId String? @map("correlation_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, actorUserId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+  @@schema("audit")
+}
+
+// =============================================================================
+// SCHEMA: messaging — transactional outbox (PLAN/03 §1.3)
+// =============================================================================
+
+/// Event ditulis ke tabel ini DALAM transaksi bisnis yang sama, lalu dipublikasikan
+/// terpisah oleh worker. Ini yang membuat "data berubah tetapi event hilang" mustahil.
+///
+/// Bentuknya sengaja identik dengan versi terdistribusi: saat modul dipecah menjadi
+/// service, yang berubah hanya tujuan publikasinya (PLAN/12 §9).
+model OutboxMessage {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  topic   String
+  payload Json
+
+  correlationId String? @map("correlation_id")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  publishedAt DateTime? @map("published_at")
+  attempts    Int       @default(0)
+  lastError   String?   @map("last_error")
+
+  @@index([publishedAt, createdAt])
+  @@index([tenantId, topic])
+  @@map("outbox_messages")
+  @@schema("messaging")
+}
+
+// =============================================================================
+// SCHEMA: platform — control plane (PLAN/07)
+// =============================================================================
+
+/// Superuser adalah entitas di bidang berbeda, bukan pengguna dengan izin lebih
+/// banyak (P11). Tabel ini sengaja tidak punya `tenantId` dan tidak boleh berisi
+/// satu pun data pribadi karyawan tenant.
+///
+/// MFA wajib: constraint di migrasi menolak baris aktif tanpa `totpSecret`.
+model Superuser {
+  id           String  @id @default(uuid()) @db.Uuid
+  email        String  @unique
+  passwordHash String  @map("password_hash")
+  fullName     String  @map("full_name")
+  totpSecret   String? @map("totp_secret")
+  isActive     Boolean @default(false) @map("is_active")
+
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("superusers")
+  @@schema("platform")
+}
+
+/// Jejak aksi superuser. Terpisah total dari `audit.audit_logs` milik tenant.
+///
+/// Dipisah karena pelakunya bukan pengguna tenant: mencampurnya akan membuat
+/// audit tenant memuat aktor yang tidak dapat mereka kenali, sekaligus memberi
+/// tenant jendela ke operasi internal platform.
+///
+/// `detail` tidak boleh berisi data pribadi karyawan tenant — hanya identifier
+/// dan metadata. Sama seperti seluruh schema ini (PLAN/07 §2).
+model PlatformAuditLog {
+  id          BigInt   @id @default(autoincrement())
+  superuserId String   @map("superuser_id") @db.Uuid
+  action      String
+  targetType  String   @map("target_type")
+  targetId    String?  @map("target_id")
+  detail      Json?
+  ip          String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([superuserId, createdAt(sort: Desc)])
+  @@index([targetType, targetId])
+  @@map("platform_audit_logs")
+  @@schema("platform")
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@hrms/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tenant": "./src/tenant/index.ts",
+    "./iam": "./src/iam/index.ts",
+    "./auth": "./src/auth/index.ts",
+    "./platform": "./src/platform/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@hrms/contracts": "workspace:*",
+    "@hrms/db": "workspace:*",
+    "@node-rs/argon2": "^2.0.2",
+    "jose": "^6.2.9",
+    "zod": "^4.4.3",
+    "otplib": "^13.4.1"
+  }
+}

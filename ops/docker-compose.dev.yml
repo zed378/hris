@@ -1,0 +1,23 @@
+name: hrms-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hrms-postgres
+    environment:
+      POSTGRES_USER: hrms_owner
+      POSTGRES_PASSWORD: hrms_dev_password
+      POSTGRES_DB: hrms
+    ports:
+      - '5433:5432'
+    volumes:
+      - hrms-pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hrms_owner -d hrms']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  hrms-pgdata:

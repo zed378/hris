@@ -1,0 +1,36 @@
+{
+  "name": "hrms",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "eslint packages apps",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:up": "docker compose -f ops/docker-compose.dev.yml up -d",
+    "db:down": "docker compose -f ops/docker-compose.dev.yml down",
+    "db:migrate": "pnpm --filter @hrms/db migrate",
+    "db:seed": "pnpm --filter @hrms/db seed",
+    "db:reset": "pnpm --filter @hrms/db reset",
+    "lint:migrations": "node ops/scripts/lint-migrations.mjs",
+    "verify": "pnpm lint:migrations && pnpm lint && turbo run typecheck test build",
+    "dev:totp": "node ops/scripts/dev-totp.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.10.1",
+    "eslint": "^10.8.1",
+    "eslint-plugin-boundaries": "^7.2.0",
+    "turbo": "^2.10.10",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.10",
+    "otplib": "^13.4.1"
+  },
+  "type": "module"
+}

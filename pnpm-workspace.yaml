@@ -1,0 +1,11 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Hanya paket di bawah ini yang boleh menjalankan skrip saat instalasi. Sisanya
+# diblokir secara default — pagar rantai pasok yang murah untuk tim tanpa
+# security engineer (PLAN/12 §3.4). Menambah baris di sini adalah keputusan sadar.
+allowBuilds:
+  prisma: true
+  '@prisma/engines': true
+  '@prisma/client': true
