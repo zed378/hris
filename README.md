@@ -7,7 +7,7 @@ Cetak biru lengkap ada di [`PLAN/`](PLAN/). Yang paling menentukan sehari-hari:
 **[`PLAN/12-Rencana-Eksekusi-Tim-Kecil.md`](PLAN/12-Rencana-Eksekusi-Tim-Kecil.md)** —
 fase, gerbang, dan alasan setiap keputusan arsitektur.
 
-**Status: Fase 1 (Platform Inti), lapisan backend.**
+**Status: Fase 1 (Platform Inti) selesai — backend dan UI shell.**
 
 ---
 
@@ -43,6 +43,32 @@ curl -X POST localhost:3000/api/auth/login -H 'content-type: application/json' \
 pnpm dev:totp <rahasia-base32>
 ```
 
+## Menjalankan sebagai kontainer
+
+Untuk pengembangan sehari-hari, cara di atas lebih baik — hot reload jauh lebih
+cepat daripada membangun ulang image. Tumpukan penuh dipakai saat memeriksa
+masalah yang hanya muncul di image, atau saat deploy.
+
+```bash
+cp ops/.env.compose.example ops/.env      # ganti kedua JWT secret sebelum produksi
+docker compose -f ops/docker-compose.yml --env-file ops/.env up --build
+```
+
+Tiga kontainer, dan tidak lebih:
+
+| Kontainer | Peran | Terbuka ke luar |
+|---|---|---|
+| `postgres` | Data, antrean pekerjaan (pg-boss), kunci terdistribusi (advisory lock) | port 5433 (dev) |
+| `web` | **Frontend** — UI dan seluruh REST API (`/api`, `/admin/api`) | port 3000 |
+| `worker` | **Backend** — pompa outbox, nanti payroll & impor Excel | tidak sama sekali |
+
+PostgreSQL merangkap tiga peran, dan itu yang membuat tumpukan ini dapat
+dioperasikan satu orang: tidak ada RabbitMQ dan tidak ada Redis yang perlu
+dijaga hidup (PLAN/12 §3.2).
+
+Layanan `migrate` berjalan sekali sampai selesai sebelum `web` dan `worker`
+dimulai, dan ia satu-satunya yang memakai kredensial owner.
+
 ## Verifikasi
 
 ```bash
@@ -56,13 +82,13 @@ pnpm verify        # linter migrasi + lint batas modul + typecheck + test + buil
 ## Susunan
 
 ```
-apps/web         Next.js — route handler API bidang tenant (/api) dan
-                 control plane (/admin/api). UI menyusul di Fase 2.
+apps/web         Next.js — UI shell dan route handler API bidang tenant (/api)
+                 serta control plane (/admin/api)
 apps/worker      Proses latar — pompa outbox, pg-boss
 packages/core    Modul domain: tenant, iam, auth
 packages/db      Prisma, migrasi, konteks tenant, audit, outbox
 packages/contracts  Skema Zod: API, token, event
-ops/             docker-compose, linter migrasi
+ops/             docker-compose, Dockerfile web & worker, linter migrasi
 ```
 
 ### Empat aturan yang membuat ini bukan sekadar monolit
@@ -113,6 +139,48 @@ transaksi mengembalikan *outcome*, pemanggil yang melempar.
 Ini bukan kehalusan gaya. Versi pertama melanggarnya, dan hasilnya: sepuluh
 percobaan kata sandi salah meninggalkan `failed_login_attempts = 0`. Kunci akun
 ada di kode, lulus review, dan tidak melakukan apa pun.
+
+### Token tidak pernah menyentuh penyimpanan yang bertahan
+
+Access token hidup **hanya di memori JavaScript**. Refresh token hidup **hanya
+sebagai cookie httpOnly** — tidak dikembalikan di body login, sehingga skrip di
+halaman tidak pernah memegangnya (PLAN/11 §5.3).
+
+Konsekuensinya: muat ulang halaman menghilangkan access token, lalu aplikasi
+menukar cookie dengan yang baru saat dimuat. Yang dapat dicuri lewat XSS hanya
+token berumur 15 menit.
+
+Klien non-browser (skrip, uji) harus ikut memakai cookie jar — `curl -c/-b`.
+
+> `COOKIE_SECURE` sengaja tidak diturunkan dari `NODE_ENV`. `next start`
+> menyetel NODE_ENV ke production, sehingga menguji build produksi lewat HTTP
+> di mesin sendiri akan selalu mematahkan sesi — browser membuang cookie
+> `Secure` pada koneksi polos di setiap hostname kecuali localhost, tanpa satu
+> pun galat di sisi server. Defaultnya tetap aman; matikan hanya untuk uji lokal.
+
+### Menu berasal dari basis data, bukan dari kode frontend
+
+Sidebar dirender sepenuhnya dari `/api/me/bootstrap`. Mengaktifkan modul di
+control plane langsung mengubah navigasi tenant tanpa deploy.
+
+Karena menu memuat rute Fase 2–5 yang halamannya belum ada, `prefetch`
+dimatikan pada tautan menu — tanpa itu, satu kali muat beranda memicu 13
+request yang semuanya 404, dan konsol yang penuh akan menenggelamkan error
+sungguhan berikutnya. Dilepas kembali ketika halamannya ada.
+
+### Bedakan sesi yang dicabut dari token yang dicuri
+
+Refresh token yang **sudah digantikan** lalu muncul lagi berarti dua pihak
+memegang token yang sama — itu indikasi pencurian, dicatat sebagai insiden, dan
+seluruh keluarga token dicabut.
+
+Refresh token yang **dicabut** hanya berarti sesinya diakhiri secara sah: logout,
+reset kata sandi, atau pembersihan setelah insiden. Keduanya menghasilkan 401 dan
+pengguna harus masuk lagi, tetapi hanya yang pertama yang boleh membunyikan alarm.
+
+Versi pertama menyatukan keduanya, dan akibatnya setiap orang yang lupa kata
+sandi memicu `auth.token.reuse_detected`. Alarm yang sering salah adalah alarm
+yang akan diabaikan saat berbunyi benar.
 
 ### Migrasi hanya aditif
 
@@ -182,11 +250,19 @@ Uji CI memeriksa keduanya ke dua arah — handler admin yang memakai guard tenan
 - Pendaftaran tenant mandiri — satu transaksi ACID, tanpa saga dan tanpa kompensasi
 - Control plane `/admin/api`: login superuser (kata sandi + TOTP), daftar tenant,
   ringkasan platform, aktivasi/penonaktifan modul, jejak audit terpisah
+- Undangan pengguna & reset kata sandi lewat token sekali pakai; reset mencabut
+  seluruh sesi berjalan
+- Pengelolaan peran dan hak akses khusus per pengguna — versi akses naik di
+  transaksi yang sama, sehingga pencabutan berlaku seketika
+- UI shell: halaman masuk, sidebar dinamis dari bootstrap, penjagaan rute,
+  halaman modul terkunci — sesi bertahan lintas muat ulang tanpa token pernah
+  disimpan JavaScript
 
 ## Yang belum
 
-UI (Fase 2), modul karyawan/presensi/cuti/payroll, reset kata sandi, undangan
-pengguna, endpoint pengelolaan peran & grant, support session (PLAN/07 §6).
+Modul karyawan/presensi/cuti/payroll (Fase 2+), pengiriman email sungguhan
+(event `auth.password.reset_requested` dan `iam.user.invited` sudah terbit ke
+outbox, konsumernya belum ada), support session (PLAN/07 §6).
 
 Sampai support session dibangun, jawaban atas "bagaimana tim dukungan melihat
 data pelanggan?" adalah **tidak bisa** — bukan pintu belakang sementara.

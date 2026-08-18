@@ -8,3 +8,10 @@ export {
   TENANT_AUDIENCE,
   ADMIN_AUDIENCE,
 } from './tokens.ts';
+export {
+  requestPasswordReset,
+  completePasswordReset,
+  acceptInvitation,
+  ActionTokenError,
+} from './password-reset.ts';
+export { issueActionToken, hashActionToken } from './action-tokens.ts';

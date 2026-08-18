@@ -18,7 +18,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["tenant", "auth", "iam", "audit", "messaging", "platform"]
+  schemas  = ["tenant", "auth", "iam", "audit", "messaging", "platform", "employee"]
 }
 
 // =============================================================================
@@ -179,6 +179,7 @@ model User {
 
   tenantRef     Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
+  actionTokens  ActionToken[]
   roles         UserRole[]
   grants        UserPermissionGrant[]
   accessVersion AccessVersion?
@@ -486,4 +487,373 @@ model PlatformAuditLog {
   @@index([targetType, targetId])
   @@map("platform_audit_logs")
   @@schema("platform")
+}
+
+enum ActionTokenPurpose {
+  PASSWORD_RESET
+  INVITATION
+
+  @@schema("auth")
+}
+
+/// Token sekali pakai untuk reset kata sandi dan undangan pengguna.
+///
+/// Satu tabel untuk dua keperluan, bukan dua tabel yang 90% identik. Bentuknya
+/// memang sama persis — token acak, satu pengguna, masa berlaku, sekali pakai —
+/// dan alasan yang sama dipakai dokumen `08` §5.1 untuk menyatukan reimbursement
+/// dengan SPPD ke dalam satu service.
+///
+/// Yang berbeda hanya masa berlakunya, dan itu parameter, bukan tabel baru.
+model ActionToken {
+  id        String             @id @default(uuid()) @db.Uuid
+  tenantId  String             @map("tenant_id") @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  purpose   ActionTokenPurpose
+  /// SHA-256. Token mentah hanya pernah ada di email penerimanya.
+  tokenHash String             @unique @map("token_hash")
+
+  expiresAt DateTime  @map("expires_at")
+  /// Diisi saat dipakai. Token yang sudah terpakai tidak pernah dihapus —
+  /// jejaknya dibutuhkan saat menyelidiki pengambilalihan akun.
+  usedAt    DateTime? @map("used_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  ip        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, purpose])
+  @@index([expiresAt])
+  @@map("action_tokens")
+  @@schema("auth")
+}
+
+// =============================================================================
+// SCHEMA: employee — data karyawan (Fase 2)
+// =============================================================================
+
+enum EmployeeStatus {
+  PROBATION
+  ACTIVE
+  RESIGNED
+  TERMINATED
+
+  @@schema("employee")
+}
+
+enum EmploymentType {
+  PKWTT // tetap
+  PKWT  // kontrak berjangka
+  MAGANG
+  HARIAN
+  BORONGAN
+
+  @@schema("employee")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+
+  @@schema("employee")
+}
+
+/// Struktur organisasi sebagai jalur termaterialisasi.
+///
+/// `path` menyimpan garis keturunan lengkap ("/ops/hr/recruit"), sehingga
+/// "seluruh bawahan departemen X" menjadi satu `LIKE 'X/%'` alih-alih rekursi.
+/// Cetak biru menyebut `ltree`; jalur termaterialisasi memberi manfaat yang sama
+/// tanpa ekstensi PostgreSQL dan tanpa tipe yang tidak dikenal Prisma.
+model Department {
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  code     String
+  name     String
+  parentId String? @map("parent_id") @db.Uuid
+  path     String
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  parent      Department?  @relation("DepartmentTree", fields: [parentId], references: [id])
+  children    Department[] @relation("DepartmentTree")
+  employments Employment[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, path])
+  @@map("departments")
+  @@schema("employee")
+}
+
+model Position {
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  code     String
+  name     String
+  /// Jenjang untuk pelaporan dan matriks persetujuan. Kecil = lebih senior.
+  level    Int     @default(0)
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  employments Employment[]
+
+  @@unique([tenantId, code])
+  @@map("positions")
+  @@schema("employee")
+}
+
+/// Data karyawan.
+///
+/// Tiga kolom disimpan terenkripsi: NIK KTP, NPWP, dan nomor rekening. Ketiganya
+/// cukup untuk membuka pinjaman atas nama seseorang, dan basis data yang bocor
+/// tidak boleh menyerahkannya begitu saja (UU PDP No. 27/2022).
+///
+/// Setiap kolom terenkripsi berpasangan dengan indeks buta — HMAC dari nilai yang
+/// dinormalkan. Itu yang membuat keunikan NIK tetap dapat ditegakkan basis data
+/// dan pencarian "cari NIK ini" tetap mungkin, tanpa pernah mendekripsi apa pun.
+model Employee {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Nomor induk yang diberikan perusahaan. Bukan NIK KTP.
+  employeeNumber String @map("employee_number")
+  fullName       String @map("full_name")
+
+  nationalIdEncrypted String? @map("national_id_encrypted")
+  nationalIdIndex     String? @map("national_id_index")
+  taxIdEncrypted      String? @map("tax_id_encrypted")
+  taxIdIndex          String? @map("tax_id_index")
+  bankAccountEncrypted String? @map("bank_account_encrypted")
+
+  /// Versi tersamar, dihitung sekali saat menulis dan disimpan apa adanya.
+  ///
+  /// Ada supaya tampilan bagi pembaca tanpa izin `employee.pii.unmask` tidak
+  /// perlu mendekripsi apa pun. Menyamarkan hasil dekripsi terdengar setara,
+  /// tetapi berarti nilai lengkapnya pernah berada di memori proses — dan dari
+  /// sana ia ikut masuk ke log galat, dump heap, atau jejak APM pertama yang
+  /// menangkapnya. Daftar karyawan juga jalur terpanas di modul ini; tidak
+  /// mendekripsi 500 baris untuk menampilkan bintang adalah keuntungan gratis.
+  nationalIdMasked  String? @map("national_id_masked")
+  taxIdMasked       String? @map("tax_id_masked")
+  bankAccountMasked String? @map("bank_account_masked")
+  bankName             String? @map("bank_name")
+  bankAccountHolder    String? @map("bank_account_holder")
+
+  email       String?
+  phone       String?
+  birthDate   DateTime? @map("birth_date") @db.Date
+  birthPlace  String?   @map("birth_place")
+  gender      Gender?
+  address     String?
+
+  joinDate   DateTime  @map("join_date") @db.Date
+  resignDate DateTime? @map("resign_date") @db.Date
+  status     EmployeeStatus @default(ACTIVE)
+
+  /// Optimistic locking. Dua HR yang menyunting karyawan yang sama tidak boleh
+  /// saling menimpa tanpa ada yang tahu (dok. 03 §4.6).
+  version Int @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  employments Employment[]
+  contracts   EmployeeContract[]
+
+  @@unique([tenantId, employeeNumber])
+  @@unique([tenantId, nationalIdIndex])
+  @@index([tenantId, status])
+  @@index([tenantId, fullName])
+  @@map("employees")
+  @@schema("employee")
+}
+
+/// Penempatan berbasis periode: siapa di departemen dan jabatan apa, sejak kapan.
+///
+/// Riwayat tidak pernah ditimpa (P13). Mutasi menutup baris berjalan dengan
+/// `effectiveTo` dan membuka baris baru — sehingga pertanyaan "siapa kepala
+/// departemen ini bulan Maret lalu" tetap dapat dijawab tahun depan.
+model Employment {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  employeeId String @map("employee_id") @db.Uuid
+
+  departmentId String @map("department_id") @db.Uuid
+  positionId   String @map("position_id") @db.Uuid
+  type         EmploymentType
+
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  /// Null berarti masih berjalan. Tepat satu baris per karyawan boleh null —
+  /// ditegakkan indeks unik parsial di migrasi.
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+
+  /// Atasan langsung pada periode ini. Referensi lunak ke employee.
+  managerId String? @map("manager_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id])
+  position   Position   @relation(fields: [positionId], references: [id])
+
+  @@index([tenantId, employeeId, effectiveFrom])
+  @@index([tenantId, departmentId])
+  @@map("employments")
+  @@schema("employee")
+}
+
+/// Kontrak kerja.
+///
+/// `endDate` pada PKWT adalah alasan modul ini ditarik maju ke Fase 2: satu PKWT
+/// yang lolos tanpa diperpanjang berubah menjadi PKWTT demi hukum, dan kerugiannya
+/// permanen serta melebihi biaya langganan setahun (dokumen 08, A5).
+model EmployeeContract {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  employeeId String @map("employee_id") @db.Uuid
+
+  contractNumber String         @map("contract_number")
+  type           EmploymentType
+  startDate      DateTime       @map("start_date") @db.Date
+  /// Null hanya sah untuk PKWTT — ditegakkan CHECK di migrasi.
+  endDate        DateTime?      @map("end_date") @db.Date
+
+  fileId String? @map("file_id")
+  notes  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  employee  Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reminders ContractReminder[]
+
+  @@unique([tenantId, contractNumber])
+  @@index([tenantId, endDate])
+  @@index([tenantId, employeeId, startDate])
+  @@map("employee_contracts")
+  @@schema("employee")
+}
+
+enum ImportStatus {
+  PREVIEW
+  COMMITTED
+  DISCARDED
+
+  @@schema("employee")
+}
+
+enum ImportRowStatus {
+  VALID
+  ERROR
+  COMMITTED
+
+  @@schema("employee")
+}
+
+/// Satu unggahan berkas impor.
+///
+/// Impor selalu dua langkah: unggah lalu tinjau, baru simpan. Langkah pratinjau
+/// bukan kenyamanan — ia satu-satunya cara membuat impor dapat dibatalkan.
+/// Berkas Excel milik pelanggan hampir tidak pernah bersih pada percobaan pertama,
+/// dan impor sekali jalan yang setengah berhasil meninggalkan basis data dalam
+/// keadaan yang tidak diinginkan siapa pun serta sulit dikembalikan.
+model ImportJob {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Jenis data yang diimpor. Untuk sekarang hanya "employee".
+  kind     String
+  fileName String @map("file_name")
+  status   ImportStatus @default(PREVIEW)
+
+  totalRows     Int @default(0) @map("total_rows")
+  validRows     Int @default(0) @map("valid_rows")
+  errorRows     Int @default(0) @map("error_rows")
+  committedRows Int @default(0) @map("committed_rows")
+
+  createdBy   String    @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  committedAt DateTime? @map("committed_at")
+
+  rows ImportRow[]
+
+  @@index([tenantId, status, createdAt])
+  @@map("import_jobs")
+  @@schema("employee")
+}
+
+/// Satu baris dari berkas yang diunggah, beserta hasil validasinya.
+///
+/// Baris disimpan apa adanya dalam `raw` DAN dalam bentuk yang sudah dinormalkan
+/// di `parsed`. Yang pertama supaya pesan galat dapat menunjuk persis apa yang
+/// diketik pengguna di selnya; yang kedua supaya penyimpanan tidak perlu mengurai
+/// ulang.
+///
+/// Baris bergalat tidak dibuang. Pengguna memperbaikinya di Excel lalu mengunggah
+/// ulang, dan riwayat percobaan sebelumnya adalah yang menjelaskan mengapa jumlah
+/// karyawan tidak cocok dengan jumlah baris berkas.
+model ImportRow {
+  id        BigInt @id @default(autoincrement())
+  tenantId  String @map("tenant_id") @db.Uuid
+  jobId     String @map("job_id") @db.Uuid
+  /// Nomor baris di berkas asli, termasuk baris judul. Dipakai di pesan galat.
+  rowNumber Int    @map("row_number")
+
+  raw    Json
+  parsed Json?
+  errors Json?
+
+  status ImportRowStatus @default(VALID)
+
+  job ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, rowNumber])
+  @@index([tenantId, jobId, status])
+  @@map("import_rows")
+  @@schema("employee")
+}
+
+/// Ambang pengingat berakhirnya kontrak.
+///
+/// Tiga ambang, bukan satu. H-90 memberi ruang untuk memutuskan (perpanjang,
+/// angkat tetap, atau lepas) dan menegosiasikannya. H-30 untuk menyiapkan
+/// dokumennya. H-7 adalah peringatan terakhir sebelum PKWT berubah menjadi
+/// PKWTT demi hukum — dan perubahan itu tidak dapat dibatalkan.
+enum ReminderThreshold {
+  D90
+  D30
+  D7
+  EXPIRED
+
+  @@schema("employee")
+}
+
+/// Catatan pengingat yang sudah dikirim.
+///
+/// Seluruh gunanya ada pada satu constraint: `@@unique([contractId, threshold])`.
+/// Job pengingat berjalan setiap hari dan memindai rentang tanggal, bukan tanggal
+/// persis — sebuah kontrak yang berakhir 90 hari lagi akan tetap masuk pindaian
+/// besok dan lusa. Tanpa constraint ini, HR menerima pengingat yang sama setiap
+/// hari selama tiga bulan, lalu berhenti membacanya sama sekali.
+///
+/// Barisnya juga yang menjawab "kenapa saya tidak pernah diberi tahu" saat sebuah
+/// PKWT terlanjur lewat.
+model ContractReminder {
+  id         String            @id @default(uuid()) @db.Uuid
+  tenantId   String            @map("tenant_id") @db.Uuid
+  contractId String            @map("contract_id") @db.Uuid
+  threshold  ReminderThreshold
+
+  sentAt DateTime @default(now()) @map("sent_at")
+
+  contract EmployeeContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, threshold])
+  @@index([tenantId, sentAt])
+  @@map("contract_reminders")
+  @@schema("employee")
 }

@@ -61,6 +61,57 @@ export const ROUTE_MANIFEST = {
     rateLimit: { windowSeconds: 3600, max: 5 },
   },
 
+  // --- Reset kata sandi & undangan ----------------------------------------------
+  // Ketiganya publik karena pemakainya, menurut definisi, belum dapat login.
+  // Batas lajunya ketat: `forgot` mengirim email atas nama kita, dan endpoint
+  // pengirim email tanpa batas adalah alat spam yang merusak reputasi domain.
+  'POST /api/auth/password/forgot': {
+    module: 'core',
+    permission: null,
+    public: true,
+    rateLimit: { windowSeconds: 900, max: 10 },
+  },
+  'POST /api/auth/password/reset': {
+    module: 'core',
+    permission: null,
+    public: true,
+    rateLimit: { windowSeconds: 900, max: 20 },
+  },
+  'POST /api/auth/invitation/accept': {
+    module: 'core',
+    permission: null,
+    public: true,
+    rateLimit: { windowSeconds: 900, max: 20 },
+  },
+
+  // --- Pengguna, peran, dan hak akses khusus (PLAN/05 §7) ------------------------
+  // Modul `iam` bersifat CORE, sehingga endpoint ini tidak pernah tertutup oleh
+  // langganan — sebuah tenant harus selalu dapat mengelola penggunanya sendiri,
+  // apa pun paketnya.
+  'GET /api/users': { module: 'iam', permission: 'iam.user.read' },
+  'POST /api/users': { module: 'iam', permission: 'iam.user.create' },
+  'PUT /api/users/[id]/grants': { module: 'iam', permission: 'iam.grant.manage' },
+  'DELETE /api/users/[id]/grants': { module: 'iam', permission: 'iam.grant.manage' },
+  'GET /api/roles': { module: 'iam', permission: 'iam.role.read' },
+  'PUT /api/roles/[id]/permissions': { module: 'iam', permission: 'iam.role.manage' },
+
+  // --- Karyawan (Fase 2) --------------------------------------------------------
+  // Modul `employee` bertier BASIC, sehingga endpoint ini menolak dengan 402 pada
+  // tenant yang paketnya tidak mencakupnya — bahkan bagi TENANT_OWNER (P8).
+  'GET /api/employees': { module: 'employee', permission: 'employee.employee.read.all' },
+  'POST /api/employees': { module: 'employee', permission: 'employee.employee.create' },
+  'GET /api/employees/[id]': { module: 'employee', permission: 'employee.employee.read.all' },
+  'PATCH /api/employees/[id]': { module: 'employee', permission: 'employee.employee.update' },
+
+  // Impor Excel — jalur migrasi dari produk referensi, dan inti Gerbang A.
+  // Templat memakai permission ekspor, bukan impor: mengunduh contoh kolom
+  // adalah langkah pertama sebelum seseorang memutuskan akan mengimpor.
+  'GET /api/employees/template': { module: 'employee', permission: 'employee.export.execute' },
+  'GET /api/employees/export': { module: 'employee', permission: 'employee.export.execute' },
+  'POST /api/employees/import': { module: 'employee', permission: 'employee.import.execute' },
+  'GET /api/employees/import/[id]': { module: 'employee', permission: 'employee.import.execute' },
+  'POST /api/employees/import/[id]/commit': { module: 'employee', permission: 'employee.import.execute' },
+
   // --- Bootstrap ----------------------------------------------------------------
   // Tidak memerlukan permission: setiap pengguna terautentikasi berhak tahu apa
   // yang boleh ia lihat. Isinya sendiri sudah tersaring akses efektif.

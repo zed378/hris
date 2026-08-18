@@ -8,3 +8,6 @@ dist/
 !.env.example
 coverage/
 generated/
+
+# Konfigurasi compose berisi kredensial. Contohnya ada di ops/.env.compose.example
+ops/.env

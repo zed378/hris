@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: oklch(0.97 0.02 250);
+  --color-brand-100: oklch(0.93 0.04 250);
+  --color-brand-500: oklch(0.55 0.16 250);
+  --color-brand-600: oklch(0.48 0.16 250);
+  --color-brand-700: oklch(0.41 0.14 250);
+}
+
+/* Tema gelap mengikuti preferensi sistem. Aplikasi HR banyak dipakai sepanjang
+   hari kerja; memaksa satu tema adalah keputusan yang tidak perlu diambil. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+
+html,
+body {
+  height: 100%;
+}

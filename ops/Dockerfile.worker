@@ -40,9 +40,14 @@ WORKDIR /repo
 
 ENV NODE_ENV=production
 
-COPY --from=deps /repo/node_modules              ./node_modules
-COPY --from=deps /repo/packages/db/node_modules  ./packages/db/node_modules
-COPY --from=deps /repo/apps/worker/node_modules  ./apps/worker/node_modules
+# Seluruh pohon dependensi disalin sekaligus, bukan per paket.
+#
+# Versi pertama menyalin tiga direktori node_modules yang disebut satu per satu
+# dan melewatkan `packages/contracts` — kegagalannya baru muncul saat kontainer
+# berjalan, berupa "Cannot find package 'zod'". Menyebut daftar direktori berarti
+# daftar itu harus diperbarui setiap kali ada paket workspace baru, dan yang lupa
+# memperbaruinya adalah masa depan.
+COPY --from=deps /repo ./
 
 COPY package.json pnpm-workspace.yaml ./
 COPY packages/contracts  ./packages/contracts

@@ -271,7 +271,9 @@ type RefreshOutcome =
   | { kind: 'invalid' }
   | { kind: 'expired' }
   | { kind: 'tenant_suspended' }
-  /** Token yang sudah digantikan atau dicabut dipakai lagi — indikasi pencurian. */
+  /** Sesi dicabut secara sah: logout, reset kata sandi, atau tindak lanjut insiden. */
+  | { kind: 'revoked' }
+  /** Token yang SUDAH DIGANTIKAN dipakai lagi — indikasi pencurian. */
   | { kind: 'reuse'; familyId: string; userId: string };
 
 /**
@@ -321,8 +323,22 @@ export async function refresh(rawToken: string, ctx: LoginContext = {}): Promise
 
     if (!stored) return { kind: 'invalid' };
 
-    if (stored.replacedByTokenId !== null || stored.revokedAt !== null) {
+    // Dua keadaan yang mudah disatukan, dan tidak boleh.
+    //
+    // Token yang sudah DIGANTIKAN lalu muncul lagi berarti ada dua pihak
+    // memegang token yang sama — itu indikasi pencurian, dan pantas dicatat
+    // sebagai insiden.
+    //
+    // Token yang DICABUT hanya berarti sesinya diakhiri secara sah: logout,
+    // reset kata sandi, atau pembersihan setelah insiden sebelumnya. Menandainya
+    // sebagai pencurian membuat setiap orang yang lupa kata sandi memicu alarm
+    // keamanan — dan alarm yang sering salah adalah alarm yang akan diabaikan
+    // saat berbunyi benar.
+    if (stored.replacedByTokenId !== null) {
       return { kind: 'reuse', familyId: stored.familyId, userId: stored.userId };
+    }
+    if (stored.revokedAt !== null) {
+      return { kind: 'revoked' };
     }
 
     if (stored.expiresAt <= new Date() || stored.user.status !== 'ACTIVE') {
@@ -404,6 +420,12 @@ export async function refresh(rawToken: string, ctx: LoginContext = {}): Promise
 
     case 'tenant_suspended':
       throw new AuthError(ErrorCode.TENANT_SUSPENDED, 'Akun perusahaan sedang tidak aktif');
+
+    case 'revoked':
+      throw new AuthError(
+        ErrorCode.TOKEN_EXPIRED,
+        'Sesi Anda telah berakhir. Silakan masuk kembali.',
+      );
 
     case 'expired':
       throw new AuthError(ErrorCode.TOKEN_EXPIRED, 'Refresh token kedaluwarsa');

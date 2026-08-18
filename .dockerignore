@@ -1,0 +1,37 @@
+# Tanpa berkas ini, `COPY . .` menyalin node_modules milik host ke atas hasil
+# instalasi di dalam image. pnpm kemudian melihat pohon dependensi yang tidak
+# konsisten dan menolak melanjutkan — gejalanya berupa
+# ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY, yang tidak menyebut penyebabnya
+# sama sekali.
+#
+# Selain memperbaiki itu, daftar ini memangkas konteks build dari ratusan MB
+# menjadi beberapa MB.
+
+node_modules
+**/node_modules
+
+# Artefak build. Dibangun ulang di dalam image; menyalin yang lama justru
+# berisiko menghasilkan image berisi kode basi.
+.next
+**/.next
+dist
+**/dist
+.turbo
+**/.turbo
+*.tsbuildinfo
+
+# Rahasia tidak pernah masuk image. Konfigurasi runtime datang dari environment.
+.env
+.env.*
+!.env.example
+
+.git
+.github
+coverage
+**/coverage
+
+# Dokumen dan berkas pengembangan yang tidak dibutuhkan runtime.
+PLAN
+README.md
+*.md
+!packages/**/*.md

@@ -7,18 +7,25 @@
     "./tenant": "./src/tenant/index.ts",
     "./iam": "./src/iam/index.ts",
     "./auth": "./src/auth/index.ts",
-    "./platform": "./src/platform/index.ts"
+    "./platform": "./src/platform/index.ts",
+    "./employee": "./src/employee/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@hrms/contracts": "workspace:*",
     "@hrms/db": "workspace:*",
     "@node-rs/argon2": "^2.0.2",
     "jose": "^6.2.9",
-    "zod": "^4.4.3",
-    "otplib": "^13.4.1"
+    "otplib": "^13.4.1",
+    "read-excel-file": "^9.3.10",
+    "write-excel-file": "^4.1.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2",
+    "vitest": "^4.1.10"
   }
 }

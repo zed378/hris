@@ -1,0 +1,4 @@
+# Aplikasi tenant adalah perangkat lunak internal berbasis login. Tidak ada
+# halaman yang layak diindeks, dan URL-nya tidak perlu muncul di hasil pencarian.
+User-agent: *
+Disallow: /

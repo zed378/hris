@@ -13,7 +13,12 @@ export interface RequestContext {
   userAgent: string | undefined;
 }
 
-export interface AuthenticatedContext extends RequestContext {
+export interface RouteParams {
+  /** Segmen dinamis dari URL, mis. `[id]` pada /api/roles/[id]/permissions. */
+  params: Record<string, string>;
+}
+
+export interface AuthenticatedContext extends RequestContext, RouteParams {
   tenantId: string;
   tenantCode: string;
   userId: string;
@@ -23,8 +28,18 @@ export interface AuthenticatedContext extends RequestContext {
   tx: TenantClient;
 }
 
-type PublicHandler = (req: Request, ctx: RequestContext) => Promise<Response>;
+type PublicHandler = (req: Request, ctx: RequestContext & RouteParams) => Promise<Response>;
 type AuthedHandler = (req: Request, ctx: AuthenticatedContext) => Promise<Response>;
+
+/**
+ * Argumen kedua yang diberikan Next kepada route handler.
+ *
+ * `params` berupa Promise sejak Next 15. Diselesaikan di sini sekali, supaya
+ * setiap handler menerima objek biasa dan tidak ada yang lupa menunggunya —
+ * `params.id` pada sebuah Promise bernilai `undefined`, bukan galat, sehingga
+ * kelalaian itu akan lolos diam-diam sampai ke produksi.
+ */
+type NextRouteContext = { params?: Promise<Record<string, string>> | Record<string, string> };
 
 function fail(
   status: number,
@@ -69,7 +84,7 @@ function contextFrom(req: Request): RequestContext {
 export function defineRoute(
   routeId: RouteId,
   handler: AuthedHandler,
-): (req: Request) => Promise<Response> {
+): (req: Request, nextCtx?: NextRouteContext) => Promise<Response> {
   return build(routeId, handler, false);
 }
 
@@ -84,7 +99,7 @@ export function defineRoute(
 export function definePublicRoute(
   routeId: RouteId,
   handler: PublicHandler,
-): (req: Request) => Promise<Response> {
+): (req: Request, nextCtx?: NextRouteContext) => Promise<Response> {
   return build(routeId, handler, true);
 }
 
@@ -92,7 +107,7 @@ function build(
   routeId: RouteId,
   handler: AuthedHandler | PublicHandler,
   declaredPublic: boolean,
-): (req: Request) => Promise<Response> {
+): (req: Request, nextCtx?: NextRouteContext) => Promise<Response> {
   const rule: RouteRule | undefined = ROUTE_MANIFEST[routeId];
 
   if (!rule) {
@@ -105,8 +120,9 @@ function build(
     );
   }
 
-  return async function route(req: Request): Promise<Response> {
+  return async function route(req: Request, nextCtx?: NextRouteContext): Promise<Response> {
     const ctx = contextFrom(req);
+    const params = (await nextCtx?.params) ?? {};
 
     if (rule.rateLimit) {
       const allowed = consumeRateLimit(
@@ -130,7 +146,7 @@ function build(
       // tanpa correlationId, dan dengan bentuk balasan yang berbeda dari seluruh
       // API lain. Ditemukan saat uji end-to-end pertama, bukan lewat penalaran.
       try {
-        return await (handler as PublicHandler)(req, ctx);
+        return await (handler as PublicHandler)(req, { ...ctx, params });
       } catch (error) {
         console.error({ correlationId: ctx.correlationId, routeId, error });
         return fail(500, ErrorCode.INTERNAL, 'Terjadi kesalahan pada sistem', ctx.correlationId);
@@ -192,6 +208,7 @@ function build(
 
         return (handler as AuthedHandler)(req, {
           ...ctx,
+          params,
           tenantId: claims.tid,
           tenantCode: claims.tenantCode,
           userId: claims.sub,

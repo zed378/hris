@@ -12,6 +12,24 @@
 # Yang TIDAK ada di image ini, dengan sengaja: pekerjaan berat. Impor Excel,
 # proses payroll, dan pembuatan PDF berjalan di image worker yang terpisah,
 # supaya satu payroll run tidak pernah menahan request pengguna (risiko N2).
+#
+# -----------------------------------------------------------------------------
+# Mengapa TIDAK memakai `output: 'standalone'`
+#
+# Standalone menghasilkan image jauh lebih kecil, dan itu jelas menggoda. Tetapi
+# penelusuran berkasnya tidak mengikuti rantai symlink pnpm sampai ke dependensi
+# tak langsung: `@swc/helpers` tidak ikut tersalin, dan kegagalannya baru muncul
+# saat kontainer dijalankan — bukan saat dibangun. Dicoba diperbaiki dengan
+# `node-linker=hoisted`, lewat variabel lingkungan lalu lewat .npmrc; keduanya
+# tetap meninggalkan jalur `.pnpm` di berkas hasil build.
+#
+# Yang dipakai sekarang meniru image worker: salin seluruh pohon dependensi,
+# jalankan `next start`. Image-nya lebih besar, tetapi ia bekerja, dan cara
+# kerjanya dapat dijelaskan dalam satu kalimat.
+#
+# Kapan ditinjau ulang: bila ukuran image benar-benar menghambat deploy, atau
+# bila Next memperbaiki penelusuran pnpm. Keduanya pemicu terukur — bukan
+# firasat bahwa image ini "terlalu besar".
 # =============================================================================
 
 # --- Tahap 1: dependensi ------------------------------------------------------
@@ -22,15 +40,15 @@ RUN corepack enable
 WORKDIR /repo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-COPY apps/web/package.json          apps/web/
-COPY apps/worker/package.json       apps/worker/
-COPY packages/db/package.json       packages/db/
-COPY packages/core/package.json     packages/core/
+COPY apps/web/package.json           apps/web/
+COPY apps/worker/package.json        apps/worker/
+COPY packages/db/package.json        packages/db/
+COPY packages/core/package.json      packages/core/
 COPY packages/contracts/package.json packages/contracts/
 
 # `postinstall` @hrms/db menjalankan `prisma generate`, yang membutuhkan skema.
-COPY packages/db/prisma            packages/db/prisma
-COPY packages/db/prisma.config.ts  packages/db/
+COPY packages/db/prisma           packages/db/prisma
+COPY packages/db/prisma.config.ts packages/db/
 
 # Berkas .env tidak pernah masuk image. Prisma CLI hanya butuh URL-nya ada saat
 # generate — nilainya tidak dipakai dan tidak ikut tersimpan di layer mana pun.
@@ -55,7 +73,7 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
 
 # --- Tahap 3: runtime ---------------------------------------------------------
 FROM node:24-alpine AS runner
-WORKDIR /app
+WORKDIR /repo
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -66,14 +84,13 @@ ENV HOSTNAME=0.0.0.0
 # tidak sedang memegang root di dalam kontainer.
 RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S nextjs -G nodejs
 
-COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /repo ./
 
 USER nextjs
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "apps/web/server.js"]
+WORKDIR /repo/apps/web
+CMD ["node", "node_modules/next/dist/bin/next", "start"]

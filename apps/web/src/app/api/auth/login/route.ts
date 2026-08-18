@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { loginRequestSchema, ErrorCode } from '@hrms/contracts';
 import { login, AuthError } from '@hrms/core/auth';
 import { definePublicRoute, apiError } from '@/lib/define-route.ts';
+import { setRefreshCookie } from '@/lib/session-cookie.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +21,14 @@ export const POST = definePublicRoute('POST /api/auth/login', async (req, ctx) =
 
   try {
     const result = await login(parsed.data, ctx);
-    return NextResponse.json(result);
+
+    // Refresh token TIDAK ikut di body. Ia hanya hidup sebagai cookie httpOnly,
+    // sehingga JavaScript di halaman tidak pernah memegangnya dan karenanya
+    // tidak dapat menyimpannya ke tempat yang bertahan (PLAN/11 §5.3).
+    const { refreshToken, ...body } = result;
+    const response = NextResponse.json(body);
+    setRefreshCookie(response, refreshToken);
+    return response;
   } catch (error) {
     if (error instanceof AuthError) {
       const status =

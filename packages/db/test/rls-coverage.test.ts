@@ -99,11 +99,18 @@ describe('cakupan RLS', () => {
         AND n.nspname IN ('public', 'tenant', 'auth', 'iam', 'audit', 'messaging', 'platform')
       ORDER BY p.proname
     `;
-    // Setiap nama di sini punya alasan tertulis di migrasinya:
-    //   resolve_refresh_token_owner — alur refresh butuh tenantId sebelum konteks
-    //   resolve_tenant_by_code      — alur login, masalah yang sama
+    // Setiap nama di sini punya alasan tertulis di migrasinya. Tiga yang
+    // pertama memecahkan masalah yang sama: sebuah token atau kode masuk
+    // tanpa membawa tenantnya, sehingga konteks belum dapat dipasang dan RLS
+    // mengembalikan nol baris. Ketiganya menerima satu nilai dan mengembalikan
+    // seminimal mungkin — id, bukan isi.
+    //
+    //   resolve_action_token_owner  — alur reset kata sandi & undangan
+    //   resolve_refresh_token_owner — alur refresh
+    //   resolve_tenant_by_code      — alur login
     //   tenant_user_counts          — dashboard global butuh angka, bukan isi tabel
     expect(rows.map((r) => r.name)).toEqual([
+      'resolve_action_token_owner',
       'resolve_refresh_token_owner',
       'resolve_tenant_by_code',
       'tenant_user_counts',
