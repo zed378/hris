@@ -21,3 +21,12 @@ export {
   type DailyResult,
   type DayStatus,
 } from './daily.ts';
+export {
+  storePhoto,
+  readPhoto,
+  deletePhoto,
+  stripJpegMetadata,
+  PhotoError,
+  MAX_PHOTO_BYTES,
+  type StoredPhoto,
+} from './photo.ts';

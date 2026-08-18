@@ -11,3 +11,6 @@ generated/
 
 # Konfigurasi compose berisi kredensial. Contohnya ada di ops/.env.compose.example
 ops/.env
+
+# Foto presensi pengembangan. Data pribadi — tidak pernah masuk git.
+.storage/

@@ -6,6 +6,7 @@ import { disconnectAll } from '@hrms/db';
 import { EventTopic } from '@hrms/contracts';
 import { countStuck, pumpOnce } from './outbox-pump.ts';
 import { runContractReminders } from './contract-reminders.ts';
+import { runPhotoRetention } from './photo-retention.ts';
 import { deliverNotification, type NotifiableTopic } from '@hrms/core/notification';
 
 loadEnv({
@@ -117,8 +118,30 @@ async function main(): Promise<void> {
     }
   };
 
+  /**
+   * Retensi foto presensi berjalan bersama pengingat kontrak.
+   *
+   * Idempoten dengan sendirinya: yang dicari adalah foto yang sudah melewati
+   * `photoExpiresAt`, dan begitu terhapus ia tidak lagi masuk pencarian.
+   * Worker yang restart berkali-kali sehari tetap benar.
+   */
+  const runRetention = async (): Promise<void> => {
+    try {
+      const result = await runPhotoRetention();
+      if (result.deleted > 0 || result.failed > 0) {
+        console.log({ scope: 'photo-retention', ...result });
+      }
+    } catch (error) {
+      console.error({ scope: 'photo-retention', error });
+    }
+  };
+
   void runReminders();
-  const reminderTimer = setInterval(() => void runReminders(), REMINDER_INTERVAL_MS);
+  void runRetention();
+  const reminderTimer = setInterval(() => {
+    void runReminders();
+    void runRetention();
+  }, REMINDER_INTERVAL_MS);
   reminderTimer.unref?.();
 
   console.log('worker: berjalan. Memompa outbox setiap 2 detik.');

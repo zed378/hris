@@ -132,6 +132,11 @@ export const ROUTE_MANIFEST = {
   'POST /api/attendance/punch': { module: 'attendance', permission: 'attendance.punch.create.own' },
   'GET /api/attendance/me': { module: 'attendance', permission: 'attendance.record.read.own' },
 
+  // Unggah foto memakai izin presensi sendiri; penyajiannya memeriksa lapisan
+  // kedua di dalam handler — karyawan biasa hanya boleh melihat fotonya sendiri.
+  'POST /api/attendance/photo': { module: 'attendance', permission: 'attendance.punch.create.own' },
+  'GET /api/attendance/photo/[key]': { module: 'attendance', permission: 'attendance.record.read.own' },
+
   // Antrean tinjauan. Presensi bertanda TIDAK ditolak otomatis — ia menunggu
   // keputusan manusia yang mengenal konteksnya (P14).
   'GET /api/attendance/review': { module: 'attendance', permission: 'attendance.review.handle' },

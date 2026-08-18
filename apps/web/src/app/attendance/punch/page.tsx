@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
+import { compressImage, openCamera } from '@/lib/capture-photo.ts';
 import {
   enqueuePunch,
   flushQueue,
@@ -60,6 +61,8 @@ export default function PunchPage() {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<PunchOutcome | null>(null);
   const [storageWarning, setStorageWarning] = useState(false);
+  const [photo, setPhoto] = useState<{ key: string; preview: string } | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const mounted = useRef(true);
 
   const refreshQueue = useCallback(async () => {
@@ -157,6 +160,39 @@ export default function PunchPage() {
     );
   }, []);
 
+  /**
+   * Mengambil dan mengunggah foto swafoto.
+   *
+   * Diunggah SEBELUM ketukan dikirim, dan itu disengaja: yang disimpan pada
+   * ketukan hanyalah kunci foto, sehingga ketukan tetap kecil dan tetap dapat
+   * masuk antrean luring tanpa membawa muatan biner.
+   *
+   * Konsekuensinya, foto TIDAK dapat diambil saat luring. Itu batas yang
+   * diterima: presensi tanpa foto tetap tercatat, hanya dengan skor lebih
+   * rendah dan tinjauan HR.
+   */
+  const takePhoto = useCallback(async () => {
+    setPhotoBusy(true);
+    try {
+      const file = await openCamera();
+      const compressed = await compressImage(file);
+
+      const body = new FormData();
+      body.append('photo', compressed, 'selfie.jpg');
+
+      const response = await api('/api/attendance/photo', { method: 'POST', body });
+      if (response.ok) {
+        const { key } = (await response.json()) as { key: string };
+        setPhoto({ key, preview: URL.createObjectURL(compressed) });
+      }
+    } catch {
+      // Dialog kamera ditutup atau gambar tidak terbaca. Bukan galat yang
+      // perlu ditampilkan — pengguna dapat mencoba lagi atau melanjutkan
+      // tanpa foto.
+    }
+    setPhotoBusy(false);
+  }, [api]);
+
   const punch = useCallback(
     async (type: 'IN' | 'OUT') => {
       setBusy(true);
@@ -171,7 +207,7 @@ export default function PunchPage() {
         latitude: geo.latitude,
         longitude: geo.longitude,
         accuracyM: geo.accuracyM,
-        photoKey: null,
+        photoKey: photo?.key ?? null,
         deviceInfo: navigator.userAgent.slice(0, 200),
         queuedAt: new Date().toISOString(),
         attempts: 0,
@@ -207,9 +243,13 @@ export default function PunchPage() {
         setOutcome({ queued: true });
       }
 
+      // Foto dilepas setelah dipakai. Menyisakannya berarti ketukan berikutnya
+      // memakai foto lama — bukti kehadiran yang menunjukkan orang yang benar
+      // pada waktu yang salah.
+      setPhoto(null);
       setBusy(false);
     },
-    [geo, refreshQueue, send],
+    [geo, photo, refreshQueue, send],
   );
 
   return (
@@ -279,6 +319,41 @@ export default function PunchPage() {
               {geo.message}. Anda tetap dapat melakukan presensi, tetapi catatannya
               akan ditandai untuk diperiksa HR.
             </p>
+          )}
+        </section>
+
+        <section className="mt-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm font-medium">Foto swafoto</p>
+
+          {photo ? (
+            <div className="mt-2 flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.preview}
+                alt="Pratinjau foto presensi"
+                className="h-20 w-20 rounded-md object-cover"
+              />
+              <button
+                onClick={() => void takePhoto()}
+                className="text-sm text-brand-600 underline"
+              >
+                Ambil ulang
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Foto menaikkan keandalan bukti presensi Anda. Disimpan 90 hari,
+                lalu dihapus otomatis.
+              </p>
+              <button
+                onClick={() => void takePhoto()}
+                disabled={photoBusy || !online}
+                className="mt-3 rounded-md border border-slate-300 px-3 py-1.5 text-sm transition hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                {photoBusy ? 'Memproses…' : online ? 'Ambil foto' : 'Perlu koneksi'}
+              </button>
+            </>
           )}
         </section>
 
