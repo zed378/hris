@@ -108,6 +108,13 @@ model Tenant {
   status   TenantStatus @default(TRIAL)
   planCode String       @map("plan_code")
 
+  /// Nama zona IANA, mis. `Asia/Jakarta`. Menentukan batas hari kerja.
+  ///
+  /// Disimpan sebagai nama, bukan offset. Offset angka benar hari ini dan salah
+  /// pada hari pertama aturan zona berubah — dan yang menanggungnya adalah rekap
+  /// kehadiran yang sudah terlanjur dihitung dengan batas hari yang bergeser.
+  timezone String @default("Asia/Jakarta")
+
   /// Akhir masa uji coba. Null berarti bukan trial.
   trialEndsAt DateTime? @map("trial_ends_at")
   suspendedAt DateTime? @map("suspended_at")

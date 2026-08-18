@@ -1,4 +1,5 @@
 import { writeAudit, type TenantClient } from '@hrms/db';
+import { localMinutesToInstant, tenantTimeZone } from './workdate.ts';
 
 /**
  * Kalkulasi presensi harian.
@@ -43,6 +44,8 @@ export async function calculateDay(
   const dateOnly = new Date(
     Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), workDate.getUTCDate()),
   );
+
+  const timeZone = await tenantTimeZone(tx, tenantId);
 
   const [punches, schedule, holiday] = await Promise.all([
     tx.punchLog.findMany({
@@ -108,8 +111,11 @@ export async function calculateDay(
     return { ...base, status: 'PRESENT', workMinutes };
   }
 
-  const scheduledStart = minutesToDate(dateOnly, shift.startMinute);
-  const scheduledEnd = minutesToDate(dateOnly, shift.endMinute);
+  // Menit jadwal adalah menit LOKAL. Menambahkannya ke tengah malam UTC akan
+  // menggeser seluruh shift sebesar offset zona — untuk WIB, shift pagi menjadi
+  // pukul 15:00, dan tidak ada seorang pun yang pernah tercatat terlambat.
+  const scheduledStart = localMinutesToInstant(dateOnly, shift.startMinute, timeZone);
+  const scheduledEnd = localMinutesToInstant(dateOnly, shift.endMinute, timeZone);
 
   const lateMinutes = Math.max(
     0,
@@ -321,6 +327,3 @@ export async function closePeriod(
   return { employees: summary.size, days: days.length };
 }
 
-function minutesToDate(base: Date, minutes: number): Date {
-  return new Date(base.getTime() + minutes * 60_000);
-}

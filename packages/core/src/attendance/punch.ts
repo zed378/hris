@@ -1,6 +1,7 @@
 import { EventTopic } from '@hrms/contracts';
 import { writeAudit, publishEvent, Prisma, type TenantClient } from '@hrms/db';
 import { assessTrust, haversineMeters, type TrustFlag } from './trust.ts';
+import { resolveWorkDate, tenantTimeZone } from './workdate.ts';
 
 /**
  * Pencatatan ketukan presensi (dokumen 10).
@@ -81,6 +82,8 @@ export async function recordPunch(
   });
   if (!employee) throw new PunchError('Karyawan tidak ditemukan', 'not_found');
 
+  const timeZone = await tenantTimeZone(tx, tenantId);
+
   // Pengiriman ulang diperiksa SEBELUM menyisipkan, bukan ditangkap sesudahnya.
   //
   // Versi pertama mengandalkan constraint unique lalu memulihkan diri di blok
@@ -158,7 +161,7 @@ export async function recordPunch(
   // "berhasil" berarti HR mengira koreksinya sudah beres sementara slip gaji
   // tetap salah — kegagalan yang baru ketahuan saat karyawannya protes.
   if (input.source === 'MANUAL') {
-    const workDateForLock = resolveWorkDate(input.punchedAt);
+    const workDateForLock = resolveWorkDate(input.punchedAt, timeZone);
     const closed = await tx.attendancePeriod.findFirst({
       where: {
         tenantId,
@@ -198,7 +201,7 @@ export async function recordPunch(
   });
 
   // --- Tanggal kerja ---------------------------------------------------------
-  const workDate = resolveWorkDate(input.punchedAt);
+  const workDate = resolveWorkDate(input.punchedAt, timeZone);
 
   try {
     const punch = await tx.punchLog.create({
@@ -307,16 +310,6 @@ export async function recordPunch(
     throw error;
   }
 }
-function resolveWorkDate(punchedAt: Date): Date {
-  const local = new Date(punchedAt);
-  if (local.getUTCHours() < 4) {
-    local.setUTCDate(local.getUTCDate() - 1);
-  }
-  return new Date(
-    Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()),
-  );
-}
-
 export interface ReviewDecision {
   punchId: string;
   approve: boolean;
