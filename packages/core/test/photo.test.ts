@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { stripJpegMetadata, PhotoError } from '../src/attendance/photo.ts';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  deletePhoto,
+  PhotoError,
+  readPhoto,
+  storePhoto,
+  stripJpegMetadata,
+} from '../src/attendance/photo.ts';
 
 /**
  * Uji penghapusan metadata JPEG.
@@ -105,5 +115,77 @@ describe('penghapusan metadata JPEG', () => {
 
   it('menolak berkas kosong', () => {
     expect(() => stripJpegMetadata(Buffer.alloc(0))).toThrow(PhotoError);
+  });
+});
+
+/**
+ * Kontrak penghapusan.
+ *
+ * Ini menutup dua bug yang saling menyembunyikan. Path penyimpanan dulu relatif
+ * terhadap direktori kerja proses, sehingga `apps/web` menulis foto di satu
+ * tempat dan job retensi mencarinya di tempat lain. Dan `deletePhoto` dulu
+ * menelan seluruh galat, sehingga berkas yang tidak ditemukan dilaporkan sebagai
+ * berhasil dihapus.
+ *
+ * Gabungannya: job retensi melaporkan bekerja sempurna, rujukan di basis data
+ * dibersihkan, dan setiap foto yang pernah diunggah tetap ada di disk selamanya.
+ * Tidak satu pun galat terlihat. Janji retensi 90 hari UU PDP batal dalam diam —
+ * dan diamnya itulah yang membuat bug ini mahal, bukan salah path-nya.
+ */
+describe('kontrak penghapusan foto', () => {
+  const sandbox = join(tmpdir(), `hrms-photo-${randomUUID()}`);
+  const original = process.env['PHOTO_STORAGE_DIR'];
+
+  beforeAll(() => {
+    process.env['PHOTO_STORAGE_DIR'] = sandbox;
+  });
+
+  afterAll(async () => {
+    if (original === undefined) delete process.env['PHOTO_STORAGE_DIR'];
+    else process.env['PHOTO_STORAGE_DIR'] = original;
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  it('menyimpan lalu membacanya kembali tanpa metadata', async () => {
+    const { key } = await storePhoto(buildJpeg({ withExif: true }));
+    const back = await readPhoto(key);
+
+    expect(back.toString('latin1')).not.toContain('GPSLatitude');
+    expect(back.toString('latin1')).toContain('JFIF');
+  });
+
+  it('melaporkan `removed` saat berkasnya benar-benar dihapus', async () => {
+    const { key } = await storePhoto(buildJpeg({}));
+
+    expect(await deletePhoto(key)).toEqual({ removed: true, alreadyGone: false });
+    await expect(readPhoto(key)).rejects.toThrow(PhotoError);
+  });
+
+  it('membedakan "sudah tidak ada" dari "berhasil dihapus"', async () => {
+    // Wajar setelah pemulihan cadangan: rujukannya kembali, berkasnya tidak.
+    // Ini bukan kegagalan — rujukannya boleh dihapus.
+    const { key } = await storePhoto(buildJpeg({}));
+    await deletePhoto(key);
+
+    expect(await deletePhoto(key)).toEqual({ removed: false, alreadyGone: true });
+  });
+
+  it('melempar galat selain berkas-tidak-ada, tidak menelannya', async () => {
+    // Sebuah direktori bernama sama membuat `unlink` mengembalikan EPERM. Yang
+    // diuji bukan kasus direktori itu sendiri, melainkan bahwa kegagalan APA PUN
+    // di luar ENOENT sampai ke pemanggil — karena pemanggilnya yang memutuskan
+    // untuk TIDAK menghapus rujukan basis data, dan rujukan yang bertahan itulah
+    // satu-satunya cara putaran berikutnya menemukan berkasnya lagi.
+    const key = `${randomUUID()}.jpg`;
+    await mkdir(join(sandbox, key.slice(0, 2), key), { recursive: true });
+
+    await expect(deletePhoto(key)).rejects.toThrow(/EPERM|EISDIR/);
+  });
+
+  it('menolak kunci yang keluar dari direktori penyimpanan', async () => {
+    // Tanpa ini, endpoint penyajian foto berubah menjadi pembaca berkas
+    // sembarang, dan job retensi menjadi penghapus berkas sembarang.
+    await expect(readPhoto('../../../package.json')).rejects.toThrow(PhotoError);
+    await expect(deletePhoto('..%2Fpackage.json')).rejects.toThrow(PhotoError);
   });
 });

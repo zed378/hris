@@ -35,6 +35,20 @@ export interface PumpStats {
  * Berjalan sebagai role `hrms_worker`, satu-satunya principal dengan kebijakan
  * lintas tenant pada tabel ini — dan hanya pada tabel ini.
  */
+/**
+ * Amplop yang membungkus setiap event saat berpindah dari outbox ke pg-boss.
+ *
+ * Payload bisnisnya ada satu tingkat di dalam, bukan di akar `job.data` — dan
+ * konsumen yang lupa itu tidak gagal, ia hanya membaca `undefined` untuk setiap
+ * kolom. Diketik di sini, di tempat amplopnya dibangun, supaya produsen dan
+ * konsumen tidak dapat berbeda pendapat soal bentuknya.
+ */
+export interface OutboxEnvelope<T = Record<string, unknown>> {
+  tenantId: string;
+  correlationId: string | null;
+  payload: T;
+}
+
 export async function pumpOnce(boss: PgBoss): Promise<PumpStats> {
   const stats: PumpStats = { published: 0, failed: 0 };
 
@@ -53,11 +67,12 @@ export async function pumpOnce(boss: PgBoss): Promise<PumpStats> {
 
   for (const row of rows) {
     try {
-      await boss.send(row.topic, {
+      const envelope: OutboxEnvelope = {
         tenantId: row.tenant_id,
         correlationId: row.correlation_id,
-        payload: row.payload,
-      });
+        payload: row.payload as Record<string, unknown>,
+      };
+      await boss.send(row.topic, envelope);
 
       await withOutboxPump(
         (tx) => tx.$executeRaw`

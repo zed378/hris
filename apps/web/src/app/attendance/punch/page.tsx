@@ -327,7 +327,10 @@ export default function PunchPage() {
 
           {photo ? (
             <div className="mt-2 flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {/* `next/image` sengaja tidak dipakai di sini: sumbernya blob:
+                  URL dari kamera perangkat, yang tidak dapat dioptimasi server
+                  dan memang tidak perlu — berkasnya sudah dikompresi klien dan
+                  tidak pernah meninggalkan halaman ini sebelum dikirim. */}
               <img
                 src={photo.preview}
                 alt="Pratinjau foto presensi"

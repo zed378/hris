@@ -1,8 +1,22 @@
+import type { EventTopic } from '@hrms/contracts';
 import type { TenantClient } from './tenant-context.ts';
 
 export interface OutboxEvent {
-  /** Bertitik, lampau: `tenant.provisioned`, `iam.access.changed`. */
-  topic: string;
+  /**
+   * Bertitik, lampau: `tenant.provisioned`, `iam.access.changed`.
+   *
+   * Sengaja `EventTopic`, bukan `string`. Worker membuat antrean pg-boss dari
+   * katalog yang sama ini pada setiap startup, sehingga topik yang tidak ada di
+   * katalog berarti pesan yang diterbitkan ke antrean yang tidak pernah dibuat.
+   *
+   * Itu persis yang terjadi pada `attendance.punch.flagged`: ia diterbitkan
+   * sebagai literal, antreannya tidak pernah ada, dan setiap presensi yang
+   * ditandai untuk ditinjau mati setelah sepuluh percobaan. Outbox-nya bekerja
+   * sempurna — yang tidak ada adalah tujuannya. `string` di sini adalah lubang
+   * yang membuat kesalahan itu mungkin; menutupnya adalah pekerjaan pengetik,
+   * bukan pekerjaan peninjau kode.
+   */
+  topic: EventTopic;
   payload: Record<string, unknown>;
   correlationId?: string | undefined;
 }

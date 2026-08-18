@@ -27,6 +27,8 @@ export const EventTopic = {
   EMPLOYEE_CREATED: 'employee.created',
   EMPLOYEE_IMPORT_COMMITTED: 'employee.import.committed',
   CONTRACT_EXPIRING: 'employee.contract.expiring',
+
+  PUNCH_FLAGGED: 'attendance.punch.flagged',
 } as const;
 
 export type EventTopic = (typeof EventTopic)[keyof typeof EventTopic];

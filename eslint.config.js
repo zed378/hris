@@ -123,7 +123,17 @@ export default tseslint.config(
             },
 
             // Lapisan bawah tidak pernah tahu tentang lapisan di atasnya.
-            { from: [{ element: { type: 'db' } }], allow: [{ to: { element: { type: 'db' } } }] },
+            //
+            // `contracts` adalah pengecualian yang disengaja: ia daun sejati —
+            // hanya boleh mengimpor dirinya sendiri — sehingga `db` yang
+            // bergantung padanya tetap menjaga grafnya asiklik. Yang didapat
+            // dari itu adalah katalog topik event dapat menjadi TIPE parameter
+            // `publishEvent`, bukan sekadar konvensi penamaan yang diharapkan
+            // dipatuhi.
+            {
+              from: [{ element: { type: 'db' } }],
+              allow: [{ to: { element: { type: 'db' } } }, { to: { element: { type: 'contracts' } } }],
+            },
             {
               from: [{ element: { type: 'contracts' } }],
               allow: [{ to: { element: { type: 'contracts' } } }],

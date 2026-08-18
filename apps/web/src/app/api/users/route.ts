@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode, emailSchema } from '@hrms/contracts';
+import { EventTopic, ErrorCode, emailSchema } from '@hrms/contracts';
 import { listUsers, inviteUser, IamError } from '@hrms/core/iam';
 import { issueActionToken } from '@hrms/core/auth';
 import { publishEvent } from '@hrms/db';
@@ -64,7 +64,7 @@ export const POST = defineRoute('POST /api/users', async (req, ctx) => {
     });
 
     await publishEvent(ctx.tx, ctx.tenantId, {
-      topic: 'iam.user.invited',
+      topic: EventTopic.USER_INVITED,
       payload: {
         tenantId: ctx.tenantId,
         userId,

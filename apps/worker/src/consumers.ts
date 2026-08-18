@@ -1,0 +1,81 @@
+import { EventTopic } from '@hrms/contracts';
+import { deliverNotification, type NotifiableTopic } from '@hrms/core/notification';
+import type { OutboxEnvelope } from './outbox-pump.ts';
+
+/**
+ * Katalog konsumen — satu keputusan untuk setiap topik event.
+ *
+ * Bentuknya `Record<EventTopic, …>` dengan sengaja: TypeScript menolak
+ * mengompilasi berkas ini bila sebuah topik baru ditambahkan ke katalog event
+ * tanpa keputusan di sini. Yang dicegah bukan lupa menulis konsumen, melainkan
+ * lupa MEMUTUSKAN — dan keduanya berbeda hasilnya.
+ *
+ * Topik tanpa konsumen tidak menghasilkan galat apa pun. Antreannya ada, pesan
+ * masuk, dan pekerjaannya duduk di status `created` sampai retensi pg-boss
+ * mengarsipkannya. Tidak ada yang gagal, tidak ada yang memberi tahu, dan event
+ * itu sekadar tidak pernah terjadi bagi siapa pun yang menunggunya.
+ *
+ * Karena itu `drain` harus ditulis eksplisit beserta alasannya. "Belum ada
+ * efeknya" adalah keputusan yang sah; yang tidak sah adalah tidak terlihat
+ * bahwa keputusan itu pernah diambil.
+ */
+
+export type Consumer =
+  | { kind: 'handle'; run: (envelope: OutboxEnvelope) => Promise<void> }
+  | { kind: 'drain'; reason: string };
+
+/** Topik yang berubah menjadi email. Idempotensinya ada pada `notification_logs.dedupeKey`. */
+function notify(topic: NotifiableTopic): Consumer {
+  return {
+    kind: 'handle',
+    async run({ tenantId, payload }) {
+      const result = await deliverNotification(tenantId, topic, payload);
+      if (result.status !== 'skipped') {
+        console.log({ scope: 'notification', topic, ...result });
+      }
+    },
+  };
+}
+
+export const CONSUMERS: Record<EventTopic, Consumer> = {
+  [EventTopic.PASSWORD_RESET_REQUESTED]: notify('auth.password.reset_requested'),
+  [EventTopic.USER_INVITED]: notify('iam.user.invited'),
+  [EventTopic.CONTRACT_EXPIRING]: notify('employee.contract.expiring'),
+
+  /**
+   * Presensi yang ditandai untuk ditinjau.
+   *
+   * Mencatat saja untuk sekarang: antrean tinjauan HR dibaca langsung dari basis
+   * data, bukan dari event. Yang belum ada adalah dorongan realtime ke dasbor HR
+   * (Fase 3, SSE) — dan ketika ia dibangun, tempatnya di sini.
+   */
+  [EventTopic.PUNCH_FLAGGED]: {
+    kind: 'handle',
+    async run({ tenantId, payload }) {
+      const { punchId, trustScore, flags } = payload as {
+        punchId?: string;
+        trustScore?: number;
+        flags?: string[];
+      };
+      console.log({ scope: 'punch-flagged', tenantId, punchId, trustScore, flags });
+    },
+  },
+
+  // Aliran audit dan metrik. Semuanya sudah tercatat di basis data pada
+  // transaksi yang sama; event-nya ada untuk konsumen yang belum dibangun.
+  [EventTopic.TENANT_PROVISIONED]: { kind: 'drain', reason: 'onboarding otomatis, Fase 6' },
+  [EventTopic.TENANT_MODULE_ENABLED]: { kind: 'drain', reason: 'penagihan berbasis modul, Fase 6' },
+  [EventTopic.TENANT_MODULE_DISABLED]: { kind: 'drain', reason: 'penagihan berbasis modul, Fase 6' },
+  [EventTopic.TENANT_SUSPENDED]: { kind: 'drain', reason: 'pemberitahuan penangguhan, Fase 6' },
+
+  [EventTopic.USER_LOGGED_IN]: { kind: 'drain', reason: 'metrik kesehatan tenant, Fase 6' },
+  [EventTopic.USER_LOGIN_FAILED]: { kind: 'drain', reason: 'deteksi anomali masuk, Fase 6' },
+  [EventTopic.SESSION_REVOKED]: { kind: 'drain', reason: 'sudah lengkap di audit_logs' },
+  [EventTopic.TOKEN_REUSE_DETECTED]: { kind: 'drain', reason: 'peringatan keamanan, Fase 6' },
+
+  [EventTopic.ACCESS_CHANGED]: { kind: 'drain', reason: 'sudah lengkap di audit_logs' },
+  [EventTopic.ROLE_ASSIGNED]: { kind: 'drain', reason: 'sudah lengkap di audit_logs' },
+
+  [EventTopic.EMPLOYEE_CREATED]: { kind: 'drain', reason: 'penyediaan akun otomatis, Fase 4' },
+  [EventTopic.EMPLOYEE_IMPORT_COMMITTED]: { kind: 'drain', reason: 'ringkasan impor ke HR, Fase 4' },
+};

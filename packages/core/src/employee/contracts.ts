@@ -1,3 +1,4 @@
+import { EventTopic } from '@hrms/contracts';
 import { writeAudit, publishEvent, type TenantClient } from '@hrms/db';
 import type { ActorContext } from './employees.ts';
 
@@ -229,7 +230,7 @@ export async function scanContractReminders(
     }
 
     await publishEvent(tx, tenantId, {
-      topic: 'employee.contract.expiring',
+      topic: EventTopic.CONTRACT_EXPIRING,
       payload: {
         tenantId,
         contractId: contract.id,

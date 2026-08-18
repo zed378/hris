@@ -1,3 +1,4 @@
+import { EventTopic } from '@hrms/contracts';
 import { withTenant, writeAudit, publishEvent, type TenantClient } from '@hrms/db';
 import { resolveTenantByCode } from '../tenant/index.ts';
 import { hashPassword } from './password.ts';
@@ -69,7 +70,7 @@ export async function requestPasswordReset(
     // email tidak boleh membuat endpoint ini gagal — dan bila gagal pun,
     // pesannya tetap terkirim setelah antrean pulih.
     await publishEvent(tx, tenant.id, {
-      topic: 'auth.password.reset_requested',
+      topic: EventTopic.PASSWORD_RESET_REQUESTED,
       payload: {
         tenantId: tenant.id,
         userId: user.id,

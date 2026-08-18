@@ -4,10 +4,10 @@ import { config as loadEnv } from 'dotenv';
 import { PgBoss } from 'pg-boss';
 import { disconnectAll } from '@hrms/db';
 import { EventTopic } from '@hrms/contracts';
-import { countStuck, pumpOnce } from './outbox-pump.ts';
+import { countStuck, pumpOnce, type OutboxEnvelope } from './outbox-pump.ts';
 import { runContractReminders } from './contract-reminders.ts';
 import { runPhotoRetention } from './photo-retention.ts';
-import { deliverNotification, type NotifiableTopic } from '@hrms/core/notification';
+import { CONSUMERS, type Consumer } from './consumers.ts';
 
 loadEnv({
   path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env'),
@@ -44,42 +44,40 @@ async function main(): Promise<void> {
   }
 
   /**
-   * Konsumer notifikasi.
+   * Pendaftaran konsumen.
    *
-   * Setiap konsumer WAJIB idempoten: outbox menjamin at-least-once, bukan
+   * Setiap konsumen WAJIB idempoten: outbox menjamin at-least-once, bukan
    * exactly-once, sehingga pesan yang sama dapat datang dua kali dan itu bukan
    * bug. Untuk email, idempotensinya ada pada `dedupeKey` di notification_logs —
    * bukan pada harapan bahwa pesan tidak akan terkirim ulang.
    *
-   * Pengiriman yang gagal TIDAK melempar. Melempar akan membuat pg-boss
-   * mencoba ulang, dan percobaan ulang atas alamat email yang memang salah
-   * hanya menghasilkan kegagalan yang sama berkali-kali. Kegagalannya tercatat
-   * pada barisnya sendiri, tempat ia dapat dilihat dan ditindaklanjuti.
+   * Kegagalan penanganan TIDAK melempar. Melempar akan membuat pg-boss mencoba
+   * ulang, dan percobaan ulang atas alamat email yang memang salah hanya
+   * menghasilkan kegagalan yang sama berkali-kali. Kegagalannya tercatat pada
+   * barisnya sendiri, tempat ia dapat dilihat dan ditindaklanjuti.
    */
-  const NOTIFIABLE: NotifiableTopic[] = [
-    'auth.password.reset_requested',
-    'iam.user.invited',
-    'employee.contract.expiring',
-  ];
+  for (const [topic, consumer] of Object.entries(CONSUMERS) as Array<[EventTopic, Consumer]>) {
+    if (consumer.kind === 'drain') {
+      // Dikuras tanpa efek. Alasannya ada di katalog konsumen, bukan di sini.
+      await boss.work(topic, async () => {});
+      continue;
+    }
 
-  for (const topic of NOTIFIABLE) {
     await boss.work(topic, async (jobs) => {
       for (const job of jobs) {
-        const data = job.data as { tenantId?: string; payload?: Record<string, unknown> };
-        if (!data?.tenantId || !data.payload) continue;
+        // Pompa membungkus setiap event: `{ tenantId, correlationId, payload }`.
+        // Payload bisnisnya ada satu tingkat di dalam, bukan di akar `job.data`.
+        const envelope = job.data as OutboxEnvelope;
+        if (!envelope?.tenantId || !envelope.payload) continue;
 
-        const result = await deliverNotification(data.tenantId, topic, data.payload);
-        if (result.status !== 'skipped') {
-          console.log({ scope: 'notification', topic, ...result });
+        try {
+          await consumer.run(envelope);
+        } catch (error) {
+          console.error({ scope: 'consumer', topic, jobId: job.id, error });
         }
       }
     });
   }
-
-  await boss.work(EventTopic.USER_LOGGED_IN, async () => {
-    // Sengaja tanpa efek. Ada supaya antreannya terkuras; login akan menjadi
-    // sumber metrik kesehatan tenant di Fase 6.
-  });
 
   let running = true;
   const stop = async (signal: string): Promise<void> => {

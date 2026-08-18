@@ -1,3 +1,4 @@
+import { EventTopic } from '@hrms/contracts';
 import readXlsxFile from 'read-excel-file/node';
 import { writeAudit, publishEvent, type TenantClient } from '@hrms/db';
 import { blindIndex, maskBankAccount, maskNationalId, maskTaxId, preparePii } from './pii.ts';
@@ -342,7 +343,7 @@ export async function commitImport(
   });
 
   await publishEvent(tx, tenantId, {
-    topic: 'employee.import.committed',
+    topic: EventTopic.EMPLOYEE_IMPORT_COMMITTED,
     payload: { tenantId, jobId, committed },
     correlationId: ctx.correlationId,
   });

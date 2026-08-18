@@ -1,3 +1,4 @@
+import { EventTopic } from '@hrms/contracts';
 import { writeAudit, publishEvent, Prisma, type TenantClient } from '@hrms/db';
 import { assessTrust, haversineMeters, type TrustFlag } from './trust.ts';
 
@@ -201,7 +202,7 @@ export async function recordPunch(
 
     if (assessment.needsReview) {
       await publishEvent(tx, tenantId, {
-        topic: 'attendance.punch.flagged',
+        topic: EventTopic.PUNCH_FLAGGED,
         payload: {
           tenantId,
           punchId: punch.id,

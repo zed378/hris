@@ -8,7 +8,8 @@
     "start": "node --experimental-transform-types src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "reminders:once": "node --experimental-transform-types src/run-reminders-once.ts"
+    "reminders:once": "node --experimental-transform-types src/run-reminders-once.ts",
+    "outbox:retry": "node --experimental-transform-types src/retry-stuck-outbox.ts"
   },
   "dependencies": {
     "@hrms/contracts": "workspace:*",

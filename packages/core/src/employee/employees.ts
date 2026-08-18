@@ -1,3 +1,4 @@
+import { EventTopic } from '@hrms/contracts';
 import { writeAudit, publishEvent, type TenantClient } from '@hrms/db';
 import {
   blindIndex,
@@ -297,7 +298,7 @@ export async function createEmployee(
   });
 
   await publishEvent(tx, tenantId, {
-    topic: 'employee.created',
+    topic: EventTopic.EMPLOYEE_CREATED,
     payload: { tenantId, employeeId: employee.id, employeeNumber: input.employeeNumber },
     correlationId: ctx.correlationId,
   });
