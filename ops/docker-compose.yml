@@ -1,0 +1,158 @@
+# =============================================================================
+# HRMS — tumpukan lengkap
+#
+# Tiga kontainer, dan tidak lebih. Itu keputusan sadar, bukan tahap sementara
+# (PLAN/12 §3.2): setiap komponen infrastruktur tambahan adalah sesuatu yang
+# harus dijaga hidup oleh tim yang tidak punya SRE.
+#
+#   postgres  DATA      — satu basis data, schema per modul, RLS aktif.
+#                         Merangkap sebagai antrean pekerjaan lewat pg-boss,
+#                         sehingga tidak ada RabbitMQ maupun Redis yang perlu
+#                         dijaga terpisah.
+#   web       FRONTEND  — antarmuka pengguna DAN seluruh endpoint REST.
+#                         Yang dilihat pengguna, dan yang dipanggil PWA nanti.
+#   worker    BACKEND   — proses latar. Tidak menyajikan HTTP dan tidak dapat
+#                         dijangkau dari luar; ia hanya menarik pekerjaan dari
+#                         antrean. Di sinilah payroll dan impor Excel akan berjalan.
+#
+# Pemisahan web/worker adalah satu-satunya pemisahan proses dalam sistem, dan
+# alasannya tunggal: pekerjaan berat tidak boleh menahan request pengguna.
+#
+# Untuk pengembangan sehari-hari, jangan pakai berkas ini — pakai
+# `docker-compose.dev.yml` yang hanya menjalankan PostgreSQL, lalu jalankan web
+# dan worker langsung di mesin. Hot reload jauh lebih cepat daripada membangun
+# ulang image pada setiap perubahan.
+#
+#   Pengembangan : pnpm db:up            (postgres saja)
+#   Tumpukan penuh: docker compose -f ops/docker-compose.yml up --build
+# =============================================================================
+
+name: hrms
+
+services:
+  # ---------------------------------------------------------------------------
+  # DATA
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: hrms-postgres-full
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hrms_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hrms_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-hrms}
+    volumes:
+      - hrms-pgdata:/var/lib/postgresql/data
+      # Membuat role runtime saat basis data pertama kali dibuat. Skrip ini
+      # hanya berjalan pada volume kosong — pada volume yang sudah ada, role
+      # dibuat oleh migrasi dan kata sandinya dipasang lewat runbook.
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Dipetakan ke 5433 supaya tidak bentrok dengan PostgreSQL yang mungkin
+      # sudah berjalan di mesin pengembang.
+      - '${POSTGRES_PORT:-5433}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-hrms_owner} -d ${POSTGRES_DB:-hrms}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ---------------------------------------------------------------------------
+  # MIGRASI
+  #
+  # Berjalan sekali sampai selesai, lalu berhenti. web dan worker menunggunya
+  # sukses sebelum dimulai — supaya tidak ada proses yang sempat menyentuh skema
+  # versi lama.
+  #
+  # Memakai role owner, satu-satunya tempat kredensial itu dipakai. web dan
+  # worker tidak pernah memilikinya.
+  # ---------------------------------------------------------------------------
+  migrate:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile.worker
+    container_name: hrms-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://hrms_owner:${POSTGRES_PASSWORD:-hrms_dev_password}@postgres:5432/${POSTGRES_DB:-hrms}
+    working_dir: /repo/packages/db
+    user: root
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+
+  # ---------------------------------------------------------------------------
+  # FRONTEND — antarmuka pengguna + REST API
+  #
+  # Ini satu-satunya kontainer yang terbuka ke luar. Ia melayani:
+  #   /                halaman aplikasi (UI menyusul di Fase 2)
+  #   /api/**          bidang tenant  — token audience `hrms-tenant`
+  #   /admin/api/**    control plane  — token audience `hrms-admin`, TOTP wajib
+  #
+  # Kedua bidang itu memakai guard yang berbeda dan koneksi basis data yang
+  # berbeda pula. `hrms_app` tidak dapat menyentuh schema `platform`, dan
+  # `hrms_platform` tidak dapat membaca `auth.users` (P11).
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile.web
+    container_name: hrms-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      # Runtime memakai role aplikasi, bukan owner. Inilah yang membuat RLS
+      # selalu berlaku: `hrms_app` bersifat NOBYPASSRLS dan bukan pemilik tabel.
+      DATABASE_URL_APP: postgresql://hrms_app:${APP_DB_PASSWORD:-hrms_app_password}@postgres:5432/${POSTGRES_DB:-hrms}
+      # Principal control plane. Hak aksesnya sengaja sempit: schema `platform`
+      # dan metadata tenant, tanpa satu pun GRANT ke auth.users / iam.* / audit.*.
+      DATABASE_URL_PLATFORM: postgresql://hrms_platform:${PLATFORM_DB_PASSWORD:-hrms_platform_password}@postgres:5432/${POSTGRES_DB:-hrms}
+      # WAJIB diganti di produksi. Dua rahasia berbeda, supaya token tenant dan
+      # token admin tidak pernah dapat saling diverifikasi.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib dipasang}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET wajib dipasang}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+
+  # ---------------------------------------------------------------------------
+  # BACKEND — proses latar
+  #
+  # Tidak membuka satu pun port. Tidak dapat dijangkau dari internet, dan tidak
+  # perlu: ia menarik pekerjaan dari antrean, bukan menerima panggilan.
+  #
+  # Memakai principal `hrms_worker` yang punya satu pengecualian sempit — boleh
+  # membaca outbox lintas tenant, karena pompa event adalah infrastruktur. Pada
+  # seluruh tabel lain ia sama terkurungnya dengan `hrms_app`.
+  #
+  # Menskala pada panjang antrean, bukan jumlah request. Menambah replika di
+  # sini aman: `FOR UPDATE SKIP LOCKED` membuat dua pompa mengambil baris yang
+  # berlainan, bukan berebut baris yang sama.
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile.worker
+    container_name: hrms-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      # pg-boss mengelola schema antreannya sendiri, sehingga butuh hak DDL.
+      DATABASE_URL: postgresql://hrms_owner:${POSTGRES_PASSWORD:-hrms_dev_password}@postgres:5432/${POSTGRES_DB:-hrms}
+      DATABASE_URL_APP: postgresql://hrms_app:${APP_DB_PASSWORD:-hrms_app_password}@postgres:5432/${POSTGRES_DB:-hrms}
+      DATABASE_URL_WORKER: postgresql://hrms_worker:${WORKER_DB_PASSWORD:-hrms_worker_password}@postgres:5432/${POSTGRES_DB:-hrms}
+
+volumes:
+  hrms-pgdata:

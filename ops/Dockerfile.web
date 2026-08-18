@@ -1,0 +1,79 @@
+# =============================================================================
+# FRONTEND + API — apps/web
+#
+# Satu image ini melayani dua hal sekaligus, dan itu memang bentuk sistemnya:
+#   - Antarmuka pengguna (React Server Components, halaman, aset statis)
+#   - Seluruh endpoint REST di /api/** dan /admin/api/**
+#
+# Pada rancangan microservices keduanya terpisah (Next.js + api-gateway + 16
+# service). Di sini keduanya satu proses, dan pemisahan yang dipertahankan bukan
+# pemisahan proses melainkan pemisahan modul — lihat PLAN/12 §3.1.
+#
+# Yang TIDAK ada di image ini, dengan sengaja: pekerjaan berat. Impor Excel,
+# proses payroll, dan pembuatan PDF berjalan di image worker yang terpisah,
+# supaya satu payroll run tidak pernah menahan request pengguna (risiko N2).
+# =============================================================================
+
+# --- Tahap 1: dependensi ------------------------------------------------------
+# Dipisah agar layer ini hanya dibangun ulang saat manifest paket berubah, bukan
+# setiap kali satu baris kode disunting.
+FROM node:24-alpine AS deps
+RUN corepack enable
+WORKDIR /repo
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/web/package.json          apps/web/
+COPY apps/worker/package.json       apps/worker/
+COPY packages/db/package.json       packages/db/
+COPY packages/core/package.json     packages/core/
+COPY packages/contracts/package.json packages/contracts/
+
+# `postinstall` @hrms/db menjalankan `prisma generate`, yang membutuhkan skema.
+COPY packages/db/prisma            packages/db/prisma
+COPY packages/db/prisma.config.ts  packages/db/
+
+# Berkas .env tidak pernah masuk image. Prisma CLI hanya butuh URL-nya ada saat
+# generate — nilainya tidak dipakai dan tidak ikut tersimpan di layer mana pun.
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
+    pnpm install --frozen-lockfile
+
+# --- Tahap 2: build -----------------------------------------------------------
+FROM node:24-alpine AS builder
+RUN corepack enable
+WORKDIR /repo
+
+COPY --from=deps /repo ./
+COPY . .
+
+# Build tidak menyentuh basis data. URL palsu di sini hanya memenuhi pembacaan
+# konfigurasi; koneksi sungguhan dibuat saat runtime dari environment.
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
+    DATABASE_URL_APP="postgresql://build:build@localhost:5432/build" \
+    JWT_SECRET="build-time-placeholder-not-used-at-runtime-32ch" \
+    pnpm --filter @hrms/web exec next build
+
+# --- Tahap 3: runtime ---------------------------------------------------------
+FROM node:24-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+# Berjalan sebagai pengguna non-root. Bila proses ini kelak dieksploitasi, ia
+# tidak sedang memegang root di dalam kontainer.
+RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S nextjs -G nodejs
+
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/public ./apps/web/public
+
+USER nextjs
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "apps/web/server.js"]

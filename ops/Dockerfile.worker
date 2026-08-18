@@ -1,0 +1,60 @@
+# =============================================================================
+# BACKEND (proses latar) — apps/worker
+#
+# Semua yang tidak boleh menahan request pengguna berjalan di sini:
+#   - Pompa outbox: memindahkan event dari basis data ke antrean pg-boss
+#   - Konsumer event
+#   - Nanti: impor Excel, proses payroll, pembuatan slip gaji PDF
+#
+# Dipisah dari image web dengan sengaja, meski basis kodenya sama. Ini peredam
+# untuk risiko N2 (PLAN/12 §10.3): pada monolit, satu payroll run yang memakan
+# CPU selama tiga menit akan menahan setiap request presensi bila keduanya satu
+# proses. Memisahkan proses adalah cara termurah menjamin itu tidak terjadi,
+# tanpa perlu memecah sistem menjadi service.
+#
+# Penskalaannya juga berbeda: web menskala pada jumlah request, worker pada
+# panjang antrean. Keduanya dapat diskalakan sendiri-sendiri tanpa satu pun
+# perubahan kode.
+# =============================================================================
+
+FROM node:24-alpine AS deps
+RUN corepack enable
+WORKDIR /repo
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/web/package.json           apps/web/
+COPY apps/worker/package.json        apps/worker/
+COPY packages/db/package.json        packages/db/
+COPY packages/core/package.json      packages/core/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/db/prisma              packages/db/prisma
+COPY packages/db/prisma.config.ts    packages/db/
+
+# Hanya dependensi worker beserta paket workspace yang dirujuknya. `apps/web`
+# tidak ikut — worker tidak pernah menyajikan HTTP.
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
+    pnpm install --frozen-lockfile --filter @hrms/worker...
+
+FROM node:24-alpine AS runner
+WORKDIR /repo
+
+ENV NODE_ENV=production
+
+COPY --from=deps /repo/node_modules              ./node_modules
+COPY --from=deps /repo/packages/db/node_modules  ./packages/db/node_modules
+COPY --from=deps /repo/apps/worker/node_modules  ./apps/worker/node_modules
+
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/contracts  ./packages/contracts
+COPY packages/db         ./packages/db
+COPY packages/core       ./packages/core
+COPY apps/worker         ./apps/worker
+
+RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S worker -G nodejs \
+ && chown -R worker:nodejs /repo
+USER worker
+
+# Worker menjalankan TypeScript langsung lewat type-stripping bawaan Node 24 —
+# tidak ada langkah build, sehingga tidak ada berkas terkompilasi yang bisa
+# tertinggal basi terhadap sumbernya.
+CMD ["node", "--experimental-strip-types", "apps/worker/src/main.ts"]

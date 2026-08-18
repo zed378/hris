@@ -1,17 +1,45 @@
+# =============================================================================
+# HRMS — PostgreSQL untuk pengembangan lokal
+#
+# Sengaja HANYA basis data. `web` (frontend + API) dan `worker` (proses latar)
+# dijalankan langsung di mesin dengan `pnpm dev`, karena hot reload jauh lebih
+# cepat daripada membangun ulang image pada setiap perubahan berkas.
+#
+# Untuk menjalankan ketiganya sebagai kontainer — mendekati produksi, atau saat
+# memeriksa masalah yang hanya muncul di image — pakai `docker-compose.yml`.
+#
+# PostgreSQL di sini merangkap tiga peran, dan itu yang membuat tumpukan ini
+# dapat dioperasikan satu orang (PLAN/12 §3.2):
+#   - basis data aplikasi (satu DB, schema per modul, RLS aktif)
+#   - antrean pekerjaan lewat pg-boss  → tanpa RabbitMQ
+#   - kunci terdistribusi lewat advisory lock → tanpa Redis
+#
+#   pnpm db:up          menjalankan
+#   pnpm db:migrate     menerapkan migrasi
+#   pnpm db:seed        mengisi katalog + tenant demo + superuser demo
+# =============================================================================
+
 name: hrms-dev
 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: hrms-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: hrms_owner
       POSTGRES_PASSWORD: hrms_dev_password
       POSTGRES_DB: hrms
     ports:
+      # 5433, bukan 5432, supaya tidak bentrok dengan PostgreSQL yang mungkin
+      # sudah terpasang di mesin pengembang.
       - '5433:5432'
     volumes:
       - hrms-pgdata:/var/lib/postgresql/data
+      # Membuat role runtime (hrms_app, hrms_worker, hrms_platform) beserta kata
+      # sandi pengembangan. Hanya berjalan saat volume masih kosong; role itu
+      # sendiri dibuat oleh migrasi, sehingga produksi tidak pernah mewarisi
+      # kredensial dari git.
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U hrms_owner -d hrms']

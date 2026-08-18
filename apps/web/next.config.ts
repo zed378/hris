@@ -18,6 +18,13 @@ loadEnv({
 });
 
 const config: NextConfig = {
+  // Keluaran standalone: Next menyalin hanya berkas dan dependensi yang
+  // benar-benar dipakai runtime ke `.next/standalone`. Untuk monorepo pnpm ini
+  // penting — tanpanya, image harus memuat seluruh node_modules workspace,
+  // termasuk Prisma CLI dan perkakas build yang tidak pernah dijalankan di produksi.
+  output: 'standalone',
+  // Akar workspace, supaya standalone ikut menyertakan paket `packages/*`.
+  outputFileTracingRoot: resolve(dirname(fileURLToPath(import.meta.url)), '../..'),
   // Paket workspace dikirim sebagai TypeScript sumber, bukan hasil build. Untuk
   // tim sebesar ini, menghapus langkah build antara adalah penghematan nyata:
   // satu perintah lebih sedikit yang bisa lupa dijalankan sebelum debugging.
