@@ -24,10 +24,9 @@ export class PunchError extends Error {
   }
 }
 
-export interface PunchInput {
+interface PunchBase {
   employeeId: string;
   type: 'IN' | 'OUT' | 'BREAK_START' | 'BREAK_END';
-  source: 'WEB' | 'MOBILE' | 'DEVICE' | 'MANUAL';
   /** Waktu ketukan menurut klien. Diverifikasi terhadap jam server. */
   punchedAt: Date;
   latitude?: number | null | undefined;
@@ -40,6 +39,22 @@ export interface PunchInput {
   deviceInfo?: string | null | undefined;
   ip?: string | null | undefined;
 }
+
+/**
+ * Entri manual wajib membawa alasannya, dan itu dipaksakan oleh tipe.
+ *
+ * Alasannya bukan kerapian data. Ketukan manual adalah satu-satunya jalur di
+ * mana catatan kehadiran muncul tanpa kehadiran orang yang bersangkutan —
+ * tanpa lokasi, tanpa foto, tanpa perangkatnya. Ketika kelak ada sengketa upah,
+ * yang menentukan bukan skor kepercayaannya melainkan apakah ada kalimat yang
+ * menjelaskan mengapa baris itu ada. Kolom opsional akan membuat kalimat itu
+ * hilang persis pada baris yang paling membutuhkannya.
+ */
+export type PunchInput = PunchBase &
+  (
+    | { source: 'WEB' | 'MOBILE' | 'DEVICE'; manualReason?: undefined }
+    | { source: 'MANUAL'; manualReason: string }
+  );
 
 export interface PunchResult {
   id: string;
@@ -128,6 +143,41 @@ export async function recordPunch(
     }
   }
 
+  // --- Periode yang sudah ditutup --------------------------------------------
+  //
+  // Hanya entri manual yang ditolak di sini, dan pembedaan itu disengaja.
+  //
+  // Ketukan WEB yang tiba terlambat — antrean luring yang baru tersambung
+  // setelah periode ditutup — tetap dicatat. Barisnya tidak berbahaya:
+  // `persistDay` menolak memperbarui hari yang terkunci, jadi angka yang dipakai
+  // payroll tidak bergeser. Menolak ketukannya justru akan membuang satu-satunya
+  // bukti bahwa orang itu hadir.
+  //
+  // Entri manual berbeda karena niatnya berbeda. HR memasukkannya JUSTRU untuk
+  // mengubah angkanya, dan angka itu tidak akan berubah. Membiarkannya
+  // "berhasil" berarti HR mengira koreksinya sudah beres sementara slip gaji
+  // tetap salah — kegagalan yang baru ketahuan saat karyawannya protes.
+  if (input.source === 'MANUAL') {
+    const workDateForLock = resolveWorkDate(input.punchedAt);
+    const closed = await tx.attendancePeriod.findFirst({
+      where: {
+        tenantId,
+        closedAt: { not: null },
+        startDate: { lte: workDateForLock },
+        endDate: { gte: workDateForLock },
+      },
+      select: { year: true, month: true },
+    });
+
+    if (closed) {
+      throw new PunchError(
+        `Periode ${String(closed.month).padStart(2, '0')}/${closed.year} sudah ditutup. ` +
+          'Koreksi pada periode tertutup tidak lagi mengubah angka yang dipakai payroll.',
+        'locked',
+      );
+    }
+  }
+
   // --- Penilaian kepercayaan -------------------------------------------------
   const serverNow = new Date();
   const clockSkewSeconds = Math.round(
@@ -170,7 +220,25 @@ export async function recordPunch(
           : null,
         trustScore: assessment.score,
         trustFlags: assessment.flags.length > 0 ? (assessment.flags as never) : Prisma.DbNull,
-        review: assessment.needsReview ? 'NEEDS_REVIEW' : 'ACCEPTED',
+        // Entri manual tidak masuk antrean tinjauan, dan itu bukan kelonggaran.
+        //
+        // Ia sudah ditinjau — oleh orang yang memasukkannya, pada saat ia
+        // memasukkannya, dengan alasan yang tercatat pada baris ini. Mengirimnya
+        // ke antrean berarti meminta HR meninjau pekerjaannya sendiri, dan
+        // sementara itu ia menaikkan rasio bertanda: metrik yang justru dipakai
+        // untuk mendeteksi ambang kepercayaan yang salah setel akan berbohong
+        // sebanding dengan seberapa rajin HR mengoreksi.
+        //
+        // Skornya TETAP rendah dan tetap terlihat. Buktinya memang lemah, dan
+        // menaikkan skornya akan menyembunyikan hal yang benar.
+        ...(input.source === 'MANUAL'
+          ? {
+              review: 'APPROVED' as const,
+              reviewedBy: actorUserId,
+              reviewedAt: new Date(),
+              reviewNote: input.manualReason,
+            }
+          : { review: assessment.needsReview ? ('NEEDS_REVIEW' as const) : ('ACCEPTED' as const) }),
         dedupeKey: input.dedupeKey,
         deviceInfo: input.deviceInfo ?? null,
         ip: input.ip ?? null,
@@ -195,12 +263,13 @@ export async function recordPunch(
           employeeId: input.employeeId,
           type: input.type,
           punchedAt: input.punchedAt.toISOString(),
+          reason: input.manualReason,
         },
         ip: input.ip ?? undefined,
       });
     }
 
-    if (assessment.needsReview) {
+    if (assessment.needsReview && input.source !== 'MANUAL') {
       await publishEvent(tx, tenantId, {
         topic: EventTopic.PUNCH_FLAGGED,
         payload: {
@@ -218,7 +287,7 @@ export async function recordPunch(
       workDate: workDate.toISOString().slice(0, 10),
       trustScore: assessment.score,
       flags: assessment.flags,
-      needsReview: assessment.needsReview,
+      needsReview: assessment.needsReview && input.source !== 'MANUAL',
       duplicate: false,
     };
   } catch (error) {

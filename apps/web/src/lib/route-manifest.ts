@@ -142,6 +142,10 @@ export const ROUTE_MANIFEST = {
   'GET /api/attendance/review': { module: 'attendance', permission: 'attendance.review.handle' },
   'POST /api/attendance/review': { module: 'attendance', permission: 'attendance.review.handle' },
 
+  'POST /api/attendance/manual-punch': {
+    module: 'attendance',
+    permission: 'attendance.record.correct',
+  },
   'GET /api/attendance/records': { module: 'attendance', permission: 'attendance.record.read.all' },
   'POST /api/attendance/records': { module: 'attendance', permission: 'attendance.record.correct' },
   'GET /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.record.read.own' },

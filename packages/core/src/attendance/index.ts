@@ -17,6 +17,7 @@ export {
   calculateDay,
   persistDay,
   recalculateDate,
+  recalculateEmployeeDate,
   closePeriod,
   type DailyResult,
   type DayStatus,

@@ -195,23 +195,45 @@ export async function recalculateDate(
   let skipped = 0;
 
   for (const employee of employees) {
-    const result = await calculateDay(tx, tenantId, employee.id, workDate);
-    const schedule = await tx.schedule.findUnique({
-      where: {
-        employeeId_workDate: {
-          employeeId: employee.id,
-          workDate: new Date(`${result.workDate}T00:00:00.000Z`),
-        },
-      },
-      select: { shiftId: true },
-    });
-
-    const saved = await persistDay(tx, tenantId, employee.id, result, schedule?.shiftId ?? null);
+    const saved = await recalculateEmployeeDate(tx, tenantId, employee.id, workDate);
     if (saved.saved) processed += 1;
     else skipped += 1;
   }
 
   return { processed, skipped };
+}
+
+/**
+ * Menghitung ulang satu karyawan pada satu tanggal.
+ *
+ * Dipisahkan karena koreksi manual menyentuh tepat satu orang pada tepat satu
+ * hari, sementara `recalculateDate` menyapu seluruh karyawan. Menjalankan sapuan
+ * penuh setelah HR memperbaiki satu ketukan berarti menghitung ulang ribuan hari
+ * yang tidak berubah — dan melakukannya di dalam request yang sedang ditunggu
+ * orang.
+ *
+ * Mengembalikan `{ saved: false }` bila harinya terkunci penutupan periode.
+ * Nilai itu wajib diteruskan ke pemanggil: koreksi yang tidak mengubah rekap
+ * tidak boleh dilaporkan sebagai berhasil.
+ */
+export async function recalculateEmployeeDate(
+  tx: TenantClient,
+  tenantId: string,
+  employeeId: string,
+  workDate: Date,
+): Promise<{ saved: boolean }> {
+  const result = await calculateDay(tx, tenantId, employeeId, workDate);
+  const schedule = await tx.schedule.findUnique({
+    where: {
+      employeeId_workDate: {
+        employeeId,
+        workDate: new Date(`${result.workDate}T00:00:00.000Z`),
+      },
+    },
+    select: { shiftId: true },
+  });
+
+  return persistDay(tx, tenantId, employeeId, result, schedule?.shiftId ?? null);
 }
 
 /**
