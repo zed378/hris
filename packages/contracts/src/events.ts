@@ -20,6 +20,13 @@ export const EventTopic = {
 
   ACCESS_CHANGED: 'iam.access.changed',
   ROLE_ASSIGNED: 'iam.role.assigned',
+  USER_INVITED: 'iam.user.invited',
+
+  PASSWORD_RESET_REQUESTED: 'auth.password.reset_requested',
+
+  EMPLOYEE_CREATED: 'employee.created',
+  EMPLOYEE_IMPORT_COMMITTED: 'employee.import.committed',
+  CONTRACT_EXPIRING: 'employee.contract.expiring',
 } as const;
 
 export type EventTopic = (typeof EventTopic)[keyof typeof EventTopic];

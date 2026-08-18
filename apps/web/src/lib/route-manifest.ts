@@ -108,6 +108,12 @@ export const ROUTE_MANIFEST = {
   // adalah langkah pertama sebelum seseorang memutuskan akan mengimpor.
   'GET /api/employees/template': { module: 'employee', permission: 'employee.export.execute' },
   'GET /api/employees/export': { module: 'employee', permission: 'employee.export.execute' },
+
+  // Kontrak kerja. Pengingat berakhirnya PKWT adalah alasan modul ini ditarik
+  // maju ke Fase 2: satu kontrak yang lolos berubah menjadi PKWTT demi hukum,
+  // dan itu tidak dapat dibatalkan (dokumen 08, A5).
+  'GET /api/contracts/expiring': { module: 'employee', permission: 'employee.contract.read' },
+  'POST /api/contracts': { module: 'employee', permission: 'employee.contract.manage' },
   'POST /api/employees/import': { module: 'employee', permission: 'employee.import.execute' },
   'GET /api/employees/import/[id]': { module: 'employee', permission: 'employee.import.execute' },
   'POST /api/employees/import/[id]/commit': { module: 'employee', permission: 'employee.import.execute' },

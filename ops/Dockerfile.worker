@@ -59,7 +59,15 @@ RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S worker -G nodejs \
  && chown -R worker:nodejs /repo
 USER worker
 
-# Worker menjalankan TypeScript langsung lewat type-stripping bawaan Node 24 —
-# tidak ada langkah build, sehingga tidak ada berkas terkompilasi yang bisa
-# tertinggal basi terhadap sumbernya.
-CMD ["node", "--experimental-strip-types", "apps/worker/src/main.ts"]
+# Worker menjalankan TypeScript langsung dengan Node 24 — tidak ada langkah
+# build, sehingga tidak ada berkas terkompilasi yang bisa tertinggal basi
+# terhadap sumbernya.
+#
+# `--experimental-transform-types`, BUKAN `--experimental-strip-types`. Yang
+# terakhir hanya menghapus anotasi tipe dan tidak dapat menangani fitur yang
+# menghasilkan kode — parameter property, enum, namespace. Seluruh kelas galat
+# di @hrms/core memakai parameter property, dan dengan flag yang salah worker
+# gagal saat startup dengan pesan yang tidak menyebut satu pun berkas kita.
+#
+# Kegagalan ini hanya muncul di worker: apps/web dikompilasi SWC oleh Next.
+CMD ["node", "--experimental-transform-types", "apps/worker/src/main.ts"]

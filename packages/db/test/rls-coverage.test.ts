@@ -109,7 +109,9 @@ describe('cakupan RLS', () => {
     //   resolve_refresh_token_owner — alur refresh
     //   resolve_tenant_by_code      — alur login
     //   tenant_user_counts          — dashboard global butuh angka, bukan isi tabel
+    //   active_tenant_ids           — job terjadwal, mengembalikan UUID saja
     expect(rows.map((r) => r.name)).toEqual([
+      'active_tenant_ids',
       'resolve_action_token_owner',
       'resolve_refresh_token_owner',
       'resolve_tenant_by_code',

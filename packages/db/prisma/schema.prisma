@@ -18,7 +18,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["tenant", "auth", "iam", "audit", "messaging", "platform", "employee"]
+  schemas  = ["tenant", "auth", "iam", "audit", "messaging", "platform", "employee", "notification"]
 }
 
 // =============================================================================
@@ -856,4 +856,65 @@ model ContractReminder {
   @@index([tenantId, sentAt])
   @@map("contract_reminders")
   @@schema("employee")
+}
+
+// =============================================================================
+// SCHEMA: notification — pengiriman keluar
+// =============================================================================
+
+enum NotificationChannel {
+  EMAIL
+  WEB_PUSH
+  WHATSAPP
+
+  @@schema("notification")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+
+  @@schema("notification")
+}
+
+/// Catatan setiap pesan yang dikirim keluar.
+///
+/// Alasan tabel ini ada tertulis di satu kolom: `dedupeKey`.
+///
+/// Outbox menjamin pengiriman **at-least-once**, bukan exactly-once. Konsumer
+/// yang gagal setelah mengirim email tetapi sebelum meng-ack pesannya akan
+/// menerima pesan yang sama lagi — dan mengirim email kedua. Untuk "pengingat
+/// kontrak" itu menjengkelkan; untuk "kata sandi Anda telah direset" itu
+/// membuat orang menelepon dukungan karena mengira akunnya diretas.
+///
+/// Kuncinya disisipkan lebih dulu dengan status PENDING. Bila penyisipan gagal
+/// karena constraint unique, pesan itu sudah pernah ditangani dan konsumer
+/// berhenti tanpa mengirim apa pun.
+model NotificationLog {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  channel NotificationChannel
+  topic   String
+  /// Identitas peristiwa, bukan identitas pesan. Dua percobaan atas peristiwa
+  /// yang sama menghasilkan kunci yang sama.
+  dedupeKey String @map("dedupe_key")
+
+  /// Alamat tujuan. Disimpan karena pertanyaan "ke mana pengingat itu dikirim"
+  /// muncul setiap kali seseorang bilang tidak menerimanya.
+  recipient String
+  subject   String
+
+  status    NotificationStatus @default(PENDING)
+  attempts  Int                @default(0)
+  lastError String?            @map("last_error")
+
+  sentAt    DateTime? @map("sent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, status, createdAt])
+  @@map("notification_logs")
+  @@schema("notification")
 }

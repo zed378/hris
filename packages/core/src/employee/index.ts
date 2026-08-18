@@ -43,3 +43,14 @@ export {
   type RowError,
 } from './import-schema.ts';
 export { buildEmployeeExport, type ExportOptions, type ExportResult } from './export.ts';
+export {
+  createContract,
+  listExpiringContracts,
+  scanContractReminders,
+  ContractError,
+  REMINDER_THRESHOLDS,
+  type ContractInput,
+  type ExpiringContract,
+  type ReminderThreshold,
+  type ReminderScanResult,
+} from './contracts.ts';

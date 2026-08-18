@@ -4,15 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --experimental-strip-types --watch src/main.ts",
-    "start": "node --experimental-strip-types src/main.ts",
+    "dev": "node --experimental-transform-types --watch src/main.ts",
+    "start": "node --experimental-transform-types src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "reminders:once": "node --experimental-transform-types src/run-reminders-once.ts"
   },
   "dependencies": {
     "@hrms/contracts": "workspace:*",
     "@hrms/db": "workspace:*",
-    "pg-boss": "^12.27.0"
+    "pg-boss": "^12.27.0",
+    "@hrms/core": "workspace:*"
   },
-  "devDependencies": { "dotenv": "^17.2.4" }
+  "devDependencies": {
+    "dotenv": "^17.2.4"
+  }
 }

@@ -8,7 +8,8 @@
     "./iam": "./src/iam/index.ts",
     "./auth": "./src/auth/index.ts",
     "./platform": "./src/platform/index.ts",
-    "./employee": "./src/employee/index.ts"
+    "./employee": "./src/employee/index.ts",
+    "./notification": "./src/notification/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

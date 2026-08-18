@@ -5,6 +5,8 @@ import { PgBoss } from 'pg-boss';
 import { disconnectAll } from '@hrms/db';
 import { EventTopic } from '@hrms/contracts';
 import { countStuck, pumpOnce } from './outbox-pump.ts';
+import { runContractReminders } from './contract-reminders.ts';
+import { deliverNotification, type NotifiableTopic } from '@hrms/core/notification';
 
 loadEnv({
   path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env'),
@@ -40,11 +42,42 @@ async function main(): Promise<void> {
     await boss.createQueue(topic);
   }
 
-  // Konsumer contoh. Setiap konsumer WAJIB idempoten: outbox menjamin
-  // at-least-once, bukan exactly-once, sehingga pesan yang sama dapat datang
-  // dua kali dan itu bukan bug.
-  await boss.work(EventTopic.USER_LOGGED_IN, async (jobs) => {
-    console.log({ event: EventTopic.USER_LOGGED_IN, data: jobs[0]?.data });
+  /**
+   * Konsumer notifikasi.
+   *
+   * Setiap konsumer WAJIB idempoten: outbox menjamin at-least-once, bukan
+   * exactly-once, sehingga pesan yang sama dapat datang dua kali dan itu bukan
+   * bug. Untuk email, idempotensinya ada pada `dedupeKey` di notification_logs —
+   * bukan pada harapan bahwa pesan tidak akan terkirim ulang.
+   *
+   * Pengiriman yang gagal TIDAK melempar. Melempar akan membuat pg-boss
+   * mencoba ulang, dan percobaan ulang atas alamat email yang memang salah
+   * hanya menghasilkan kegagalan yang sama berkali-kali. Kegagalannya tercatat
+   * pada barisnya sendiri, tempat ia dapat dilihat dan ditindaklanjuti.
+   */
+  const NOTIFIABLE: NotifiableTopic[] = [
+    'auth.password.reset_requested',
+    'iam.user.invited',
+    'employee.contract.expiring',
+  ];
+
+  for (const topic of NOTIFIABLE) {
+    await boss.work(topic, async (jobs) => {
+      for (const job of jobs) {
+        const data = job.data as { tenantId?: string; payload?: Record<string, unknown> };
+        if (!data?.tenantId || !data.payload) continue;
+
+        const result = await deliverNotification(data.tenantId, topic, data.payload);
+        if (result.status !== 'skipped') {
+          console.log({ scope: 'notification', topic, ...result });
+        }
+      }
+    });
+  }
+
+  await boss.work(EventTopic.USER_LOGGED_IN, async () => {
+    // Sengaja tanpa efek. Ada supaya antreannya terkuras; login akan menjadi
+    // sumber metrik kesehatan tenant di Fase 6.
   });
 
   let running = true;
@@ -58,6 +91,35 @@ async function main(): Promise<void> {
   };
   process.on('SIGINT', () => void stop('SIGINT'));
   process.on('SIGTERM', () => void stop('SIGTERM'));
+
+  /**
+   * Pengingat kontrak berjalan sekali sehari.
+   *
+   * Dipicu interval, bukan cron, karena pemindaiannya idempoten: constraint
+   * unique pada (contractId, threshold) membuat pemanggilan kedua di hari yang
+   * sama tidak menerbitkan apa pun. Itu menghapus seluruh kelas masalah
+   * penjadwalan — worker yang restart tiga kali sehari tetap benar, dan tidak
+   * ada jendela yang terlewat bila satu putaran gagal.
+   *
+   * Dijalankan sekali saat startup supaya deploy pertama tidak menunggu
+   * 24 jam untuk pengingat pertamanya.
+   */
+  const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+  const runReminders = async (): Promise<void> => {
+    try {
+      const result = await runContractReminders();
+      if (result.reminded > 0 || result.failed > 0) {
+        console.log({ scope: 'contract-reminders', ...result });
+      }
+    } catch (error) {
+      console.error({ scope: 'contract-reminders', error });
+    }
+  };
+
+  void runReminders();
+  const reminderTimer = setInterval(() => void runReminders(), REMINDER_INTERVAL_MS);
+  reminderTimer.unref?.();
 
   console.log('worker: berjalan. Memompa outbox setiap 2 detik.');
 
