@@ -1,4 +1,5 @@
 import { log } from '@hrms/observability';
+import { runPayrollCalculation } from './payroll-run.ts';
 import { EventTopic } from '@hrms/contracts';
 import { deliverNotification, type NotifiableTopic } from '@hrms/core/notification';
 import type { OutboxEnvelope } from './outbox-pump.ts';
@@ -47,6 +48,30 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
   [EventTopic.USER_INVITED]: notify('iam.user.invited'),
   [EventTopic.CONTRACT_EXPIRING]: notify('employee.contract.expiring'),
   [EventTopic.DOCUMENT_EXPIRING]: notify('employee.document.expiring'),
+
+  /**
+   * Perhitungan payroll.
+   *
+   * Satu-satunya konsumen yang mengerjakan pekerjaan berat, bukan mengirim
+   * pesan. Alasannya ada di `payroll-run.ts`: perhitungan seribu karyawan tidak
+   * dapat selesai di dalam transaksi permintaan HTTP, dan yang terjadi bukan
+   * "lambat" melainkan transaksi yang dibatalkan sehingga seluruh slip yang
+   * sudah dihitung hilang.
+   *
+   * Galat SENGAJA dilempar kembali, tidak ditelan seperti konsumen lain.
+   * pg-boss akan mencoba ulang, dan mencoba ulang di sini aman justru karena
+   * potongan yang sudah selesai ter-commit: percobaan berikutnya melanjutkan,
+   * bukan mengulang. Menelannya berarti run tertinggal setengah jadi tanpa ada
+   * yang mencoba menyelesaikannya.
+   */
+  [EventTopic.PAYROLL_RUN_REQUESTED]: {
+    kind: 'handle',
+    async run({ tenantId, payload, correlationId }) {
+      const { runId, actorUserId } = payload as { runId: string; actorUserId: string };
+      const result = await runPayrollCalculation(tenantId, runId, actorUserId);
+      log.info({ scope: 'payroll-run', correlationId: correlationId ?? undefined, tenantId, ...result });
+    },
+  },
 
   /**
    * Presensi yang ditandai untuk ditinjau.

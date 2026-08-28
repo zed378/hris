@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
-import { calculateRun, PayrollError } from '@hrms/core/payroll';
+import { PayrollError } from '@hrms/core/payroll';
+import { EventTopic } from '@hrms/contracts';
+import { publishEvent } from '@hrms/db';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 
 export const runtime = 'nodejs';
@@ -83,7 +85,61 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
 
   try {
     if (parsed.data.action === 'calculate') {
-      return NextResponse.json(await calculateRun(ctx.tx, ctx.tenantId, runId, ctx.userId));
+      /**
+       * Perhitungan diserahkan ke worker, tidak dijalankan di sini.
+       *
+       * Bukan demi kerapian. Transaksi interaktif Prisma dibatasi lima detik
+       * dan peran `hrms_app` dibatasi `statement_timeout` lima belas detik;
+       * run seribu karyawan melewati keduanya. Yang terjadi bukan permintaan
+       * yang lambat — transaksinya dibatalkan, SELURUH slip yang sudah dihitung
+       * hilang, dan percobaan berikutnya mengulang dari nol lalu gagal di detik
+       * yang sama. Run itu tidak akan pernah selesai.
+       *
+       * Statusnya ditandai CALCULATING di sini, dalam transaksi yang sama
+       * dengan penerbitan event. Menandainya di worker akan meninggalkan
+       * jendela ketika HR sudah menekan tombol tetapi layar masih menampilkan
+       * DRAFT — dan yang dilakukan orang pada jendela itu adalah menekan tombol
+       * lagi.
+       */
+      const run = await ctx.tx.payrollRun.findFirst({
+        where: { id: runId, tenantId: ctx.tenantId },
+        select: { status: true },
+      });
+      if (!run) {
+        return apiError(404, ErrorCode.NOT_FOUND, 'Run tidak ditemukan', ctx.correlationId);
+      }
+      if (run.status !== 'DRAFT' && run.status !== 'FAILED') {
+        return apiError(
+          409,
+          ErrorCode.CONFLICT,
+          run.status === 'CALCULATING'
+            ? 'Run ini sedang dihitung. Muat ulang halaman untuk melihat kemajuannya.'
+            : `Run berstatus ${run.status} tidak dapat dihitung ulang. Batalkan dan buat run baru.`,
+          ctx.correlationId,
+        );
+      }
+
+      await ctx.tx.payrollRun.update({
+        where: { id: runId },
+        data: { status: 'CALCULATING', lastError: null },
+      });
+
+      await publishEvent(ctx.tx, ctx.tenantId, {
+        topic: EventTopic.PAYROLL_RUN_REQUESTED,
+        payload: { tenantId: ctx.tenantId, runId, actorUserId: ctx.userId },
+      });
+
+      // 202, bukan 200. Perhitungannya belum terjadi, dan mengembalikan 200
+      // dengan angka nol akan terbaca sebagai "seribu karyawan, nol rupiah".
+      return NextResponse.json(
+        {
+          runId,
+          status: 'CALCULATING',
+          message:
+            'Perhitungan dijalankan di latar belakang. Muat ulang halaman untuk melihat kemajuannya.',
+        },
+        { status: 202 },
+      );
     }
 
     if (parsed.data.action === 'approve') {

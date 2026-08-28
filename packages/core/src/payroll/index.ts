@@ -20,11 +20,16 @@ export {
 } from './components.ts';
 export {
   calculatePayslip,
-  calculateRun,
+  startRun,
+  calculateBatch,
+  finishRun,
+  failRun,
+  BATCH_SIZE,
   buildSnapshot,
   PayrollError,
   type PayrollSnapshot,
   type CalculatedPayslip,
   type CalculatedLine,
   type RunResult,
+  type BatchFailure,
 } from './calculate.ts';

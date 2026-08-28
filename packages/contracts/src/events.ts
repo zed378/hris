@@ -35,6 +35,8 @@ export const EventTopic = {
   LEAVE_REQUEST_APPROVED: 'leave.request.approved',
   LEAVE_REQUEST_REJECTED: 'leave.request.rejected',
   LEAVE_BALANCE_CHANGED: 'leave.balance.changed',
+
+  PAYROLL_RUN_REQUESTED: 'payroll.run.requested',
 } as const;
 
 export type EventTopic = (typeof EventTopic)[keyof typeof EventTopic];

@@ -318,23 +318,67 @@ export interface RunResult {
 }
 
 /**
- * Menghitung seluruh karyawan pada satu run.
+ * Perhitungan run, dipecah menjadi potongan yang MASING-MASING ter-commit.
  *
- * Slip yang sudah ada DILEWATI, bukan dihitung ulang. Itulah yang memenuhi DoD
- * "mematikan worker di tengah kalkulasi → dilanjutkan tanpa slip ganda":
- * menjalankan ulang run yang terputus melanjutkan dari tempat ia berhenti.
+ * Sebelum ini, seluruh run berjalan di dalam satu transaksi permintaan HTTP.
+ * Komentar di tempat ini menjanjikan "mematikan worker di tengah kalkulasi →
+ * dilanjutkan tanpa slip ganda", dan kodenya memang melewati slip yang sudah
+ * ada — tetapi janji itu **tidak pernah dapat ditepati**, karena tidak ada satu
+ * pun slip yang ter-commit sampai seluruh run selesai.
  *
- * Karyawan yang gagal dicatat pada `failures` dan run tetap berjalan. Satu
- * struktur gaji yang belum lengkap tidak boleh menahan slip 999 orang lain —
- * dan HR yang menerima "payroll gagal" tanpa keterangan tidak dapat berbuat
- * apa-apa dengan kalimat itu.
+ * Yang sesungguhnya terjadi pada run besar:
+ *
+ *   1. Transaksi interaktif Prisma punya batas bawaan lima detik.
+ *   2. Peran `hrms_app` punya `statement_timeout` 15 detik.
+ *   3. Run seribu karyawan melewati keduanya.
+ *   4. Transaksi dibatalkan. SELURUH slip yang sudah dihitung hilang.
+ *   5. HR menekan "Hitung" lagi. Himpunan slip-yang-sudah-ada kosong.
+ *      Semuanya diulang dari nol, dan gagal lagi di detik yang sama.
+ *
+ * Run itu tidak akan pernah selesai, berapa kali pun dicoba, dan yang dilihat HR
+ * hanyalah galat transaksi yang tidak menjelaskan apa pun. Kode pemulihannya ada
+ * sejak awal; yang tidak ada adalah kesempatan bagi kode itu untuk berguna.
+ *
+ * Karena itu bentuknya kini tiga bagian yang dipanggil dalam transaksi
+ * TERPISAH — `startRun`, `calculateBatch` berulang, lalu `finishRun`. Setiap
+ * potongan ter-commit, sehingga kemajuan bertahan melewati proses yang mati.
  */
-export async function calculateRun(
+
+/**
+ * Karyawan per transaksi.
+ *
+ * Dipilih agar satu potongan selesai jauh di bawah `statement_timeout` peran
+ * worker (5 menit). Lebih besar berarti lebih sedikit commit dan sedikit lebih
+ * cepat; lebih kecil berarti lebih sedikit pekerjaan yang hilang ketika proses
+ * mati. Lima puluh berada di sisi yang tidak menyesal.
+ */
+export const BATCH_SIZE = 50;
+
+export interface RunResult {
+  runId: string;
+  runNumber: string;
+  employeeCount: number;
+  totalGross: string;
+  totalNet: string;
+  failures: Array<{ employeeId: string; reason: string }>;
+}
+
+export interface BatchFailure {
+  employeeId: string;
+  reason: string;
+}
+
+/**
+ * Menandai run mulai dihitung, dan mengembalikan daftar karyawan yang tersisa.
+ *
+ * Yang dikembalikan hanya id — daftar seribu id muat di memori, seribu snapshot
+ * gaji tidak.
+ */
+export async function startRun(
   tx: TenantClient,
   tenantId: string,
   runId: string,
-  actorUserId: string,
-): Promise<RunResult> {
+): Promise<{ periodYear: number; periodMonth: number; pending: string[] }> {
   const run = await tx.payrollRun.findFirst({ where: { id: runId, tenantId } });
   if (!run) throw new PayrollError('Run tidak ditemukan', 'not_found');
 
@@ -353,6 +397,7 @@ export async function calculateRun(
   const employees = await tx.employee.findMany({
     where: { tenantId, status: { in: ['ACTIVE', 'PROBATION'] } },
     select: { id: true },
+    orderBy: { employeeNumber: 'asc' },
   });
 
   const existing = await tx.payslip.findMany({
@@ -361,26 +406,51 @@ export async function calculateRun(
   });
   const alreadyDone = new Set(existing.map((p) => p.employeeId));
 
-  const failures: RunResult['failures'] = [];
-  let totalGross = ZERO;
-  let totalDeduction = ZERO;
-  let totalNet = ZERO;
+  return {
+    periodYear: run.periodYear,
+    periodMonth: run.periodMonth,
+    pending: employees.map((e) => e.id).filter((id) => !alreadyDone.has(id)),
+  };
+}
 
-  for (const employee of employees) {
-    if (alreadyDone.has(employee.id)) continue;
+/**
+ * Menghitung satu potongan karyawan.
+ *
+ * Karyawan yang gagal dikembalikan sebagai `failures` dan potongan tetap
+ * berjalan. Satu struktur gaji yang belum lengkap tidak boleh menahan slip 999
+ * orang lain — dan HR yang menerima "payroll gagal" tanpa keterangan tidak dapat
+ * berbuat apa-apa dengan kalimat itu.
+ *
+ * Slip yang sudah ada diperiksa lagi di sini, bukan hanya di `startRun`. Di
+ * antara keduanya ada jeda, dan pada jeda itu proses lain mungkin sudah
+ * menghitung sebagian — hal yang terjadi bila HR menekan "Hitung" dua kali.
+ */
+export async function calculateBatch(
+  tx: TenantClient,
+  tenantId: string,
+  runId: string,
+  employeeIds: readonly string[],
+  periodYear: number,
+  periodMonth: number,
+): Promise<{ calculated: number; failures: BatchFailure[] }> {
+  const existing = await tx.payslip.findMany({
+    where: { tenantId, runId, employeeId: { in: [...employeeIds] } },
+    select: { employeeId: true },
+  });
+  const alreadyDone = new Set(existing.map((p) => p.employeeId));
 
-    let calculated: CalculatedPayslip;
+  const failures: BatchFailure[] = [];
+  let calculated = 0;
+
+  for (const employeeId of employeeIds) {
+    if (alreadyDone.has(employeeId)) continue;
+
+    let payslipData: CalculatedPayslip;
     try {
-      calculated = await calculatePayslip(
-        tx,
-        tenantId,
-        employee.id,
-        run.periodYear,
-        run.periodMonth,
-      );
+      payslipData = await calculatePayslip(tx, tenantId, employeeId, periodYear, periodMonth);
     } catch (error) {
       failures.push({
-        employeeId: employee.id,
+        employeeId,
         reason: error instanceof Error ? error.message : 'Gagal dihitung',
       });
       continue;
@@ -389,18 +459,18 @@ export async function calculateRun(
     const payslip = await tx.payslip.create({
       data: {
         tenantId,
-        runId: run.id,
-        employeeId: employee.id,
-        gross: calculated.gross,
-        deduction: calculated.deduction,
-        net: calculated.net,
-        snapshot: calculated.snapshot as never,
+        runId,
+        employeeId,
+        gross: payslipData.gross,
+        deduction: payslipData.deduction,
+        net: payslipData.net,
+        snapshot: payslipData.snapshot as never,
       },
       select: { id: true },
     });
 
     await tx.payslipLine.createMany({
-      data: calculated.lines.map((line) => ({
+      data: payslipData.lines.map((line) => ({
         tenantId,
         payslipId: payslip.id,
         componentId: line.componentId,
@@ -413,7 +483,7 @@ export async function calculateRun(
     });
 
     await tx.calculationTrace.createMany({
-      data: calculated.lines.map((line) => ({
+      data: payslipData.lines.map((line) => ({
         tenantId,
         payslipId: payslip.id,
         componentCode: line.componentCode,
@@ -424,21 +494,45 @@ export async function calculateRun(
       })),
     });
 
-    totalGross = totalGross.plus(calculated.gross);
-    totalDeduction = totalDeduction.plus(calculated.deduction);
-    totalNet = totalNet.plus(calculated.net);
+    calculated += 1;
   }
 
-  const counted = await tx.payslip.count({ where: { tenantId, runId: run.id } });
+  return { calculated, failures };
+}
+
+/**
+ * Menutup run: menjumlahkan, menetapkan status, dan mengaudit.
+ *
+ * Totalnya dihitung ulang dari BASIS DATA, bukan diakumulasi di memori.
+ * Akumulasi memori hanya benar bila satu proses menyelesaikan seluruh run — dan
+ * seluruh gunanya pemecahan ini adalah agar itu tidak perlu benar. Proses yang
+ * mati di potongan ketujuh lalu dilanjutkan proses lain akan melaporkan total
+ * tujuh potongan terakhir sebagai total seluruh perusahaan, dan angka itu masuk
+ * ke laporan tanpa satu pun galat.
+ */
+export async function finishRun(
+  tx: TenantClient,
+  tenantId: string,
+  runId: string,
+  failures: readonly BatchFailure[],
+  actorUserId: string,
+): Promise<RunResult> {
+  const totals = await tx.payslip.aggregate({
+    where: { tenantId, runId },
+    _count: { _all: true },
+    _sum: { gross: true, deduction: true, net: true },
+  });
+
+  const counted = totals._count._all;
 
   const updated = await tx.payrollRun.update({
-    where: { id: run.id },
+    where: { id: runId },
     data: {
       status: failures.length > 0 && counted === 0 ? 'FAILED' : 'CALCULATED',
       employeeCount: counted,
-      totalGross,
-      totalDeduction,
-      totalNet,
+      totalGross: totals._sum.gross ?? ZERO,
+      totalDeduction: totals._sum.deduction ?? ZERO,
+      totalNet: totals._sum.net ?? ZERO,
       calculatedAt: new Date(),
       lastError:
         failures.length > 0
@@ -450,17 +544,42 @@ export async function calculateRun(
   await writeAudit(tx, tenantId, {
     action: 'payroll.run.calculated',
     entityType: 'payroll_run',
-    entityId: run.id,
+    entityId: runId,
     actorUserId,
     after: { employeeCount: counted, failures: failures.length },
   });
 
   return {
-    runId: run.id,
+    runId,
     runNumber: updated.runNumber,
     employeeCount: counted,
-    totalGross: totalGross.toString(),
-    totalNet: totalNet.toString(),
-    failures,
+    totalGross: (totals._sum.gross ?? ZERO).toString(),
+    totalNet: (totals._sum.net ?? ZERO).toString(),
+    failures: [...failures],
   };
+}
+
+/**
+ * Menandai run gagal beserta sebabnya.
+ *
+ * Dipanggil worker ketika sebuah potongan melempar galat yang bukan kegagalan
+ * per-karyawan — koneksi putus, tenant hilang. Run yang ditinggal berstatus
+ * CALCULATING selamanya adalah run yang tombolnya tidak akan ditekan siapa pun
+ * lagi: `startRun` memang menerimanya kembali, tetapi tidak ada yang tahu bahwa
+ * ia boleh dicoba.
+ *
+ * `updateMany` dengan syarat status, bukan `update`. Run yang sementara itu
+ * sudah selesai dihitung proses lain tidak boleh ditandai gagal oleh pesan
+ * yang datang terlambat.
+ */
+export async function failRun(
+  tx: TenantClient,
+  tenantId: string,
+  runId: string,
+  reason: string,
+): Promise<void> {
+  await tx.payrollRun.updateMany({
+    where: { id: runId, tenantId, status: 'CALCULATING' },
+    data: { status: 'FAILED', lastError: reason },
+  });
 }

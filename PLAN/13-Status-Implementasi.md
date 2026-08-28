@@ -335,6 +335,20 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     constraint, dengan uji yang membandingkan keduanya terhadap **katalog
     PostgreSQL** — bukan terhadap daftar yang ditulis ulang di berkas uji.
     Diverifikasi lewat mutasi: mengubah satu nilai menggagalkan 2 uji.
+25. **Run payroll besar tidak akan pernah selesai, berapa kali pun dicoba** —
+    dan kode pemulihannya sudah ada sejak awal, hanya tidak pernah punya
+    kesempatan berguna. Perhitungan berjalan di dalam satu transaksi permintaan
+    HTTP. Transaksi interaktif Prisma dibatasi lima detik bawaan; peran
+    `hrms_app` dibatasi `statement_timeout` lima belas detik. Run seribu
+    karyawan melewati keduanya, transaksinya dibatalkan, dan **seluruh slip yang
+    sudah dihitung hilang** — sehingga percobaan berikutnya menemukan nol slip,
+    mengulang dari awal, dan gagal di detik yang sama. Komentar di kode
+    menjanjikan "mematikan worker di tengah kalkulasi → dilanjutkan tanpa slip
+    ganda", dan kodenya memang melewati slip yang sudah ada; yang tidak ada
+    adalah slip yang pernah ter-commit. Diukur langsung: jalur lama **gagal pada
+    detik 5,2 dengan 0 slip bertahan**. Jalur baru menyelesaikan 1.003 karyawan
+    dalam **8,5 detik** lewat 21 potongan yang masing-masing ter-commit;
+    menjalankannya ulang menghasilkan **0 slip baru dalam 13 ms**.
 
 ---
 
@@ -464,10 +478,31 @@ Seluruhnya terkunci Gerbang C, bukan tertinggal:
 
 Yang tidak terkunci Gerbang C tetapi belum dibangun:
 
-- **Perhitungan run di worker** — saat ini berjalan dalam request. Untuk 1.000
-  karyawan (DoD: < 3 menit) ini harus pindah ke pg-boss, dan potongannya sudah
-  disiapkan: `calculateRun` melewati slip yang sudah ada, sehingga dapat
-  dilanjutkan setelah proses mati.
+- ~~**Perhitungan run di worker**~~ — **selesai, dan DoD-nya terukur.** Nomor 25
+  di atas. `POST /api/payroll/runs/[id]` dengan aksi `calculate` kini menandai
+  run `CALCULATING`, menerbitkan `payroll.run.requested` ke outbox dalam
+  transaksi yang sama, dan mengembalikan **202** — bukan 200 dengan angka nol,
+  yang akan terbaca sebagai "seribu karyawan, nol rupiah". Worker memprosesnya
+  50 karyawan per transaksi sebagai peran `hrms_worker`.
+
+  | Ukuran | Hasil |
+  |---|---|
+  | 1.003 karyawan, 21 potongan | **8,5 detik** (DoD: < 3 menit) |
+  | Dijalankan ulang atas run yang sama | 0 slip baru, 13 ms |
+  | Bentuk lama, satu transaksi | gagal pada detik 5,2 |
+  | Slip bertahan setelah kegagalan lama | **0** |
+
+  Totalnya dihitung ulang dari basis data pada penutupan, bukan diakumulasi di
+  memori: proses yang mati di potongan ketujuh lalu dilanjutkan proses lain akan
+  melaporkan total tujuh potongan terakhir sebagai total seluruh perusahaan, dan
+  angka itu masuk ke laporan tanpa satu pun galat.
+
+  Layar run ikut berubah: tombol "Hitung" kini hanya tampil untuk DRAFT dan
+  FAILED — sebelumnya CALCULATED juga menampilkannya dan menekannya **selalu**
+  menghasilkan 409, karena server memang tidak pernah menerima perhitungan ulang
+  atas run yang sudah selesai. Run FAILED menampilkan "Lanjutkan", dan kata itu
+  kini benar. Halaman memuat ulang tiap tiga detik selama masih ada run yang
+  dihitung, lalu berhenti sendiri.
 - **`statutory_configs` belum punya layar maupun endpoint** — tabelnya ada,
   pengisiannya menunggu Gerbang C.
 

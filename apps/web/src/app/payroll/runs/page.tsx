@@ -81,6 +81,8 @@ export default function PayrollRunsPage() {
     void load();
   }, [load]);
 
+
+
   const openRun = useCallback(
     async (id: string) => {
       const response = await api(`/api/payroll/runs/${id}`);
@@ -88,6 +90,32 @@ export default function PayrollRunsPage() {
     },
     [api],
   );
+
+  /**
+   * Memuat ulang selama masih ada run yang dihitung.
+   *
+   * Perhitungan kini berjalan di worker, sehingga halaman tidak lagi menunggu
+   * jawabannya. Tanpa polling, HR menekan "Hitung", melihat status berubah
+   * menjadi CALCULATING, lalu tidak melihat apa-apa lagi — dan menyimpulkan
+   * sistemnya menggantung. Interval berhenti sendiri begitu tidak ada lagi run
+   * yang berjalan; tidak ada polling yang tertinggal menyala di tab yang dibuka
+   * semalaman.
+   */
+  const adaYangDihitung = runs.some((run) => run.status === 'CALCULATING');
+
+  useEffect(() => {
+    if (!adaYangDihitung) return;
+
+    const timer = setInterval(() => {
+      void load();
+      setDetail((current) => {
+        if (current) void openRun(current.run.id);
+        return current;
+      });
+    }, 3_000);
+
+    return () => clearInterval(timer);
+  }, [adaYangDihitung, load, openRun]);
 
   const act = useCallback(
     async (runId: string, body: unknown, sukses: string) => {
@@ -244,14 +272,38 @@ export default function PayrollRunsPage() {
                   {run.status}
                 </span>
 
-                {['DRAFT', 'CALCULATED', 'FAILED'].includes(run.status) && (
+                {/*
+                  Hanya DRAFT dan FAILED.
+
+                  Sebelumnya CALCULATED ikut menampilkan tombol ini, dan
+                  menekannya selalu menghasilkan 409 — server memang tidak pernah
+                  menerima perhitungan ulang atas run yang sudah selesai.
+                  Tombol yang selalu gagal adalah tombol yang mengajarkan orang
+                  untuk mengabaikan pesan galat.
+
+                  FAILED tetap ada, dan kini berarti sesuatu: run yang terputus
+                  melanjutkan dari potongan terakhir yang ter-commit.
+                */}
+                {['DRAFT', 'FAILED'].includes(run.status) && (
                   <button
-                    onClick={() => void act(run.id, { action: 'calculate' }, 'Perhitungan selesai.')}
+                    onClick={() =>
+                      void act(
+                        run.id,
+                        { action: 'calculate' },
+                        'Perhitungan berjalan di latar belakang.',
+                      )
+                    }
                     disabled={busy}
                     className="rounded-md border border-slate-300 px-3 py-1.5 text-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
                   >
-                    Hitung
+                    {run.status === 'FAILED' ? 'Lanjutkan' : 'Hitung'}
                   </button>
+                )}
+
+                {run.status === 'CALCULATING' && (
+                  <span className="text-sm text-slate-500">
+                    Menghitung… {run.employeeCount > 0 && `${run.employeeCount} slip selesai`}
+                  </span>
                 )}
 
                 {run.status === 'CALCULATED' && canApprove && (
