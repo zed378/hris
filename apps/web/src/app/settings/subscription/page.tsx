@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
+import { downloadFile } from '@/lib/download.ts';
 
 /**
  * Langganan dan modul (PLAN/12 F6).
@@ -46,6 +47,21 @@ export default function SubscriptionPage() {
   const [data, setData] = useState<Subscription | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+
+  const exportAll = useCallback(async () => {
+    setBusy('export');
+    setMessage(null);
+    const hasil = await downloadFile(api, '/api/tenant/export', 'data-perusahaan.json');
+    setMessage(
+      hasil.ok
+        ? {
+            tone: 'ok',
+            text: `${hasil.fileName} tersimpan. Berkas ini memuat seluruh data perusahaan Anda — simpan di tempat yang aman.`,
+          }
+        : { tone: 'error', text: hasil.error ?? 'Ekspor gagal.' },
+    );
+    setBusy(null);
+  }, [api]);
 
   const load = useCallback(async () => {
     const response = await api('/api/subscription');
@@ -226,6 +242,29 @@ export default function SubscriptionPage() {
         Perubahan berlaku seketika: menu dimuat ulang tanpa Anda perlu keluar dan
         masuk kembali.
       </p>
+
+      {/* Diletakkan di halaman ini dengan sengaja: orang mencari cara mengekspor
+          datanya justru ketika ia sedang mempertimbangkan berhenti berlangganan.
+          Menyembunyikannya di menu lain akan terbaca sebagai penguncian. */}
+      <section className="mt-8 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-medium">Ekspor seluruh data</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Mengunduh seluruh data perusahaan Anda sebagai satu berkas JSON —
+          karyawan, presensi, cuti, dan penggajian. Hak portabilitas data menurut
+          UU No. 27 Tahun 2022.
+        </p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Berkasnya memuat data pribadi karyawan dalam bentuk asli bila Anda
+          berhak membukanya. Setiap pengunduhan tercatat di jejak audit.
+        </p>
+        <button
+          onClick={() => void exportAll()}
+          disabled={busy !== null}
+          className="mt-3 rounded-md border border-slate-300 px-3 py-2 text-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+        >
+          {busy === 'export' ? 'Menyiapkan berkas…' : 'Unduh data perusahaan'}
+        </button>
+      </section>
     </AppShell>
   );
 }

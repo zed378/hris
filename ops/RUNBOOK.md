@@ -180,12 +180,97 @@ WHERE photo_key IS NOT NULL AND photo_expires_at < now();
 
 ---
 
+## 6. Pemulihan dari cadangan
+
+**Prosedur ini sudah dijalankan dan diverifikasi**, bukan disusun dari dokumentasi.
+Hasil uji terakhir dicatat di bawah.
+
+### Mencadangkan
+
+```bash
+bash ops/scripts/backup.sh ./backups
+```
+
+Skrip memverifikasi isinya, bukan hanya keberadaan berkasnya — cadangan yang
+gagal separuh jalan tetap meninggalkan berkas, dan yang membedakannya dari
+cadangan yang dapat dipakai adalah apakah daftar isinya dapat dibaca.
+
+Retensi 14 cadangan terakhir, dihitung per **jumlah** bukan umur: retensi
+berbasis umur akan menghapus semuanya sekaligus bila job-nya berhenti dua pekan
+lalu berjalan lagi.
+
+### Memulihkan
+
+**Selalu pulihkan ke basis data BARU lebih dulu**, bukan langsung menimpa
+produksi. Memulihkan cadangan lama ke atas basis data yang masih baik adalah
+satu-satunya hal yang lebih buruk daripada tidak punya cadangan.
+
+```bash
+bash ops/scripts/restore.sh backups/hrms-20260828T090736Z.dump hrms_restore
+```
+
+Skrip menuntut konfirmasi berupa **nama basis datanya**, bukan sekadar "y".
+
+### Yang WAJIB diperiksa setelah pemulihan
+
+Data yang pulih tanpa RLS bukan pemulihan yang berhasil — ia kebocoran yang
+menunggu permintaan pertama. Skripnya memeriksa ini otomatis, tetapi periksa
+sendiri sebelum mengarahkan aplikasi ke sana:
+
+```sql
+-- 1. Nol temuan drift.
+SELECT * FROM public.schema_drift_report();
+
+-- 2. Jumlah kebijakan sama dengan basis data asal.
+SELECT count(*) FROM pg_policies
+WHERE schemaname NOT IN ('pg_catalog','information_schema');
+
+-- 3. Isolasi benar-benar bekerja. Dijalankan sebagai hrms_app, BUKAN owner —
+--    owner menembus RLS, sehingga mengujinya sebagai owner tidak menguji apa pun.
+SET ROLE hrms_app;
+SELECT count(*) FROM employee.employees;                      -- harus 0
+SELECT set_config('app.tenant_id', '<uuid-tenant>', false);
+SELECT count(*) FROM employee.employees;                      -- harus sesuai
+```
+
+Bila drift tidak nol, jalankan migrasi terhadap basis data hasil pulih sebelum
+memakainya:
+
+```bash
+DATABASE_URL=<url-ke-basis-data-pulih> pnpm --filter @hrms/db exec prisma migrate deploy
+```
+
+Migrasi bersifat idempoten dan aditif; ia hanya melengkapi yang belum ada.
+
+### Hasil uji terakhir — 28 Agustus 2026
+
+| Yang diperiksa | Hasil |
+|---|---|
+| Ukuran cadangan | 272 KB, 62 tabel berisi data |
+| Jumlah baris per tabel | Identik: audit 272, punch 32, cuti 6, slip 3, jejak hitung 15, karyawan 3, tenant 2 |
+| Kebijakan RLS | 47 pada asal, 47 pada hasil pulih |
+| Laporan drift | 0 temuan |
+| Isolasi tanpa konteks tenant | 0 baris terbaca — fail-closed |
+| Isolasi dengan konteks demo | 3 karyawan, 32 punch — sesuai |
+| Isolasi dengan konteks tenant lain | 0 karyawan, 0 punch, 0 slip |
+
+### Batasnya, dinyatakan terus terang
+
+- **Belum ada PITR.** Yang ada cadangan berkala, sehingga kehilangan data
+  maksimum adalah jarak antar-cadangan. PITR menuntut WAL archiving yang belum
+  dikonfigurasi.
+- **Berkas foto presensi dan dokumen karyawan TIDAK ikut dalam dump.** Keduanya
+  ada di penyimpanan berkas, bukan basis data. Cadangan yang lengkap harus
+  menyertakan direktori `.storage/` — dan itu belum otomatis.
+- **Uji ini dijalankan pada basis data pengembangan** berukuran ratusan kilobita.
+  Waktu pemulihan pada basis data produksi berukuran gigabita belum diukur.
+
+---
+
 ## Yang belum ada di runbook ini
 
 Ditulis terus terang supaya tidak dicari saat dibutuhkan:
 
-- **Pemulihan dari cadangan** — prosedurnya belum diuji, jadi belum ditulis.
-  Menulis prosedur pemulihan yang belum pernah dijalankan lebih berbahaya
-  daripada tidak menulisnya: ia memberi rasa aman yang tidak berdasar.
 - **Insiden penagihan** — modulnya belum ada.
 - **Kegagalan payment gateway** — belum terintegrasi.
+- **Cadangan berkas penyimpanan** — lihat batasnya di §6.

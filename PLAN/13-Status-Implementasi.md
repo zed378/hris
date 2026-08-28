@@ -23,7 +23,7 @@ Terakhir diperbarui: 28 Agustus 2026.
 | F3 | Presensi, PWA, bukti, kepercayaan, persetujuan, dasbor langsung | Selesai |
 | F4 | Cuti | Selesai |
 | F5 | Payroll | **Kerangka selesai; perhitungan pajak & BPJS terkunci Gerbang C** |
-| F6 | Komersialisasi | **Aktivasi modul mandiri + pengerasan selesai; penagihan belum** |
+| F6 | Komersialisasi | **Semua selesai kecuali penagihan (butuh akun payment gateway)** |
 | F7 | Observabilitas, kesiapan produksi | Sebagian |
 
 Gerbang A (tiga pilot mengimpor mandiri) dan Gerbang B (satu tenant membayar)
@@ -175,6 +175,12 @@ berjalan, bukan hanya lolos uji unit.
 | Deteksi drift skema benar-benar mendeteksi | Tabel ber-`tenant_id` tanpa RLS dan RLS tanpa kebijakan keduanya tertangkap |
 | Cakupan dasbor mengikuti izin, bukan parameter | HR menerima tiga cakupan; karyawan hanya `own`, sisanya `null` |
 | Modul mati tidak menghasilkan angka palsu di dasbor | `payrollRunsPendingApproval: null`, bukan `0` |
+| Pendaftaran mandiri tanpa menyentuh tim | Tenant baru terbuat, langsung dapat masuk, 14 hari uji coba, seluruh modul aktif |
+| Kode perusahaan ganda ditolak | 409 dengan pesan yang menyebut kodenya |
+| **Ekspor portabilitas UU PDP lengkap** | 23 tabel, 58 KB; ciphertext dan hash kata sandi TIDAK ikut |
+| Ekspor menyertakan modul yang TIDAK dilanggan | Data payroll ikut meski modulnya nonaktif — portabilitas bukan fungsi langganan |
+| **Pemulihan dari cadangan diuji, bukan hanya ditulis** | Cadangan 272 KB dipulihkan ke basis data baru: seluruh jumlah baris identik, 47 kebijakan RLS ikut, laporan drift 0 |
+| Isolasi tenant utuh setelah pemulihan | Diuji sebagai `hrms_app`: tanpa konteks 0 baris, konteks demo 3 karyawan / 32 punch, konteks tenant lain 0 |
 
 ---
 
@@ -239,7 +245,17 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     dan tidak terikat `statement_timeout`. Setiap dasbor langsung yang dibuka
     memegang koneksi tanpa batas waktu dengan hak penuh, untuk pekerjaan yang
     hanya perlu mendengarkan satu kanal.
-15. **Status `LEAVE` tidak pernah dihasilkan** — nilainya ada di tipe sejak awal,
+15. **Ekspor portabilitas melewatkan modul yang tidak dilanggan** — salah persis
+    pada kasus yang paling penting: pelanggan yang menurunkan paketnya lalu
+    ingin pindah sistem tidak menerima data penggajiannya. Datanya masih ada —
+    modul nonaktif tidak menghapus apa pun — tetapi ia tidak dapat
+    mengambilnya. Itu penguncian yang dibungkus kepatuhan, dan bertentangan
+    dengan hak yang hendak dipenuhi ekspor itu sendiri.
+16. **`BigInt` menjatuhkan seluruh ekspor** — `JSON.stringify` melempar "Do not
+    know how to serialize a BigInt", dan galatnya menggagalkan SELURUH berkas,
+    bukan satu kolomnya. Yang memakainya adalah kunci pada buku besar saldo
+    cuti dan jejak akses — justru yang paling perlu ikut terbawa.
+17. **Status `LEAVE` tidak pernah dihasilkan** — nilainya ada di tipe sejak awal,
     tetapi tidak ada satu pun jalur kode yang memproduksinya. Karyawan yang
     cutinya sudah disetujui manajernya tetap tercatat `ABSENT`, lalu dipotong
     gajinya sebagai mangkir. Kelas yang sama dengan nomor 4: nilai enum yang
@@ -248,6 +264,19 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
 ---
 
 ## 5. Yang masih terbuka
+
+### Cadangan — batasnya
+
+Prosedur cadangan dan pemulihan sudah **diuji dan terdokumentasi**
+([runbook §6](../ops/RUNBOOK.md)), menutup butir DoD yang terbuka sejak F0.
+Tiga batasnya perlu diketahui:
+
+- **Belum ada PITR.** Kehilangan data maksimum = jarak antar-cadangan.
+- **Berkas foto dan dokumen tidak ikut dalam dump.** Keduanya di penyimpanan
+  berkas, bukan basis data; direktori `.storage/` harus dicadangkan terpisah,
+  dan itu belum otomatis.
+- **Diuji pada basis data ratusan kilobita.** Waktu pemulihan pada ukuran
+  produksi belum diukur.
 
 ### Utang teknis
 
@@ -302,8 +331,9 @@ Yang tidak terkunci Gerbang C tetapi belum dibangun:
 - **Penagihan (Midtrans/Xendit)** — menuntut akun payment gateway beserta
   kredensialnya. Model langganan, invoice, dan dunning dapat dibangun tanpa
   akun, tetapi integrasinya tidak dapat diuji tanpa sandbox yang sungguhan.
-- **Registrasi mandiri + uji coba 14 hari** — endpoint `POST /api/tenants/register`
-  sudah ada; halaman pendaftaran publik belum.
+- **Penagihan tetap satu-satunya yang belum ada.** Selebihnya — pendaftaran
+  mandiri, uji coba 14 hari, aktivasi modul, dasbor, pengerasan, dan ekspor
+  portabilitas — sudah berjalan dan terbukti.
 - **Notifikasi berjenjang** email → Web Push → WhatsApp. Email sudah ada;
   Web Push dan WhatsApp belum.
 - **Laporan siap pakai + ekspor `.xlsx` di seluruh modul** — baru modul karyawan

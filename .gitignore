@@ -14,3 +14,6 @@ ops/.env
 
 # Foto presensi pengembangan. Data pribadi — tidak pernah masuk git.
 .storage/
+
+# Cadangan basis data. Memuat seluruh data pelanggan.
+backups/

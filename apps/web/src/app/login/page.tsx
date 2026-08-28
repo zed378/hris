@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiError, useSession } from '@/lib/session.tsx';
@@ -89,6 +90,16 @@ export default function LoginPage() {
             {busy ? 'Memproses…' : 'Masuk'}
           </button>
         </form>
+
+        {/* Jalur pendaftaran mandiri. Tanpa tautan ini, satu-satunya cara
+            perusahaan baru masuk adalah menghubungi tim — yaitu tepat yang
+            hendak dihapus Fase 6. */}
+        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+          Perusahaan Anda belum terdaftar?{' '}
+          <Link href="/register" className="text-brand-600 underline">
+            Daftar gratis 14 hari
+          </Link>
+        </p>
       </div>
     </main>
   );

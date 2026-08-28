@@ -171,6 +171,16 @@ export const ROUTE_MANIFEST = {
   // Modulnya `core`, bukan modul yang sedang diatur. Endpoint yang mengatur
   // langganan tidak boleh ikut mati ketika modul yang diaturnya dinonaktifkan.
   'GET /api/subscription': { module: 'core', permission: 'core.settings.manage' },
+  // Ekspor seluruh data tenant — portabilitas UU PDP.
+  //
+  // Batas lajunya ketat: satu ekspor lengkap membaca setiap tabel milik tenant,
+  // dan tombol yang ditekan berulang kali karena berkasnya lama muncul akan
+  // menjalankan seluruh pembacaan itu berkali-kali sekaligus.
+  'GET /api/tenant/export': {
+    module: 'core',
+    permission: 'core.settings.manage',
+    rateLimit: { windowSeconds: 3600, max: 5 },
+  },
   'POST /api/subscription': { module: 'core', permission: 'core.settings.manage' },
 
   // --- Penggajian ------------------------------------------------------------

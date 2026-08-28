@@ -13,3 +13,8 @@ export {
   type ModuleState,
   type ToggleResult,
 } from './subscription.ts';
+export {
+  exportTenantData,
+  type TenantExport,
+  type ExportOptions,
+} from './data-export.ts';
