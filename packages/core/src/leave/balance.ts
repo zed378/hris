@@ -1,4 +1,5 @@
 import { Prisma, writeAudit, type TenantClient } from '@hrms/db';
+import { accruesOverTime, entitlementAsOf, type AccrualMethod } from './accrual.ts';
 
 /**
  * Saldo cuti dan mutasinya (dokumen 02 §8, dokumen 03 §4.1).
@@ -222,36 +223,54 @@ export async function ensureBalance(
   leaveTypeId: string,
   periodYear: number,
   actorUserId?: string,
+  /** Tanggal penilaian akrual. Disuntikkan agar dapat diuji. */
+  asOf: Date = new Date(),
 ): Promise<BalanceView> {
-  const existing = await lockBalance(tx, tenantId, employeeId, leaveTypeId, periodYear);
-  if (existing) return existing;
-
   const type = await tx.leaveType.findFirst({
     where: { id: leaveTypeId, tenantId },
     select: { defaultQuotaDays: true, accrualMethod: true },
   });
   if (!type) throw new LeaveError('Jenis cuti tidak ditemukan', 'not_found');
 
-  // UNLIMITED dan NONE tidak berbasis kuota. Barisnya tetap dibuat supaya
-  // mutasinya punya tempat, tetapi jatahnya nol dan pemotongannya dilewati.
-  const entitled =
-    type.accrualMethod === 'UNLIMITED' || type.accrualMethod === 'NONE'
-      ? new Prisma.Decimal(0)
-      : type.defaultQuotaDays;
+  const employee = await tx.employee.findFirst({
+    where: { id: employeeId, tenantId },
+    select: { joinDate: true },
+  });
+  if (!employee) throw new LeaveError('Karyawan tidak ditemukan', 'not_found');
+
+  const method = type.accrualMethod as AccrualMethod;
+  const target = entitlementAsOf({
+    method,
+    quotaDays: type.defaultQuotaDays,
+    joinDate: employee.joinDate,
+    periodYear,
+    asOf,
+  });
+
+  const existing = await lockBalance(tx, tenantId, employeeId, leaveTypeId, periodYear);
+
+  // Baris yang sudah ada IKUT DIREKONSILIASI, bukan dikembalikan apa adanya.
+  //
+  // Tanpa ini, akrual bulanan hanya benar pada hari baris itu dibuat. Karyawan
+  // yang barisnya lahir bulan Maret akan selamanya melihat jatah bulan Maret,
+  // karena tidak ada satu pun jalur yang menyentuhnya lagi — dan job berkala
+  // tidak dapat menutupinya sendirian, sebab job yang belum sempat jalan
+  // meninggalkan angka basi tepat pada saat seseorang mengajukan cuti.
+  if (existing) return reconcileEntitlement(tx, tenantId, existing, method, target, actorUserId);
 
   const created = await tx.leaveBalance.create({
-    data: { tenantId, employeeId, leaveTypeId, periodYear, entitledDays: entitled },
+    data: { tenantId, employeeId, leaveTypeId, periodYear, entitledDays: target },
     select: { id: true },
   });
 
-  if (!entitled.isZero()) {
+  if (!target.isZero()) {
     await writeLedger(tx, tenantId, {
       balanceId: created.id,
-      entryType: 'GRANT',
-      days: Number(entitled),
+      entryType: method === 'ANNUAL_GRANT' ? 'GRANT' : 'ACCRUAL',
+      days: Number(target),
       referenceType: 'leave_type',
       referenceId: leaveTypeId,
-      note: `Jatah tahunan ${periodYear}`,
+      note: grantNote(method, periodYear, Number(target)),
       ...(actorUserId ? { actorUserId } : {}),
     });
   }
@@ -259,6 +278,62 @@ export async function ensureBalance(
   const balance = await lockBalance(tx, tenantId, employeeId, leaveTypeId, periodYear);
   if (!balance) throw new LeaveError('Saldo gagal dibuat', 'not_found');
   return balance;
+}
+
+function grantNote(method: AccrualMethod, periodYear: number, days: number): string {
+  switch (method) {
+    case 'MONTHLY_ACCRUAL':
+      return `Akrual bulanan ${periodYear} — ${days} hari terkumpul`;
+    case 'ANNIVERSARY':
+      return `Jatah ulang tahun masa kerja ${periodYear}`;
+    default:
+      return `Jatah tahunan ${periodYear}`;
+  }
+}
+
+/**
+ * Menaikkan `entitled_days` ke target akrual, bila memang perlu naik.
+ *
+ * **Tidak pernah menurunkan.** Jatah yang sudah diberikan mungkin sudah dipakai,
+ * dan menariknya kembali menghasilkan saldo minus yang ditolak
+ * `chk_no_negative_balance` — kegagalan yang muncul pada orang berikutnya yang
+ * mengajukan cuti, bukan pada perubahan yang menyebabkannya. Kuota yang turun
+ * atau tanggal masuk yang dikoreksi mundur adalah keputusan HR, dan jalurnya
+ * `adjustBalance`, yang meminta alasan dan meninggalkan jejak audit.
+ */
+async function reconcileEntitlement(
+  tx: TenantClient,
+  tenantId: string,
+  balance: BalanceView,
+  method: AccrualMethod,
+  target: Prisma.Decimal,
+  actorUserId?: string,
+): Promise<BalanceView> {
+  if (!accruesOverTime(method)) return balance;
+
+  const delta = target.minus(balance.entitledDays);
+  if (delta.lessThanOrEqualTo(0)) return balance;
+
+  await tx.leaveBalance.update({
+    where: { id: balance.id },
+    data: {
+      entitledDays: { increment: delta },
+      version: { increment: 1 },
+    },
+  });
+
+  await writeLedger(tx, tenantId, {
+    balanceId: balance.id,
+    entryType: 'ACCRUAL',
+    days: Number(delta),
+    note:
+      method === 'ANNIVERSARY'
+        ? `Jatah lahir pada ulang tahun masa kerja — ${Number(target)} hari`
+        : `Akrual bulanan — bertambah ${Number(delta)} hari, total ${Number(target)}`,
+    ...(actorUserId ? { actorUserId } : {}),
+  });
+
+  return { ...balance, entitledDays: Number(target), availableDays: balance.availableDays + Number(delta) };
 }
 
 export interface AdjustInput {
@@ -484,6 +559,102 @@ export async function runCarryOver(
 
       result.carriedOver += carried;
     }
+  }
+
+  return result;
+}
+
+export interface AccrualResult {
+  /** Baris saldo yang ditinjau. */
+  reviewed: number;
+  /** Baris yang jatahnya bertambah. */
+  accrued: number;
+  /** Total hari yang ditambahkan. */
+  days: number;
+}
+
+/**
+ * Meninjau ulang seluruh saldo tahun berjalan yang jatahnya tumbuh seiring waktu.
+ *
+ * Dijalankan berkala oleh worker. Yang dilakukannya sama persis dengan yang
+ * dilakukan `ensureBalance` saat seseorang mengajukan cuti — bedanya hanya
+ * cakupan: job ini menyentuh semua orang, sehingga angka di layar saldo sudah
+ * benar sebelum ada yang mengajukan apa pun.
+ *
+ * Idempoten karena membandingkan TARGET, bukan menambahkan jatah. Menjalankannya
+ * dua kali sehari menghasilkan selisih nol pada putaran kedua; job yang mati
+ * selama tiga bulan mengejar seluruh ketertinggalannya dalam satu putaran.
+ *
+ * Hanya menyentuh baris yang SUDAH ADA. Membuat baris untuk setiap karyawan ×
+ * setiap jenis cuti akan menghasilkan ribuan baris yang sebagian besar tidak
+ * pernah dipakai — dan `ensureBalance` sudah menghitung dengan benar pada baris
+ * yang lahir kemudian, berapa pun bulan kelahirannya.
+ */
+export async function runAccrual(
+  tx: TenantClient,
+  tenantId: string,
+  asOf: Date,
+  actorUserId?: string,
+): Promise<AccrualResult> {
+  const periodYear = asOf.getUTCFullYear();
+
+  const rows = await tx.$queryRaw<
+    Array<{
+      id: string;
+      employee_id: string;
+      leave_type_id: string;
+      entitled_days: Prisma.Decimal;
+      default_quota_days: Prisma.Decimal;
+      accrual_method: string;
+      join_date: Date;
+    }>
+  >`
+    SELECT b.id, b.employee_id, b.leave_type_id, b.entitled_days,
+           t.default_quota_days, t.accrual_method, e.join_date
+    FROM "leave".leave_balances b
+    JOIN "leave".leave_types t ON t.id = b.leave_type_id
+    JOIN employee.employees e ON e.id = b.employee_id
+    WHERE b.tenant_id = ${tenantId}::uuid
+      AND b.period_year = ${periodYear}
+      AND t.accrual_method IN ('MONTHLY_ACCRUAL', 'ANNIVERSARY')
+      AND t.is_active = true
+      -- Karyawan yang sudah keluar berhenti menabung jatah. Tanpa penyaring
+      -- ini, orang yang resign bulan Maret tetap memperoleh jatah sampai
+      -- Desember, dan angkanya muncul lagi saat perhitungan pesangon.
+      AND e.status = 'ACTIVE'
+  `;
+
+  const result: AccrualResult = { reviewed: rows.length, accrued: 0, days: 0 };
+
+  for (const row of rows) {
+    const target = entitlementAsOf({
+      method: row.accrual_method as AccrualMethod,
+      quotaDays: row.default_quota_days,
+      joinDate: row.join_date,
+      periodYear,
+      asOf,
+    });
+
+    const delta = target.minus(row.entitled_days);
+    if (delta.lessThanOrEqualTo(0)) continue;
+
+    await tx.leaveBalance.update({
+      where: { id: row.id },
+      data: { entitledDays: { increment: delta }, version: { increment: 1 } },
+    });
+    await writeLedger(tx, tenantId, {
+      balanceId: row.id,
+      entryType: 'ACCRUAL',
+      days: Number(delta),
+      note:
+        row.accrual_method === 'ANNIVERSARY'
+          ? `Jatah lahir pada ulang tahun masa kerja — ${Number(target)} hari`
+          : `Akrual bulanan — bertambah ${Number(delta)} hari, total ${Number(target)}`,
+      ...(actorUserId ? { actorUserId } : {}),
+    });
+
+    result.accrued += 1;
+    result.days += Number(delta);
   }
 
   return result;

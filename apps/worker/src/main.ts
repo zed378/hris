@@ -8,6 +8,7 @@ import { EventTopic } from '@hrms/contracts';
 import { countStuck, pumpOnce, type OutboxEnvelope } from './outbox-pump.ts';
 import { runContractReminders } from './contract-reminders.ts';
 import { runPhotoRetention } from './photo-retention.ts';
+import { runLeaveAccrual } from './leave-accrual.ts';
 import { runSchemaDriftCheck } from './schema-drift.ts';
 import { CONSUMERS, type Consumer } from './consumers.ts';
 
@@ -169,13 +170,35 @@ async function main(): Promise<void> {
     }
   };
 
+  /**
+   * Akrual jatah cuti.
+   *
+   * Harian dan idempoten, dengan alasan yang sama seperti pengingat kontrak:
+   * ia membandingkan jatah yang ada dengan jatah yang seharusnya sudah
+   * diperoleh hari ini, bukan menambahkan sebulan setiap kali dipanggil.
+   * Worker yang restart lima kali sehari tetap benar, dan worker yang mati
+   * tiga bulan mengejar ketertinggalannya pada putaran pertama setelah menyala.
+   */
+  const runAccrualJob = async (): Promise<void> => {
+    try {
+      const result = await runLeaveAccrual();
+      if (result.accrued > 0 || result.failed > 0) {
+        log.info({ scope: 'leave-accrual', ...result });
+      }
+    } catch (error) {
+      log.error({ scope: 'leave-accrual', error });
+    }
+  };
+
   void runReminders();
   void runRetention();
   void runDriftCheck();
+  void runAccrualJob();
   const reminderTimer = setInterval(() => {
     void runReminders();
     void runRetention();
     void runDriftCheck();
+    void runAccrualJob();
   }, REMINDER_INTERVAL_MS);
   reminderTimer.unref?.();
 

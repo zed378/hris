@@ -25,6 +25,32 @@ OUT_DIR="${1:-./backups}"
 
 mkdir -p "$OUT_DIR"
 
+# -----------------------------------------------------------------------------
+# Dua mode, dipilih dari apa yang tersedia
+# -----------------------------------------------------------------------------
+#
+# `pg_dump` LANGSUNG bila ada di PATH — inilah mode yang dipakai saat skrip
+# berjalan di dalam kontainer atau di host yang punya klien PostgreSQL. Ia
+# menuntut `PGHOST`/`PGPASSWORD` atau `DATABASE_URL`.
+#
+# `docker exec` sebagai cadangan — mode pengembangan, dan mode host yang hanya
+# punya Docker tanpa klien PostgreSQL.
+#
+# Pemilihannya otomatis, dan modenya DINYATAKAN di keluaran. Skrip cadangan yang
+# diam-diam berpindah mode adalah skrip yang berhasil di laptop dan gagal di
+# server dengan pesan yang tidak menjelaskan bedanya.
+if command -v pg_dump >/dev/null 2>&1 && [ -n "${PGHOST:-}${DATABASE_URL:-}" ]; then
+  MODE="langsung"
+  run_dump() { pg_dump "$@"; }
+  run_restore_list() { pg_restore "$@"; }
+else
+  MODE="docker"
+  run_dump() { docker exec "$CONTAINER" pg_dump "$@"; }
+  run_restore_list() { docker exec -i "$CONTAINER" pg_restore "$@"; }
+fi
+
+echo "Mode: $MODE"
+
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 FILE="$OUT_DIR/hrms-$STAMP.dump"
 
@@ -34,7 +60,7 @@ echo "Mencadangkan $DB dari kontainer $CONTAINER…"
 # yang perannya belum dibuat. Peran dan hak akses dibangun ulang oleh migrasi,
 # bukan oleh dump — dan mencampurnya membuat pemulihan gagal di lingkungan baru
 # dengan galat "role does not exist" yang tidak menjelaskan apa pun.
-docker exec "$CONTAINER" pg_dump \
+run_dump \
   -U "$DB_USER" \
   -d "$DB" \
   --format=custom \
@@ -52,7 +78,7 @@ echo "Selesai: $FILE ($SIZE)"
 # cadangan yang dapat dipakai dari berkas yang sekadar ada adalah apakah
 # daftar isinya dapat dibaca — dan memeriksanya sekarang jauh lebih murah
 # daripada menemukannya saat sedang memulihkan.
-TABLES=$(docker exec -i "$CONTAINER" pg_restore --list < "$FILE" 2>/dev/null | grep -c "TABLE DATA" || true)
+TABLES=$(run_restore_list --list < "$FILE" 2>/dev/null | grep -c "TABLE DATA" || true)
 echo "Berisi $TABLES tabel dengan data."
 
 if [ "$TABLES" -lt 10 ]; then

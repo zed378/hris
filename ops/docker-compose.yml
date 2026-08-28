@@ -154,5 +154,92 @@ services:
       DATABASE_URL_APP: postgresql://hrms_app:${APP_DB_PASSWORD:-hrms_app_password}@postgres:5432/${POSTGRES_DB:-hrms}
       DATABASE_URL_WORKER: postgresql://hrms_worker:${WORKER_DB_PASSWORD:-hrms_worker_password}@postgres:5432/${POSTGRES_DB:-hrms}
 
+  # ---------------------------------------------------------------------------
+  # Cadangan terjadwal
+  # ---------------------------------------------------------------------------
+  #
+  # Berada di balik profil `backup`, sehingga tidak ikut menyala pada
+  # `docker compose up` biasa:
+  #
+  #     docker compose --profile backup up -d
+  #
+  # **Tidak memasang socket Docker.** Memasang `/var/run/docker.sock` ke dalam
+  # kontainer memberinya kendali penuh atas seluruh mesin — akses itu setara
+  # root di host, dan menukarnya demi kenyamanan penjadwalan adalah pertukaran
+  # yang buruk. Layanan ini memakai `pg_dump` yang sudah ada di dalam image
+  # PostgreSQL, terhubung lewat jaringan seperti klien biasa.
+  #
+  # Penjadwalnya berupa gelung tidur, bukan cron. Alasannya bukan kesederhanaan:
+  # cron di dalam kontainer menuntut proses init tersendiri, dan wadah dengan
+  # dua proses membuat `docker logs` maupun sinyal berhenti berperilaku aneh.
+  #
+  # Yang harus diketahui sebagai gantinya: gelung tidur BERGESER. Bila cadangan
+  # memakan lima menit, cadangan berikutnya mundur lima menit, dan setelah
+  # sebulan waktunya sudah jauh dari yang dimaksud. Untuk penjadwalan yang harus
+  # tepat waktu, pakai cron di host — lihat ops/RUNBOOK.md §6.
+  backup:
+    image: postgres:16-alpine
+    profiles: ['backup']
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: hrms_owner
+      PGPASSWORD: ${POSTGRES_PASSWORD:-hrms_dev_password}
+      PGDATABASE: ${POSTGRES_DB:-hrms}
+      # Jarak antar-cadangan. Ini juga kehilangan data maksimum bila terjadi
+      # kerusakan — belum ada PITR, sehingga angka ini adalah RPO yang nyata.
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - hrms-backups:/backups
+      # Berkas foto dan dokumen. Hanya-baca: proses cadangan tidak punya alasan
+      # menulis ke sana, dan hak tulis yang tidak dipakai adalah hak yang dapat
+      # disalahgunakan bila kontainer ini kelak dikompromikan.
+      - hrms-storage:/storage:ro
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        echo '{"scope":"backup","event":"started","intervalSeconds":'"$$BACKUP_INTERVAL_SECONDS"'}'
+        while true; do
+          STAMP=$$(date -u +%Y%m%dT%H%M%SZ)
+          FILE="/backups/hrms-$$STAMP.dump"
+
+          if pg_dump --format=custom --compress=9 --no-owner --no-privileges > "$$FILE"; then
+            TABLES=$$(pg_restore --list "$$FILE" 2>/dev/null | grep -c "TABLE DATA" || true)
+            SIZE=$$(du -h "$$FILE" | cut -f1)
+
+            # Cadangan yang gagal separuh jalan tetap meninggalkan berkas.
+            # Memeriksa daftar isinya sekarang jauh lebih murah daripada
+            # menemukannya kosong saat sedang memulihkan.
+            if [ "$$TABLES" -lt 10 ]; then
+              echo '{"scope":"backup","level":"error","event":"suspect","tables":'"$$TABLES"'}' >&2
+              rm -f "$$FILE"
+            else
+              tar -czf "/backups/hrms-$$STAMP-storage.tar.gz" -C / storage 2>/dev/null || true
+              echo '{"scope":"backup","event":"ok","file":"'"$$FILE"'","size":"'"$$SIZE"'","tables":'"$$TABLES"'}'
+            fi
+          else
+            echo '{"scope":"backup","level":"error","event":"failed"}' >&2
+            rm -f "$$FILE"
+          fi
+
+          # Retensi per JUMLAH, bukan umur. Retensi berbasis umur menghapus
+          # semuanya sekaligus bila layanan ini berhenti dua pekan lalu menyala
+          # lagi — tepat ketika cadangan lama paling dibutuhkan.
+          ls -1t /backups/hrms-*.dump 2>/dev/null | tail -n +$$((BACKUP_KEEP + 1)) | while read -r old; do
+            rm -f "$$old" "$${old%.dump}-storage.tar.gz"
+            echo '{"scope":"backup","event":"pruned","file":"'"$$old"'"}'
+          done
+
+          sleep "$$BACKUP_INTERVAL_SECONDS"
+        done
+
 volumes:
   hrms-pgdata:
+  hrms-backups:
+  hrms-storage:

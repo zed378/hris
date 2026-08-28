@@ -24,6 +24,29 @@ const DB_VERSION = 1;
 const STORE = 'punch-queue';
 
 export interface QueuedPunch {
+  /**
+   * Pemilik ketukan ini — id pengguna yang mengantrekannya.
+   *
+   * Wajib, dan alasannya adalah bug yang ditemukan saat menutup DoD Fase 3.
+   *
+   * Antrean luring SENGAJA bertahan setelah logout: ia milik perangkat, bukan
+   * milik sesi, dan menghapusnya berarti membuang presensi yang belum sempat
+   * terkirim milik orang yang baru saja keluar. Keputusan itu tetap benar.
+   *
+   * Yang salah adalah akibatnya bila tidak ada penanda pemilik. Server
+   * menurunkan `employeeId` dari SESI, bukan dari isi ketukan. Pada perangkat
+   * bersama — ponsel gudang yang dipakai tiga shift, komputer pos satpam —
+   * urutannya menjadi:
+   *
+   *   1. A mengetuk saat jaringan mati. Ketukannya masuk antrean.
+   *   2. A keluar. Antrean bertahan, sesuai rancangan.
+   *   3. B masuk. Pemicu sinkronisasi berjalan.
+   *   4. Ketukan A terkirim dengan token B, dan tercatat sebagai kehadiran B.
+   *
+   * Presensi A lenyap; B menerima kehadiran yang tidak ia lakukan. Tidak ada
+   * galat yang muncul, dan keduanya baru terlihat saat slip gaji terbit.
+   */
+  ownerUserId: string;
   /** Dibangkitkan SEBELUM pengiriman pertama. Kunci idempotensi di server. */
   dedupeKey: string;
   type: 'IN' | 'OUT' | 'BREAK_START' | 'BREAK_END';
@@ -80,7 +103,10 @@ export async function dequeuePunch(dedupeKey: string): Promise<void> {
 export interface FlushResult {
   sent: number;
   failed: number;
+  /** Milik pengguna saat ini yang masih tertahan. */
   remaining: number;
+  /** Milik pengguna lain di perangkat yang sama. */
+  otherUsers: number;
 }
 
 /**
@@ -96,12 +122,25 @@ export interface FlushResult {
  */
 export async function flushQueue(
   send: (punch: QueuedPunch) => Promise<Response>,
+  /**
+   * Pengguna yang sedang masuk. Hanya ketukan miliknya yang dikirim.
+   *
+   * Ketukan milik orang lain DITINGGALKAN di antrean, bukan dibuang: pemiliknya
+   * mungkin masuk lagi nanti di perangkat yang sama, dan presensinya masih
+   * dapat terkirim. Membuangnya berarti menghilangkan kehadiran seseorang
+   * karena orang lain kebetulan memakai perangkat itu lebih dulu.
+   */
+  currentUserId: string,
 ): Promise<FlushResult> {
   const queue = await queuedPunches();
   let sent = 0;
   let failed = 0;
 
   for (const punch of queue) {
+    // Milik orang lain — dilewati diam-diam, tanpa dihitung gagal. Ia bukan
+    // kegagalan; ia sekadar bukan giliran ketukan ini.
+    if (punch.ownerUserId !== currentUserId) continue;
+
     try {
       const response = await send(punch);
 
@@ -128,7 +167,18 @@ export async function flushQueue(
     }
   }
 
-  return { sent, failed, remaining: (await queuedPunches()).length };
+  const remainingAll = await queuedPunches();
+
+  return {
+    sent,
+    failed,
+    // Yang dihitung hanya milik pengguna saat ini. Indikator "3 belum terkirim"
+    // yang sebenarnya milik rekan shift sebelumnya akan membuat orang menunggu
+    // sesuatu yang tidak akan pernah terkirim untuknya.
+    remaining: remainingAll.filter((punch) => punch.ownerUserId === currentUserId).length,
+    /** Milik pengguna lain di perangkat ini. Ditampilkan terpisah, bukan disembunyikan. */
+    otherUsers: remainingAll.filter((punch) => punch.ownerUserId !== currentUserId).length,
+  };
 }
 
 /**

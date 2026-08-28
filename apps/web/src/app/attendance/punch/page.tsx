@@ -58,6 +58,8 @@ export default function PunchPage() {
   });
   const [online, setOnline] = useState(true);
   const [queued, setQueued] = useState(0);
+  /** Ketukan milik pengguna lain di perangkat ini. Ditampilkan, bukan disembunyikan. */
+  const [otherUsersQueued, setOtherUsersQueued] = useState(0);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<PunchOutcome | null>(null);
   const [storageWarning, setStorageWarning] = useState(false);
@@ -102,9 +104,15 @@ export default function PunchPage() {
   );
 
   const flush = useCallback(async () => {
-    const result = await flushQueue(send).catch(() => null);
-    if (result && mounted.current) setQueued(result.remaining);
-  }, [send]);
+    const userId = bootstrap?.user.id;
+    if (!userId) return;
+
+    const result = await flushQueue(send, userId).catch(() => null);
+    if (result && mounted.current) {
+      setQueued(result.remaining);
+      setOtherUsersQueued(result.otherUsers);
+    }
+  }, [send, bootstrap?.user.id]);
 
   // Pemicu sinkronisasi BERLAPIS, bukan Background Sync (dokumen 11 §6.1).
   // Background Sync tidak ada di iOS sama sekali; membangun keandalan di atasnya
@@ -233,6 +241,10 @@ export default function PunchPage() {
       setOutcome(null);
 
       const item: QueuedPunch = {
+        // Penanda pemilik. Antrean bertahan setelah logout, dan tanpa ini
+        // ketukan seseorang dapat terkirim atas nama pengguna berikutnya yang
+        // masuk di perangkat yang sama — lihat `offline-queue.ts`.
+        ownerUserId: bootstrap?.user.id ?? 'anonim',
         // Dibangkitkan di klien SEBELUM pengiriman. Inilah yang membuat
         // pengiriman ulang dari antrean tidak menggandakan ketukan.
         dedupeKey: crypto.randomUUID(),
@@ -307,6 +319,20 @@ export default function PunchPage() {
             <button onClick={() => void flush()} className="text-brand-600 underline">
               Coba kirim sekarang
             </button>
+          </p>
+        )}
+
+        {/* Ketukan milik pengguna lain di perangkat yang sama.
+            
+            Ditampilkan, bukan disembunyikan: pada perangkat bersama seseorang
+            perlu tahu bahwa presensi rekannya masih tertahan, supaya ia dapat
+            memberitahunya untuk masuk dan mengirimkannya. Menyembunyikannya
+            berarti presensi itu hilang tanpa ada yang menyadarinya. */}
+        {otherUsersQueued > 0 && (
+          <p className="mt-3 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            {otherUsersQueued} presensi milik pengguna lain masih tertahan di
+            perangkat ini. Ia hanya dapat terkirim setelah pemiliknya masuk —
+            presensi tidak pernah dikirim atas nama orang lain.
           </p>
         )}
 

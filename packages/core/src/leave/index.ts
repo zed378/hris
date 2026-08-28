@@ -6,13 +6,21 @@ export {
   writeLedger,
   readLedger,
   runCarryOver,
+  runAccrual,
   LeaveError,
   type BalanceView,
   type LedgerEntry,
   type LedgerEntryType,
   type AdjustInput,
   type CarryOverResult,
+  type AccrualResult,
 } from './balance.ts';
+export {
+  entitlementAsOf,
+  accruesOverTime,
+  type AccrualMethod,
+  type EntitlementInput,
+} from './accrual.ts';
 export {
   submitRequest,
   decideRequest,

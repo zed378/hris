@@ -246,6 +246,54 @@ tar -xzf backups/hrms-20260828T090736Z-storage.tar.gz -C /path/tujuan
 struktur direktorinya utuh, dan `storage_key` pada `employee_documents` resolve
 ke path yang benar. Arsip yang belum pernah dibuka bukan cadangan.
 
+### Menjadwalkan cadangan
+
+Dua cara. Pilih satu — menjalankan keduanya menghasilkan dua rangkaian cadangan
+yang retensinya saling tidak tahu, dan salah satunya akan menghapus berkas yang
+dianggap milik yang lain.
+
+#### A. Layanan compose — untuk deployment satu VPS
+
+```bash
+docker compose --profile backup up -d
+```
+
+Berada di balik profil, sehingga tidak ikut menyala pada `docker compose up`
+biasa. **Tidak memasang socket Docker**: memasang `/var/run/docker.sock`
+memberi kontainer kendali penuh atas mesin — setara root di host — dan
+menukarnya demi kenyamanan penjadwalan adalah pertukaran yang buruk. Layanan ini
+memakai `pg_dump` di dalam image PostgreSQL dan terhubung lewat jaringan seperti
+klien biasa.
+
+| Variabel | Bawaan | Arti |
+|---|---|---|
+| `BACKUP_INTERVAL_SECONDS` | 86400 | Jarak antar-cadangan — **ini RPO nyata Anda**, karena belum ada PITR |
+| `BACKUP_KEEP` | 14 | Berapa cadangan disimpan |
+
+**Batasnya:** penjadwalnya gelung tidur, bukan cron, karena cron di dalam
+kontainer menuntut proses init tersendiri dan wadah berproses ganda membuat
+`docker logs` serta sinyal berhenti berperilaku aneh. Konsekuensinya, jadwalnya
+**bergeser**: bila cadangan memakan lima menit, yang berikutnya mundur lima
+menit, dan setelah sebulan waktunya sudah jauh dari yang dimaksud.
+
+Untuk penjadwalan yang harus tepat waktu, pakai cara B.
+
+#### B. Cron di host — untuk jadwal yang harus tepat
+
+```cron
+# Setiap hari pukul 02:15 waktu setempat.
+15 2 * * * cd /opt/hrms && bash ops/scripts/backup.sh /var/backups/hrms >> /var/log/hrms-backup.log 2>&1
+```
+
+`backup.sh` memilih modenya sendiri: `pg_dump` langsung bila klien PostgreSQL
+ada di PATH dan `PGHOST`/`DATABASE_URL` terisi, `docker exec` bila tidak.
+Modenya dicetak di baris pertama keluaran — skrip cadangan yang diam-diam
+berpindah mode adalah skrip yang berhasil di laptop dan gagal di server.
+
+**Cadangan yang tidak pernah diperiksa bukan cadangan.** Jadwalkan pemulihan uji
+ke basis data terpisah sekurangnya sebulan sekali; prosedurnya di bawah, dan
+pada ukuran 160 MB ia selesai dalam lima detik.
+
 ### Yang WAJIB diperiksa setelah pemulihan
 
 Data yang pulih tanpa RLS bukan pemulihan yang berhasil — ia kebocoran yang
@@ -315,8 +363,9 @@ di kisaran satu menit — masih jauh di bawah ambang yang menuntut PITR.
 ### Batasnya, dinyatakan terus terang
 
 - **Belum ada PITR.** Yang ada cadangan berkala, sehingga kehilangan data
-  maksimum adalah jarak antar-cadangan. PITR menuntut WAL archiving yang belum
-  dikonfigurasi.
+  maksimum adalah `BACKUP_INTERVAL_SECONDS` — bawaannya 24 jam. PITR menuntut
+  WAL archiving yang belum dikonfigurasi.
+- **Jadwal layanan compose bergeser.** Lihat catatan pada cara A di atas.
 - **Belum diuji di atas 160 MB.** Angka di atas linear pada rentang yang diuji,
   tetapi ekstrapolasi bukan pengukuran. Tenant pertama yang melewati satu
   gigabita layak diukur ulang.

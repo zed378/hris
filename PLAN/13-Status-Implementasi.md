@@ -187,6 +187,10 @@ berjalan, bukan hanya lolos uji unit.
 | Pemulihan berkas penyimpanan diuji | Hash SHA-256 identik, `storage_key` resolve ke path yang benar |
 | **Log tidak membocorkan PII maupun token** | Galat yang membawa NIK, rekening, kata sandi, dan Bearer token: nol yang lolos; scope, correlationId, tenantId, dan kode galat tetap terbaca |
 | Log terstruktur berjalan di proses nyata | Worker mengeluarkan JSON ber-`ts`/`level`/`scope` |
+| **Jejak korelasi utuh lintas proses** | `x-correlation-id` dari HTTP → kolom `outbox.correlation_id` → log worker di proses berbeda, nilai identik |
+| Cadangan terjadwal berjalan tanpa socket Docker | Layanan compose menghasilkan dump 62 tabel lewat jaringan; dipulihkan dengan drift RLS 0 |
+| **Service worker tidak menyentuh jalur sensitif** | `sw.js` sungguhan dijalankan di VM: API, `/admin`, halaman kredensial, dan permintaan ber-`Authorization` seluruhnya dilewatkan |
+| Uji service worker terbukti menangkap regresi | Uji mutasi: penjaga dihapus → uji gagal; dipulihkan → lulus |
 
 ---
 
@@ -276,6 +280,43 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     cutinya sudah disetujui manajernya tetap tercatat `ABSENT`, lalu dipotong
     gajinya sebagai mangkir. Kelas yang sama dengan nomor 4: nilai enum yang
     dideklarasikan tetapi tidak pernah diproduksi siapa pun.
+20. **Antrean presensi luring tidak menyimpan pemiliknya** — antrean SENGAJA
+    bertahan setelah logout (ia milik perangkat, bukan sesi; menghapusnya berarti
+    membuang presensi orang yang baru keluar). Keputusan itu tetap benar. Yang
+    salah adalah akibatnya: server menurunkan `employeeId` dari **sesi**, bukan
+    dari isi ketukan. Pada perangkat bersama — ponsel gudang tiga shift, komputer
+    pos satpam — A mengetuk saat jaringan mati, A keluar, B masuk, sinkronisasi
+    berjalan, dan **ketukan A tercatat sebagai kehadiran B**. Presensi A lenyap;
+    B menerima kehadiran yang tidak ia lakukan; keduanya baru terlihat saat slip
+    gaji terbit. Kini `QueuedPunch.ownerUserId` wajib dan `flushQueue` menerima
+    id pengguna yang sedang masuk. Ketukan milik orang lain **ditinggalkan**, tidak
+    dibuang — pemiliknya mungkin masuk lagi di perangkat yang sama — dan
+    dihitung terpisah (`otherUsers`) agar tidak muncul sebagai "3 belum terkirim"
+    yang tidak akan pernah terkirim untuk yang sedang melihatnya. Diuji di
+    `apps/web/test/offline-queue.test.ts`, termasuk uji bahwa ketukan orang lain
+    TIDAK dihapus dan terkirim begitu pemiliknya masuk.
+21. **Metode akrual cuti tidak pernah diproduksi siapa pun** — kelas yang sama
+    dengan nomor 4 dan 19, dan yang ketiga kalinya. `AccrualMethod` punya lima
+    nilai sejak migrasi pertama modul cuti dan HR dapat memilih kelimanya di
+    layar jenis cuti, tetapi `ensureBalance` memberikan `defaultQuotaDays`
+    **penuh apa pun metodenya**. Tenant yang memilih `MONTHLY_ACCRUAL`: karyawan
+    yang masuk 10 Maret langsung menerima 12 hari, dapat mengambil seluruhnya di
+    bulan April lalu mengundurkan diri di bulan Mei. Tenant yang memilih
+    `ANNIVERSARY`: jatah yang menurut UU Ketenagakerjaan Pasal 79 ayat (3) baru
+    timbul setelah 12 bulan bekerja terus-menerus sudah ada sejak 1 Januari bagi
+    orang yang baru bekerja sebulan. Tidak ada galat pada keduanya; angkanya
+    sekadar salah, dan salahnya berpihak pada karyawan sehingga tidak akan ada
+    yang melaporkannya.
+22. **Perbaikan nomor 21 nyaris memasang bug yang lebih buruk** — dicatat karena
+    bentuknya lebih berharga daripada bug itu sendiri. Versi pertama
+    `entitlementAsOf` memulangkan nol bila dinilai sebelum tahun periodenya
+    mulai, untuk **semua** metode. Tetapi `runCarryOver` membuat baris tahun
+    BERIKUTNYA, dan bila penutupan tahun dijalankan pada 31 Desember maka
+    penilaiannya jatuh sebelum awal periode baru: seluruh perusahaan memulai
+    tahun dengan jatah nol, dan karena `ANNUAL_GRANT` tidak tumbuh seiring waktu,
+    tidak ada satu pun jalur yang akan memperbaikinya kemudian. Ditemukan saat
+    menelusuri interaksinya dengan penutupan tahun, bukan oleh uji. Kini dijaga
+    uji regresi yang diverifikasi lewat mutasi.
 
 ---
 
@@ -308,8 +349,16 @@ Tiga batasnya perlu diketahui:
 - **Belum ada metrik.** Tidak ada endpoint Prometheus maupun penghitung
   permintaan; yang ada hanya log. Ditambahkan bila ada yang benar-benar
   mengumpulkannya.
-- **Belum ada tracing.** `correlationId` mengalir di dalam satu proses, tetapi
-  tidak diteruskan ke worker lewat outbox.
+- **Konteks permintaan HANYA untuk pencatatan.** Tenant sebagai dasar isolasi
+  tetap diteruskan eksplisit ke `withTenant` — otorisasi yang membaca keadaan
+  implisit dapat bocor lintas permintaan ketika satu `await` lupa ditunggu.
+- **Korelasi mengalir lintas proses** lewat `AsyncLocalStorage` di batas
+  permintaan, kolom `correlation_id` pada outbox, dan penerusan di konsumen
+  worker. Header `x-correlation-id` dari luar dihormati, sehingga jejaknya
+  dapat disambung dengan sistem hulu.
+- **Belum ada tracing berspan** (OpenTelemetry). Yang ada korelasi id, bukan
+  pohon span dengan durasi per lapisan. Ditambahkan bila ada yang benar-benar
+  mengumpulkannya.
 
 ### Utang teknis
 
@@ -330,10 +379,27 @@ Tiga batasnya perlu diketahui:
 ### Cuti — yang belum ada
 
 - **Persetujuan berjenjang** — §2.4 di atas.
-- **Akrual bulanan** — `MONTHLY_ACCRUAL` dan `ANNIVERSARY` ada di enum tetapi
-  hanya `ANNUAL_GRANT` yang benar-benar memberi jatah. Sama seperti nomor 10 di
-  atas, ini nilai enum tanpa produsen — dan layak diperbaiki sebelum ada tenant
-  yang memilihnya di layar kebijakan.
+- ~~**Akrual bulanan**~~ — **selesai.** Nomor 21 di atas.
+  `MONTHLY_ACCRUAL` menabung 1/12 kuota pada setiap ulang-bulan tanggal masuk;
+  `ANNIVERSARY` melahirkan kuota penuh pada ulang tahun masa kerja dan nol
+  sebelumnya. Perhitungannya **fungsi murni atas tanggal masuk**
+  (`entitlementAsOf`), bukan akumulasi — sehingga rekonsiliasinya idempoten dan
+  memperbaiki diri sendiri: dijalankan dua kali sehari selisihnya nol, mati tiga
+  bulan lalu menyala lagi ia mengejar seluruh ketertinggalannya dalam satu
+  putaran. Direkonsiliasi di dua tempat: `ensureBalance` (setiap pengajuan cuti,
+  supaya angka tidak pernah basi tepat saat dipakai) dan job harian worker
+  (supaya layar saldo benar tanpa menunggu ada yang mengajukan).
+  Diuji e2e terhadap basis data sungguhan: karyawan masuk 10 Maret memperoleh
+  0 hari pada 1 April, 3 hari pada 10 Juni, 9 hari pada 31 Desember; pemanggilan
+  kedua pada tanggal yang sama menambah **nol**; buku besar memuat kedua mutasi
+  dengan catatan yang menjelaskan asal angkanya.
+- **`ANNIVERSARY` bertabrakan dengan penutupan tahun kalender** — batas yang
+  perlu diketahui, bukan bug. Baris saldo berkunci tahun kalender, sedangkan
+  jatah `ANNIVERSARY` lahir di tengah tahun. Karyawan yang ulang tahun masa
+  kerjanya bulan Juli kehilangan sisa cutinya pada 31 Desember dan tidak
+  memperoleh jatah baru sampai Juli berikutnya. Tenant yang memakai metode ini
+  **harus** menyetel `maxCarryOverDays` sebesar kuotanya. Periode saldo berbasis
+  ulang tahun adalah perubahan skema, dan menunggu tenant nyata yang memakainya.
 - **Lampiran cuti sebagai berkas** — `attachmentKey` saat ini teks bebas, belum
   terhubung ke penyimpanan dokumen yang sudah ada di modul karyawan.
 - **Hari kerja selain Senin–Jumat** — pabrik enam hari dan ritel yang libur
@@ -383,7 +449,11 @@ belum ditulis:
 
 - [ ] Lighthouse PWA 100, Performance ≥ 90 pada profil mobile
 - [ ] Diuji pada Chromium dan WebKit, dan pada ≥2 perangkat fisik nyata
-- [ ] Uji otomatis yang memastikan endpoint sensitif tidak masuk Cache Storage
+- [x] **Uji otomatis yang memastikan endpoint sensitif tidak masuk Cache Storage** —
+      `apps/web/test/service-worker.test.ts` menjalankan `public/sw.js` yang
+      sebenarnya di dalam konteks VM, bukan salinannya. Diverifikasi lewat uji
+      mutasi: menghapus penjaga `NEVER_CACHE` menggagalkan 3 uji, menghapus
+      penjaga `Authorization` menggagalkan 1.
 - [ ] Verifikasi cache dan langganan push terhapus total saat logout, pada perangkat nyata
 
 ### Gerbang
