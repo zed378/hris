@@ -91,3 +91,11 @@ export {
   type UploadInput,
 } from './documents.ts';
 export { scanDocumentReminders } from './document-reminders.ts';
+export {
+  prepareRowPii,
+  buildRawForStorage,
+  type StoredRow,
+  discardStalePreviews,
+  PREVIEW_MAX_AGE_DAYS,
+  type DiscardResult,
+} from './import.ts';

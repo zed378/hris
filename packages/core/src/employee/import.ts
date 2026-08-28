@@ -55,6 +55,135 @@ export interface ImportPreview {
 }
 
 /**
+ * Bentuk PII yang disimpan pada baris pratinjau impor.
+ *
+ * Sama persis dengan yang disimpan tabel karyawan: terenkripsi, ber-indeks buta,
+ * dan bertopeng. **Bukan** teks apa adanya.
+ *
+ * Ini menutup lubang yang membatalkan seluruh kerja enkripsi PII bagi jalur
+ * onboarding yang paling banyak dipakai. `import_rows.raw` dan `.parsed`
+ * menyimpan isi berkas apa adanya, dan berkas impor karyawan memuat kolom NIK,
+ * NPWP, dan Nomor Rekening. Artinya: satu impor 500 karyawan meninggalkan 500
+ * NIK sebagai **teks biasa** di dalam JSON, di basis data yang sama yang dengan
+ * hati-hati mengenkripsi kolom NIK di tabel sebelahnya dengan AES-256-GCM.
+ *
+ * Yang membuatnya lebih buruk: tidak ada satu pun jalur yang menghapus baris
+ * pratinjau. Status `DISCARDED` ada di enum sejak awal tanpa satu pun produsen,
+ * sehingga pratinjau yang diunggah lalu ditinggalkan bertahan selamanya. HR yang
+ * mencoba format berkasnya lima kali sebelum berhasil meninggalkan lima salinan.
+ */
+interface PreparedPii {
+  encrypted: string | null;
+  index: string | null;
+  masked: string | null;
+}
+
+export interface StoredRow extends Omit<ParsedRow, 'nationalId' | 'taxId' | 'bankAccount'> {
+  nationalId: PreparedPii;
+  taxId: PreparedPii;
+  bankAccount: PreparedPii;
+}
+
+/**
+ * Menyiapkan PII satu baris untuk disimpan, atau melaporkannya sebagai galat.
+ *
+ * Nilai yang ditolak `preparePii` — sudah bertopeng, atau tidak memuat satu pun
+ * angka — menjadi galat baris biasa, bukan kegagalan seluruh impor. Satu sel
+ * berisi "tidak ada" tidak boleh menggagalkan 999 baris lainnya.
+ */
+export function prepareRowPii(
+  parsed: ParsedRow,
+  errors: RowError[],
+): StoredRow {
+  const fields = [
+    { key: 'nationalId', label: 'NIK', value: parsed.nationalId, mask: maskNationalId },
+    { key: 'taxId', label: 'NPWP', value: parsed.taxId, mask: maskTaxId },
+    { key: 'bankAccount', label: 'Nomor Rekening', value: parsed.bankAccount, mask: maskBankAccount },
+  ] as const;
+
+  const prepared: Record<string, PreparedPii> = {};
+
+  for (const field of fields) {
+    try {
+      prepared[field.key] = preparePii(field.value, field.mask, field.label);
+    } catch (error) {
+      errors.push({
+        field: field.key,
+        message: error instanceof Error ? error.message : `${field.label} tidak sah`,
+      });
+      prepared[field.key] = { encrypted: null, index: null, masked: null };
+    }
+  }
+
+  const { nationalId: _n, taxId: _t, bankAccount: _b, ...rest } = parsed;
+
+  return {
+    ...rest,
+    nationalId: prepared['nationalId']!,
+    taxId: prepared['taxId']!,
+    bankAccount: prepared['bankAccount']!,
+  };
+}
+
+/**
+ * Sel yang boleh disimpan untuk keperluan pesan galat.
+ *
+ * Bentuknya objek per-KOLOM YANG DIKENALI, bukan larik seluruh sel. Perbedaan
+ * itu adalah perbaikannya sendiri.
+ *
+ * Versi pertama menyimpan seluruh sel apa adanya lalu menutupi kolom PII yang
+ * **dikenali**. Uji e2e langsung menunjukkan lubangnya: berkas berjudul kolom
+ * "NIK" meninggalkan nomor KTP lengkap di dalam JSON. Dan "NIK" tidak dikenali
+ * BUKAN karena kelalaian — daftar aliasnya sengaja mengecualikannya, dengan
+ * komentar yang berbunyi "menebak salah berarti menyimpan nomor identitas
+ * nasional di kolom yang tidak terenkripsi". Kehati-hatian itu benar, lalu
+ * dibatalkan oleh penyimpanan sel mentah yang tidak dipikirkan bersamanya.
+ *
+ * Dengan bentuk sekarang, kolom yang tidak dikenali tidak ikut tersimpan sama
+ * sekali. Itu juga menutup kolom tambahan yang dibawa tenant sendiri — "Nama
+ * Ibu Kandung", "Golongan Darah", "Nomor BPJS" — yang selama ini ikut terbawa
+ * utuh tanpa ada yang memintanya.
+ *
+ * Kolom PII yang dikenali tetap disimpan sebagai bentuk bertopeng: cukup untuk
+ * mengenali baris mana yang dimaksud, tidak cukup untuk menjadi salinan kedua
+ * nomor identitas seseorang.
+ *
+ * Catatan jujur: **belum ada satu pun jalur yang membaca kolom ini.** Alasan ia
+ * ada — "supaya pesan galat dapat menunjuk persis apa yang diketik pengguna" —
+ * adalah rencana, bukan fitur. Ia dipertahankan karena rencana itu masuk akal
+ * dan bentuk ini membuatnya aman; seandainya tetap tidak terpakai, kolomnya
+ * layak dihapus.
+ */
+const PII_FIELDS = new Set(['nationalId', 'taxId', 'bankAccount']);
+
+export function buildRawForStorage(
+  cells: readonly unknown[],
+  mapping: Readonly<Record<string, number>>,
+  stored: StoredRow,
+): Record<string, unknown> {
+  const masked: Record<string, string | null> = {
+    nationalId: stored.nationalId.masked,
+    taxId: stored.taxId.masked,
+    bankAccount: stored.bankAccount.masked,
+  };
+
+  const out: Record<string, unknown> = {};
+
+  for (const [field, index] of Object.entries(mapping)) {
+    const cell = cells[index];
+    if (cell === null || cell === undefined || String(cell).trim() === '') continue;
+
+    out[field] = PII_FIELDS.has(field)
+      ? (masked[field] ?? '••••')
+      : cell instanceof Date
+        ? cell.toISOString()
+        : cell;
+  }
+
+  return out;
+}
+
+/**
  * Mengurai berkas, memvalidasi setiap baris, dan menyimpan hasilnya sebagai
  * pratinjau. Tidak ada satu pun karyawan yang dibuat di sini.
  */
@@ -195,16 +324,22 @@ export async function parseImportFile(
       }
     }
 
+    // PII disiapkan DI SINI, bukan saat commit.
+    //
+    // Sebelumnya `preparePii` dipanggil saat menyimpan karyawan, sehingga di
+    // antara unggah dan simpan — jendela yang panjangnya ditentukan HR, dan
+    // pada pratinjau yang ditinggalkan tidak pernah berakhir — NIK, NPWP, dan
+    // nomor rekening berada sebagai teks biasa di dalam JSON.
+    const stored = prepareRowPii(parsed, errors);
+
     if (errors.length === 0) validRows += 1;
 
     rows.push({
       tenantId,
       jobId: job.id,
       rowNumber,
-      // Sel mentah disimpan supaya pesan galat dapat menunjuk persis apa yang
-      // diketik pengguna, bukan hasil tafsiran kita atasnya.
-      raw: cells.map((cell) => (cell instanceof Date ? cell.toISOString() : cell)),
-      parsed: parsed as unknown,
+      raw: buildRawForStorage(cells, columns.mapping, stored),
+      parsed: stored as unknown,
       errors: errors.length > 0 ? errors : null,
       status: errors.length > 0 ? 'ERROR' : 'VALID',
     });
@@ -284,10 +419,10 @@ export async function commitImport(
 
     await tx.employee.createMany({
       data: batch.map((row) => {
-        const parsed = row.parsed as unknown as ParsedRow;
-        const nationalId = preparePii(parsed.nationalId, maskNationalId);
-        const taxId = preparePii(parsed.taxId, maskTaxId);
-        const bankAccount = preparePii(parsed.bankAccount, maskBankAccount);
+        // Sudah tersiapkan sejak pratinjau — terenkripsi, ber-indeks, bertopeng.
+        // Tidak ada teks biasa yang perlu diambil dari mana pun di sini.
+        const parsed = row.parsed as unknown as StoredRow;
+        const { nationalId, taxId, bankAccount } = parsed;
 
         return {
           tenantId,
@@ -313,9 +448,18 @@ export async function commitImport(
       }),
     });
 
-    await tx.importRow.updateMany({
+    // Baris yang sudah tersimpan sebagai karyawan DIHAPUS, bukan ditandai.
+    //
+    // Ia sudah selesai menjalankan tugasnya. Yang tersisa hanyalah salinan
+    // kedua data kepegawaian di tabel yang tidak diaudit pembacaannya, tidak
+    // masuk ekspor portabilitas, dan tidak dihapus oleh apa pun — sementara
+    // catatan aslinya sudah ada di tabel karyawan dengan seluruh penjagaannya.
+    //
+    // Ringkasannya tetap tersimpan pada `import_jobs`: berapa baris, berapa
+    // yang tersimpan, siapa yang mengunggah, kapan. Itu yang dibutuhkan audit;
+    // isi selnya tidak.
+    await tx.importRow.deleteMany({
       where: { id: { in: batch.map((row) => row.id) } },
-      data: { status: 'COMMITTED' },
     });
 
     committed += batch.length;
@@ -391,4 +535,61 @@ export async function getImportPreview(
       status: row.status,
     })),
   };
+}
+
+
+/**
+ * Umur pratinjau impor sebelum dibuang.
+ *
+ * Tujuh hari. Cukup panjang bagi HR yang mengunggah Jumat sore lalu memeriksanya
+ * Senin, dan cukup pendek untuk bukan disebut penyimpanan.
+ */
+export const PREVIEW_MAX_AGE_DAYS = 7;
+
+export interface DiscardResult {
+  jobs: number;
+  rows: number;
+}
+
+/**
+ * Membuang pratinjau impor yang ditinggalkan.
+ *
+ * Status `DISCARDED` ada di enum sejak migrasi pertama modul impor **tanpa satu
+ * pun produsen** — pola yang sama dengan `LEAVE`, `MANUAL`, dan metode akrual:
+ * nilai yang dideklarasikan tetapi tidak pernah dihasilkan siapa pun. Akibatnya
+ * di sini bukan sekadar kosakata yang tidak terpakai: pratinjau yang diunggah
+ * lalu ditinggalkan bertahan selamanya, dan HR yang mencoba format berkasnya
+ * lima kali sebelum berhasil meninggalkan lima salinan data kepegawaian.
+ *
+ * Barisnya dihapus; ringkasan pekerjaannya tetap ada dengan status DISCARDED,
+ * supaya "saya pernah mengunggah berkas itu, ke mana perginya" punya jawaban.
+ */
+export async function discardStalePreviews(
+  tx: TenantClient,
+  tenantId: string,
+  now: Date = new Date(),
+): Promise<DiscardResult> {
+  const cutoff = new Date(now.getTime() - PREVIEW_MAX_AGE_DAYS * 86_400_000);
+
+  const stale = await tx.importJob.findMany({
+    where: { tenantId, status: 'PREVIEW', createdAt: { lt: cutoff } },
+    select: { id: true },
+  });
+  if (stale.length === 0) return { jobs: 0, rows: 0 };
+
+  const ids = stale.map((job) => job.id);
+
+  const removed = await tx.importRow.deleteMany({ where: { tenantId, jobId: { in: ids } } });
+  await tx.importJob.updateMany({
+    where: { tenantId, id: { in: ids } },
+    data: { status: 'DISCARDED' },
+  });
+
+  await writeAudit(tx, tenantId, {
+    action: 'employee.import.discarded',
+    entityType: 'import_job',
+    after: { jobs: ids.length, rows: removed.count, olderThanDays: PREVIEW_MAX_AGE_DAYS },
+  });
+
+  return { jobs: ids.length, rows: removed.count };
 }

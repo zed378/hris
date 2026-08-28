@@ -349,6 +349,43 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     detik 5,2 dengan 0 slip bertahan**. Jalur baru menyelesaikan 1.003 karyawan
     dalam **8,5 detik** lewat 21 potongan yang masing-masing ter-commit;
     menjalankannya ulang menghasilkan **0 slip baru dalam 13 ms**.
+26. **NIK, NPWP, dan nomor rekening tersimpan sebagai teks biasa di staging
+    impor** — yang membatalkan seluruh kerja enkripsi PII bagi jalur onboarding
+    yang paling banyak dipakai. `import_rows.raw` dan `.parsed` menyimpan isi
+    berkas apa adanya, dan berkas impor karyawan memuat ketiga kolom itu. Satu
+    impor 500 karyawan meninggalkan 500 NIK sebagai teks biasa di dalam JSON —
+    **di basis data yang sama** yang mengenkripsi kolom NIK di tabel sebelahnya
+    dengan AES-256-GCM, mengindeksnya dengan HMAC, dan mengaudit setiap
+    pembukaan samarannya. Impor adalah jalur onboarding utama (Gerbang A: tiga
+    pilot mengimpor ≥100 karyawan secara mandiri), sehingga lubang ini berlaku
+    untuk hampir seluruh data yang akan masuk. `preparePii` kini dipanggil saat
+    **pratinjau dibuat**, bukan saat commit; teks biasa tidak pernah masuk.
+27. **Tidak ada satu pun jalur yang menghapus baris pratinjau impor** — status
+    `DISCARDED` ada di enum sejak migrasi pertama tanpa produsen, pola yang sama
+    dengan nomor 4, 19, 21, dan 23. Pratinjau yang diunggah lalu ditinggalkan
+    bertahan selamanya, dan HR yang mencoba format berkasnya lima kali sebelum
+    berhasil meninggalkan lima salinan data kepegawaian. Kini: baris dihapus
+    saat commit (ringkasan pekerjaannya tetap ada untuk audit), dan pratinjau
+    yang lebih tua dari 7 hari dibuang job harian — yang akhirnya memberi
+    `DISCARDED` seorang produsen.
+28. **Perbaikan nomor 26 masih bocor lewat kolom yang TIDAK dikenali** —
+    ditemukan uji e2e, bukan oleh penalaran, dan bentuknya halus. Versi pertama
+    menyimpan seluruh sel apa adanya lalu menutupi kolom PII yang **dikenali**.
+    Tetapi `"NIK"` saja **sengaja bukan alias yang dikenali**: daftar aliasnya
+    mengecualikannya dengan komentar yang berbunyi *"menebak salah berarti
+    menyimpan nomor identitas nasional di kolom yang tidak terenkripsi"*.
+    Kehati-hatian itu benar — lalu dibatalkan oleh penyimpanan sel mentah yang
+    tidak dipikirkan bersamanya, sehingga berkas berjudul "NIK" meninggalkan
+    nomor KTP lengkap. Hal yang sama berlaku bagi kolom bawaan tenant sendiri:
+    "Nama Ibu Kandung", "Golongan Darah", "Nomor BPJS" ikut tersimpan utuh tanpa
+    ada yang memintanya. `raw` kini berbentuk objek per-kolom-yang-dikenali;
+    yang tidak dikenali tidak tersimpan sama sekali.
+
+    Catatan jujur yang menyertainya: **belum ada satu pun jalur yang membaca
+    `raw`.** Alasan ia ada — "supaya pesan galat dapat menunjuk persis apa yang
+    diketik pengguna" — adalah rencana, bukan fitur. Kolom yang tidak dibaca
+    siapa pun tetapi menyimpan data pribadi adalah kewajiban murni, dan itu
+    dinyatakan di kodenya alih-alih dibiarkan tampak seperti fitur.
 
 ---
 
@@ -401,8 +438,26 @@ Tiga batasnya perlu diketahui:
 - **Ambang rasio bertanda 12% belum terkalibrasi** — pengujian menghasilkan
   angka jauh di atas ambang karena presensi uji tanpa foto. Kalibrasi menuntut
   data pilot.
-- **Retensi dokumen karyawan belum otomatis** — pengarsipan manual sudah ada,
-  job berkala belum. Foto presensi sudah punya.
+- **Pengingat kedaluwarsa dokumen sudah ada** (nomor 23), **penghapusannya
+  belum — dan sengaja ditunda.** Periodenya keputusan hukum, bukan keputusan
+  teknis: UU KUP Pasal 28 ayat (11) menuntut dokumen perpajakan disimpan 10
+  tahun, sedangkan UU PDP menuntut data pribadi tidak disimpan lebih lama dari
+  keperluannya — dan kedua tuntutan itu berlaku atas berkas yang berbeda di
+  dalam satu folder karyawan yang sama. Menebak satu angka lalu menghapus
+  otomatis adalah cara menghancurkan bukti yang mungkin dibutuhkan. Yang
+  dibutuhkan lebih dulu: klasifikasi retensi per jenis dokumen, disepakati
+  dengan penasihat hukum tenant.
+- **`employee_documents.employee_id` tidak punya foreign key** — ditemukan saat
+  membangun pengingat kedaluwarsa. Dokumen dapat menjadi yatim bila baris
+  karyawannya hilang, dan Prisma karenanya tidak mengenal relasinya (pemindaian
+  membaca karyawan lewat query terpisah). Perbaikannya menuntut pemeriksaan
+  baris yatim lebih dulu.
+- **Kunci enkripsi PII belum pernah dirotasi** — format cipher-nya berversi
+  (`v1.`), jadi rotasi dapat dilakukan tanpa migrasi besar, tetapi prosedurnya
+  belum ada dan belum diuji. Menjadi lebih penting setelah nomor 26: kini
+  seluruh PII benar-benar hanya ada dalam bentuk terenkripsi, sehingga
+  kehilangan kunci berarti kehilangan data — bukan lagi sekadar kehilangan satu
+  salinan yang kebetulan tersisa di staging impor.
 - **`attendance_policies` belum ada** — kebijakan `on_permission_denied`
   (`BLOCK` / `FALLBACK_ONLY`) pada dokumen `10` §114 belum dapat disetel tenant.
 - **Aliran SSE belum diuji di balik proxy nyata** — `x-accel-buffering: no`

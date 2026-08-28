@@ -1,6 +1,10 @@
 import { log } from '@hrms/observability';
 import { withTenant, workerClient } from '@hrms/db';
-import { scanContractReminders, scanDocumentReminders } from '@hrms/core/employee';
+import {
+  discardStalePreviews,
+  scanContractReminders,
+  scanDocumentReminders,
+} from '@hrms/core/employee';
 
 /**
  * Job harian pengingat kontrak.
@@ -19,6 +23,8 @@ export interface ReminderJobResult {
   tenants: number;
   scanned: number;
   reminded: number;
+  /** Pratinjau impor yang ditinggalkan dan dibuang. */
+  discardedPreviews: number;
   failed: number;
 }
 
@@ -27,7 +33,13 @@ export async function runContractReminders(): Promise<ReminderJobResult> {
     SELECT tenant_id FROM public.active_tenant_ids()
   `;
 
-  const result: ReminderJobResult = { tenants: tenants.length, scanned: 0, reminded: 0, failed: 0 };
+  const result: ReminderJobResult = {
+    tenants: tenants.length,
+    scanned: 0,
+    reminded: 0,
+    discardedPreviews: 0,
+    failed: 0,
+  };
 
   for (const { tenant_id: tenantId } of tenants) {
     try {
@@ -52,6 +64,16 @@ export async function runContractReminders(): Promise<ReminderJobResult> {
       );
       result.scanned += documents.scanned;
       result.reminded += documents.reminded;
+
+      // Pratinjau impor yang ditinggalkan dibuang di sini, bukan di job
+      // tersendiri. Ia berjalan pada irama yang sama — harian, idempoten, dan
+      // tidak menuntut siapa pun mengingat apakah putaran kemarin berhasil.
+      const discarded = await withTenant(
+        tenantId,
+        (tx) => discardStalePreviews(tx, tenantId),
+        { client: workerClient() },
+      );
+      result.discardedPreviews += discarded.jobs;
     } catch (error) {
       // Kegagalan satu tenant tidak menghentikan sisanya. Job yang berhenti di
       // tenant pertama yang bermasalah berarti seluruh pelanggan lain kehilangan

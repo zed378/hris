@@ -125,7 +125,7 @@ async function main(): Promise<void> {
   const runReminders = async (): Promise<void> => {
     try {
       const result = await runContractReminders();
-      if (result.reminded > 0 || result.failed > 0) {
+      if (result.reminded > 0 || result.failed > 0 || result.discardedPreviews > 0) {
         log.info({ scope: 'contract-reminders', ...result });
       }
     } catch (error) {
