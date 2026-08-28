@@ -162,6 +162,10 @@ export const ROUTE_MANIFEST = {
   // Persetujuan hanya dapat diberikan untuk diri sendiri, jadi izinnya adalah
   // izin presensi dasar — bukan izin administratif. HR tidak punya jalur untuk
   // menyetujui atas nama siapa pun, dan itu memang inti aturannya.
+  // Cakupan dasbor ditentukan izin di dalam handler, bukan oleh parameter.
+  // Izin di manifes karenanya izin dasar yang dimiliki semua orang.
+  'GET /api/dashboard': { module: 'core', permission: 'core.dashboard.view.own' },
+
   // --- Langganan -------------------------------------------------------------
   //
   // Modulnya `core`, bukan modul yang sedang diatur. Endpoint yang mengatur

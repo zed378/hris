@@ -173,6 +173,8 @@ berjalan, bukan hanya lolos uji unit.
 | Kelebihan beban dibalas 503, bukan 500 | Banjir yang sama: 0 galat 500, 372 balasan 503 dengan `retry-after` |
 | Batas waktu query berlaku per peran | `hrms_app` 15 dtk, `hrms_worker` 5 mnt, `hrms_platform` 30 dtk |
 | Deteksi drift skema benar-benar mendeteksi | Tabel ber-`tenant_id` tanpa RLS dan RLS tanpa kebijakan keduanya tertangkap |
+| Cakupan dasbor mengikuti izin, bukan parameter | HR menerima tiga cakupan; karyawan hanya `own`, sisanya `null` |
+| Modul mati tidak menghasilkan angka palsu di dasbor | `payrollRunsPendingApproval: null`, bukan `0` |
 
 ---
 
@@ -301,9 +303,11 @@ Yang tidak terkunci Gerbang C tetapi belum dibangun:
   kredensialnya. Model langganan, invoice, dan dunning dapat dibangun tanpa
   akun, tetapi integrasinya tidak dapat diuji tanpa sandbox yang sungguhan.
 - **Registrasi mandiri + uji coba 14 hari** — endpoint `POST /api/tenants/register`
-  sudah ada; alur pendaftaran dari halaman publik belum.
-- **Dasbor tenant dan tim** (dokumen `07` §5) — tiga cakupan belum dibangun.
-- **Notifikasi berjenjang** email → Web Push → WhatsApp. Email sudah ada.
+  sudah ada; halaman pendaftaran publik belum.
+- **Notifikasi berjenjang** email → Web Push → WhatsApp. Email sudah ada;
+  Web Push dan WhatsApp belum.
+- **Laporan siap pakai + ekspor `.xlsx` di seluruh modul** — baru modul karyawan
+  yang punya ekspor.
 - **Pengerasan F6 sudah selesai**: kuota per tenant (600/menit, dengan
   penolakan yang tercatat), `statement_timeout`/`lock_timeout`/
   `idle_in_transaction_session_timeout` per peran, deteksi drift skema harian

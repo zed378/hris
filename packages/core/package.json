@@ -13,7 +13,8 @@
     "./attendance": "./src/attendance/index.ts",
     "./storage": "./src/storage/index.ts",
     "./leave": "./src/leave/index.ts",
-    "./payroll": "./src/payroll/index.ts"
+    "./payroll": "./src/payroll/index.ts",
+    "./dashboard": "./src/dashboard/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
