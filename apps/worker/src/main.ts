@@ -7,6 +7,7 @@ import { EventTopic } from '@hrms/contracts';
 import { countStuck, pumpOnce, type OutboxEnvelope } from './outbox-pump.ts';
 import { runContractReminders } from './contract-reminders.ts';
 import { runPhotoRetention } from './photo-retention.ts';
+import { runSchemaDriftCheck } from './schema-drift.ts';
 import { CONSUMERS, type Consumer } from './consumers.ts';
 
 loadEnv({
@@ -27,6 +28,20 @@ loadEnv({
 const POLL_INTERVAL_MS = 2000;
 
 async function main(): Promise<void> {
+  /**
+   * pg-boss memakai peran pemilik, dan itu pengecualian yang disengaja.
+   *
+   * Ia mengelola skemanya sendiri — membuat tabel, indeks, dan fungsi pada
+   * `pgboss` saat pertama dijalankan dan saat versinya naik. Itu menuntut hak
+   * DDL yang tidak dimiliki `hrms_worker`, dan memberikannya berarti memberi
+   * peran runtime hak membuat tabel di mana pun.
+   *
+   * Yang perlu diketahui sebagai konsekuensinya: koneksi ini TIDAK terikat
+   * `statement_timeout` peran worker. Skema `pgboss` tidak memuat satu pun
+   * kolom `tenant_id`, sehingga RLS tidak berlaku di sana dan tidak ada yang
+   * dilewati — tetapi job yang menggantung di sini tidak akan dipotong
+   * basis data, dan hanya `boss.stop()` yang menghentikannya.
+   */
   const boss = new PgBoss({
     connectionString: process.env['DATABASE_URL']!,
     schema: 'pgboss',
@@ -134,11 +149,32 @@ async function main(): Promise<void> {
     }
   };
 
+  /**
+   * Pemeriksaan drift skema.
+   *
+   * Dijalankan bersama job harian lain, dan sekali segera saat worker menyala.
+   * Yang dicari adalah keadaan basis data produksi yang tidak digambarkan
+   * migrasi mana pun — tabel ber-`tenant_id` tanpa RLS, RLS tanpa kebijakan,
+   * atau peran aplikasi yang dapat menembus RLS.
+   *
+   * Menjalankannya saat startup disengaja: bila sesuatu rusak semalam,
+   * restart pagi hari adalah kesempatan paling awal untuk mengetahuinya.
+   */
+  const runDriftCheck = async (): Promise<void> => {
+    try {
+      await runSchemaDriftCheck();
+    } catch (error) {
+      console.error({ scope: 'schema-drift', error });
+    }
+  };
+
   void runReminders();
   void runRetention();
+  void runDriftCheck();
   const reminderTimer = setInterval(() => {
     void runReminders();
     void runRetention();
+    void runDriftCheck();
   }, REMINDER_INTERVAL_MS);
   reminderTimer.unref?.();
 

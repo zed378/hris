@@ -5,7 +5,7 @@ import { ErrorCode, type ApiError } from '@hrms/contracts';
 import { verifyAccessToken, TokenVerificationError } from '@hrms/core/auth';
 import { resolveEffectiveAccess, type EffectiveAccess } from '@hrms/core/iam';
 import { ROUTE_MANIFEST, type RouteId, type RouteRule } from './route-manifest.ts';
-import { consumeRateLimit } from './rate-limit.ts';
+import { consumeRateLimit, consumeTenantQuota, TENANT_QUOTA_MAX } from './rate-limit.ts';
 
 export interface RequestContext {
   correlationId: string;
@@ -184,6 +184,37 @@ function build(
       );
     }
 
+    /**
+     * Kuota menyeluruh per tenant, DI LUAR transaksi.
+     *
+     * Diperiksa sebelum `withTenant` dengan sengaja: seluruh gunanya adalah
+     * mencegah satu tenant menghabiskan koneksi basis data, dan memeriksanya
+     * setelah koneksi diambil justru menghabiskan koneksi yang hendak dijaga.
+     */
+    const quota = consumeTenantQuota(claims.tid);
+    if (!quota.allowed) {
+      // Dicatat, bukan hanya ditolak. Batas yang salah setel harus ketahuan
+      // dari log — bukan dari pelanggan yang menelepon karena aplikasinya
+      // berhenti bekerja pada jam sibuk.
+      console.warn({
+        scope: 'tenant-quota',
+        tenantId: claims.tid,
+        routeId,
+        max: TENANT_QUOTA_MAX,
+        resetSeconds: quota.resetSeconds,
+      });
+
+      const response = fail(
+        429,
+        ErrorCode.RATE_LIMITED,
+        `Permintaan dari organisasi Anda melebihi ${TENANT_QUOTA_MAX} per menit. ` +
+          'Coba lagi sebentar lagi.',
+        ctx.correlationId,
+      );
+      response.headers.set('retry-after', String(quota.resetSeconds));
+      return response;
+    }
+
     try {
       return await withTenant(claims.tid, async (tx) => {
         const access = await resolveEffectiveAccess(tx, claims.tid, claims.sub);
@@ -218,6 +249,40 @@ function build(
         });
       });
     } catch (error) {
+      /**
+       * Pool transaksi habis adalah KELEBIHAN BEBAN, bukan kerusakan.
+       *
+       * Ditemukan lewat uji banjir: 700 permintaan bersamaan menghasilkan 100
+       * penolakan kuota dan 299 galat 500 bertuliskan "Unable to start a
+       * transaction in the given time". Kuota per menit membatasi LAJU, bukan
+       * KONKURENSI — dan yang menghabiskan pool adalah konkurensi.
+       *
+       * Membalasnya 500 salah dalam dua hal sekaligus: klien dan proxy tidak
+       * mencoba ulang 500 (mereka mencoba ulang 503 dengan `retry-after`), dan
+       * pemantauan galat mencatatnya sebagai bug padahal sistemnya berfungsi
+       * persis sebagaimana dirancang — ia sedang penuh.
+       *
+       * Antreannya sendiri sudah ditangani Prisma; yang diperbaiki di sini
+       * hanyalah apa yang dikatakan ketika antrean itu penuh.
+       */
+      const overloaded =
+        error instanceof Error &&
+        /Unable to start a transaction|Timed out fetching a new connection/i.test(
+          error.message,
+        );
+
+      if (overloaded) {
+        console.warn({ scope: 'overload', correlationId: ctx.correlationId, routeId });
+        const response = fail(
+          503,
+          ErrorCode.RATE_LIMITED,
+          'Sistem sedang menerima terlalu banyak permintaan sekaligus. Coba lagi sebentar lagi.',
+          ctx.correlationId,
+        );
+        response.headers.set('retry-after', '2');
+        return response;
+      }
+
       console.error({ correlationId: ctx.correlationId, routeId, error });
       return fail(
         500,

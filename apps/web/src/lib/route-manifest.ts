@@ -102,6 +102,23 @@ export const ROUTE_MANIFEST = {
   'POST /api/employees': { module: 'employee', permission: 'employee.employee.create' },
   'GET /api/employees/[id]': { module: 'employee', permission: 'employee.employee.read.all' },
   'PATCH /api/employees/[id]': { module: 'employee', permission: 'employee.employee.update' },
+  'PATCH /api/employees/bulk': { module: 'employee', permission: 'employee.employee.update' },
+  'GET /api/employees/[id]/documents': {
+    module: 'employee',
+    permission: 'employee.document.read',
+  },
+  'POST /api/employees/[id]/documents': {
+    module: 'employee',
+    permission: 'employee.document.manage',
+  },
+  // Izin dasar yang dimiliki semua orang. Pemilahan pemilik-vs-HR terjadi di
+  // dalam handler — tanpa itu, karyawan tidak dapat membuka pindaian KTP-nya
+  // sendiri, yang justru hak yang dijamin UU PDP.
+  'GET /api/documents/[docId]': { module: 'employee', permission: 'employee.employee.read.own' },
+  'DELETE /api/documents/[docId]': {
+    module: 'employee',
+    permission: 'employee.document.manage',
+  },
 
   // Impor Excel — jalur migrasi dari produk referensi, dan inti Gerbang A.
   // Templat memakai permission ekspor, bukan impor: mengunduh contoh kolom
@@ -142,6 +159,66 @@ export const ROUTE_MANIFEST = {
   'GET /api/attendance/review': { module: 'attendance', permission: 'attendance.review.handle' },
   'POST /api/attendance/review': { module: 'attendance', permission: 'attendance.review.handle' },
 
+  // Persetujuan hanya dapat diberikan untuk diri sendiri, jadi izinnya adalah
+  // izin presensi dasar — bukan izin administratif. HR tidak punya jalur untuk
+  // menyetujui atas nama siapa pun, dan itu memang inti aturannya.
+  // --- Langganan -------------------------------------------------------------
+  //
+  // Modulnya `core`, bukan modul yang sedang diatur. Endpoint yang mengatur
+  // langganan tidak boleh ikut mati ketika modul yang diaturnya dinonaktifkan.
+  'GET /api/subscription': { module: 'core', permission: 'core.settings.manage' },
+  'POST /api/subscription': { module: 'core', permission: 'core.settings.manage' },
+
+  // --- Penggajian ------------------------------------------------------------
+  'GET /api/payroll/components': { module: 'payroll', permission: 'payroll.component.manage' },
+  'POST /api/payroll/components': { module: 'payroll', permission: 'payroll.component.manage' },
+  // PUT memeriksa formula tanpa menyimpannya, dipakai layar konfigurasi saat
+  // admin mengetik. Izinnya sama dengan menyimpan: yang boleh mengetahui
+  // variabel apa saja yang tersedia adalah yang boleh mengonfigurasinya.
+  'PUT /api/payroll/components': { module: 'payroll', permission: 'payroll.component.manage' },
+
+  'GET /api/payroll/salary': { module: 'payroll', permission: 'payroll.salary.read' },
+  'POST /api/payroll/salary': { module: 'payroll', permission: 'payroll.salary.manage' },
+
+  'GET /api/payroll/runs': { module: 'payroll', permission: 'payroll.run.execute' },
+  'POST /api/payroll/runs': { module: 'payroll', permission: 'payroll.run.execute' },
+  'GET /api/payroll/runs/[id]': { module: 'payroll', permission: 'payroll.run.execute' },
+  // Persetujuan diperiksa di dalam handler dengan izin terpisah: orang yang
+  // menghitung dan orang yang menyetujui sebaiknya berbeda.
+  'POST /api/payroll/runs/[id]': { module: 'payroll', permission: 'payroll.run.execute' },
+
+  // Izin dasar yang dimiliki semua orang; pemilahan sendiri-vs-semua terjadi di
+  // dalam handler. Tanpa itu, karyawan tidak dapat melihat slip gajinya sendiri.
+  'GET /api/payroll/payslips': { module: 'payroll', permission: 'payroll.payslip.read.own' },
+
+  // --- Cuti ------------------------------------------------------------------
+  'GET /api/leave/types': { module: 'leave', permission: 'leave.request.create.own' },
+  'POST /api/leave/types': { module: 'leave', permission: 'leave.policy.manage' },
+  // Cakupan daftar ditentukan izin di dalam handler, bukan oleh parameter:
+  // klien yang meminta `all` tanpa izin menerima daftarnya sendiri, bukan galat.
+  'GET /api/leave/requests': { module: 'leave', permission: 'leave.request.read.own' },
+  'POST /api/leave/requests': { module: 'leave', permission: 'leave.request.create.own' },
+  'POST /api/leave/requests/[id]/decision': {
+    module: 'leave',
+    permission: 'leave.request.approve',
+  },
+  'DELETE /api/leave/requests/[id]/decision': {
+    module: 'leave',
+    permission: 'leave.request.create.own',
+  },
+  'GET /api/leave/balances': { module: 'leave', permission: 'leave.balance.read.own' },
+  'POST /api/leave/balances': { module: 'leave', permission: 'leave.balance.manage' },
+
+  'GET /api/attendance/live': { module: 'attendance', permission: 'attendance.record.read.all' },
+  'GET /api/attendance/consent': { module: 'attendance', permission: 'attendance.punch.create.own' },
+  'POST /api/attendance/consent': {
+    module: 'attendance',
+    permission: 'attendance.punch.create.own',
+  },
+  'POST /api/attendance/device-import': {
+    module: 'attendance',
+    permission: 'attendance.record.correct',
+  },
   'POST /api/attendance/manual-punch': {
     module: 'attendance',
     permission: 'attendance.record.correct',

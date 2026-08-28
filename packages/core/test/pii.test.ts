@@ -12,6 +12,8 @@ import {
   maskBankAccount,
   maskNationalId,
   maskTaxId,
+  MaskedValueError,
+  InvalidIdentifierError,
   normalizeIdentifier,
   preparePii,
   revealPii,
@@ -178,5 +180,84 @@ describe('preparePii', () => {
     const prepared = preparePii('3201.1234.5678.9012', maskNationalId);
     expect(decryptPii(prepared.encrypted!)).toBe('3201123456789012');
     expect(prepared.masked).toBe('3201********9012');
+  });
+});
+
+/**
+ * Penjaga nilai tersamar, pada batas tulis.
+ *
+ * Bug yang ditutup uji ini ditemukan lewat e2e pembaruan massal: nilai
+ * `••••••••1234` yang disalin dari layar diterima dan tersimpan sebagai NIK.
+ * Grid memang mengunci kolomnya — tetapi penguncian itu hanya berlaku di satu
+ * layar, sementara jalur tulis yang sama dipakai impor Excel, pembaruan massal,
+ * dan API langsung (prinsip P9: layar menyembunyikan, server menolak).
+ *
+ * Kerusakannya senyap dan permanen: NIK asli tertimpa deretan tanda, terenkripsi
+ * rapi, dan baru ketahuan saat payroll pertama membutuhkan nomor rekening.
+ */
+describe('penolakan nilai tersamar', () => {
+  it('menolak samaran bintang dari ekspor Excel', () => {
+    expect(() => preparePii('3201********9012', maskNationalId, 'NIK')).toThrow(MaskedValueError);
+  });
+
+  it('menolak samaran bulatan dari tampilan layar', () => {
+    // Karakter inilah yang lolos pada versi pertama penjaga ini, karena
+    // pemeriksaannya hanya mengenali bintang.
+    expect(() => preparePii('••••••••1234', maskBankAccount, 'rekening')).toThrow(
+      MaskedValueError,
+  InvalidIdentifierError,
+    );
+  });
+
+  it('menyebut kolomnya dalam pesan', () => {
+    // Pesan yang tidak menyebut kolom mana yang salah tidak dapat ditindaklanjuti
+    // pada baris berisi tiga kolom PII.
+    expect(() => preparePii('****1234', maskTaxId, 'NPWP')).toThrow(/NPWP/);
+  });
+
+  it('menerima nilai sebenarnya', () => {
+    const hasil = preparePii('3201234567899012', maskNationalId, 'NIK');
+    expect(hasil.encrypted).not.toBeNull();
+    expect(hasil.masked).toContain('*');
+  });
+
+  it('menerima kolom kosong tanpa mengeluh', () => {
+    // Mengosongkan kolom adalah cara yang sah untuk tidak mengisinya, dan
+    // pesan galatnya sendiri menyarankan itu.
+    expect(preparePii('', maskNationalId, 'NIK').encrypted).toBeNull();
+    expect(preparePii(null, maskNationalId, 'NIK').encrypted).toBeNull();
+  });
+});
+
+describe('penolakan nilai yang mustahil menjadi nomor identitas', () => {
+  it('menolak hasil salin-tempel yang rusak encoding-nya', () => {
+    // Ditemukan lewat e2e: shell yang salah menyandikan karakter samaran
+    // mengirimkan deretan karakter pengganti, dan nilai itu tersimpan sebagai
+    // NIK tanpa satu pun keberatan.
+    expect(() => preparePii('\uFFFD\uFFFD\uFFFD\uFFFD1234', maskNationalId, 'NIK')).toThrow(
+      InvalidIdentifierError,
+    );
+  });
+
+  it('menolak teks biasa yang tidak sengaja tertempel di kolom PII', () => {
+    expect(() => preparePii('tidak ada', maskNationalId, 'NIK')).toThrow(InvalidIdentifierError);
+    expect(() => preparePii('n/a (belum lapor)', maskTaxId, 'NPWP')).toThrow(
+      InvalidIdentifierError,
+    );
+  });
+
+  it('tetap menerima pemisah yang lazim diketik orang', () => {
+    // NPWP hampir selalu ditulis dengan titik dan strip. Menolaknya akan
+    // membuat orang mengetik ulang seluruh kolom, dan pengetikan ulang itulah
+    // sumber kesalahan yang sebenarnya.
+    expect(() => preparePii('09.254.294.3-407.000', maskTaxId, 'NPWP')).not.toThrow();
+    expect(() => preparePii('3201 2345 6789 9012', maskNationalId, 'NIK')).not.toThrow();
+  });
+
+  it('menerima nomor rekening bercampur huruf', () => {
+    // Beberapa bank memakai awalan huruf. Aturan panjang atau angka-saja akan
+    // menolak nasabah yang sah, dan itu lebih merugikan daripada menerima yang
+    // tampak aneh.
+    expect(() => preparePii('BCA1234567890', maskBankAccount, 'rekening')).not.toThrow();
   });
 });

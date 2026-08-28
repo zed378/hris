@@ -35,6 +35,15 @@ interface SessionState {
   logout: () => Promise<void>;
   can: (permission: string) => boolean;
   hasModule: (moduleCode: string) => boolean;
+  /**
+   * Memuat ulang izin, modul, dan menu tanpa login ulang.
+   *
+   * Dibutuhkan ketika langganan berubah dari dalam aplikasi: DoD Fase 6
+   * menuntut perubahan tercermin di UI dalam sepuluh detik, dan meminta orang
+   * keluar-masuk kembali setelah mengaktifkan modul adalah kegagalan yang
+   * paling terasa justru pada langkah yang paling ingin dibuat mulus.
+   */
+  refresh: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionState | null>(null);
@@ -196,8 +205,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // gateway yang benar (P9).
       can: (permission) => permissions.has(permission),
       hasModule: (moduleCode) => modules.has(moduleCode),
+      refresh: async () => {
+        await loadBootstrap();
+      },
     };
-  }, [status, bootstrap, api, login, logout]);
+  }, [status, bootstrap, api, login, logout, loadBootstrap]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

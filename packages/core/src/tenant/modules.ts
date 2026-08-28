@@ -8,15 +8,29 @@ export async function listTenantModules(
   tx: TenantClient,
   tenantId: string,
 ): Promise<string[]> {
-  const [enabled, core] = await Promise.all([
+  const [enabled, core, tenant] = await Promise.all([
     tx.tenantModule.findMany({
       where: { tenantId, status: 'ENABLED' },
       select: { moduleCode: true },
     }),
     tx.module.findMany({ where: { isCore: true }, select: { code: true } }),
+    tx.tenant.findFirst({
+      where: { id: tenantId },
+      select: { plan: { select: { modules: { select: { moduleCode: true } } } } },
+    }),
   ]);
 
-  return [...new Set([...core.map((m) => m.code), ...enabled.map((m) => m.moduleCode)])].sort();
+  // Irisan paket dan status aktif. Lihat penjelasan lengkapnya di
+  // `resolve-access.ts`: membaca status saja membuat penurunan paket tidak
+  // mencabut apa pun.
+  const inPlan = new Set(tenant?.plan?.modules.map((m) => m.moduleCode) ?? []);
+
+  return [
+    ...new Set([
+      ...core.map((m) => m.code),
+      ...enabled.map((m) => m.moduleCode).filter((code) => inPlan.has(code)),
+    ]),
+  ].sort();
 }
 
 export async function isModuleEnabled(
@@ -31,9 +45,17 @@ export async function isModuleEnabled(
   if (!mod) return false;
   if (mod.isCore) return true;
 
-  const row = await tx.tenantModule.findUnique({
-    where: { tenantId_moduleCode: { tenantId, moduleCode } },
-    select: { status: true },
-  });
-  return row?.status === 'ENABLED';
+  const [row, tenant] = await Promise.all([
+    tx.tenantModule.findUnique({
+      where: { tenantId_moduleCode: { tenantId, moduleCode } },
+      select: { status: true },
+    }),
+    tx.tenant.findFirst({
+      where: { id: tenantId },
+      select: { plan: { select: { modules: { select: { moduleCode: true } } } } },
+    }),
+  ]);
+
+  const inPlan = (tenant?.plan?.modules ?? []).some((m) => m.moduleCode === moduleCode);
+  return row?.status === 'ENABLED' && inPlan;
 }

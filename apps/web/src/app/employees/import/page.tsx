@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
+import { downloadFile } from '@/lib/download.ts';
 
 /**
  * Wizard impor karyawan dari Excel — Gerbang A (PLAN/12 Fase 2).
@@ -171,9 +172,16 @@ export default function ImportPage() {
 
             <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
               Belum punya berkas?{' '}
-              <a href="/api/employees/template" className="text-brand-600 underline">
+              {/* Tombol, bukan tautan: `<a href>` tidak membawa header
+                  Authorization, dan endpointnya menjawab 401. */}
+              <button
+                onClick={() =>
+                  void downloadFile(api, '/api/employees/template', 'templat-karyawan.xlsx')
+                }
+                className="text-brand-600 underline"
+              >
                 Unduh templat
-              </a>{' '}
+              </button>{' '}
               berisi kolom yang dikenali dan dua baris contoh.
             </p>
           </section>

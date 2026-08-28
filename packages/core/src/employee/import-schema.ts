@@ -1,3 +1,5 @@
+import { looksMasked } from './pii.ts';
+
 /**
  * Pemetaan kolom dan validasi baris untuk impor karyawan.
  *
@@ -280,10 +282,10 @@ function buildDate(year: number, month: number, day: number): { date: string | n
  * Pemeriksaan panjang digit sebenarnya sudah menolaknya, tetapi pesannya
  * berbunyi "NIK biasanya 16 digit angka (ditemukan 16 karakter)" — terbaca
  * seperti kontradiksi, dan tidak memberi tahu apa pun tentang cara memperbaikinya.
+ *
+ * Deteksinya sendiri ada di `pii.ts`, tempat ia juga menjaga jalur tulis lain.
+ * Di sini ia dipakai lebih awal, semata supaya pesannya dapat menunjuk barisnya.
  */
-function looksMasked(value: string): boolean {
-  return value.includes('*');
-}
 
 const MASKED_MESSAGE =
   'Nilai tersamar (*) — berkas ini diekspor tanpa izin melihat data lengkap. ' +

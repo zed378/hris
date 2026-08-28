@@ -50,3 +50,61 @@ export function consumeRateLimit(key: string, max: number, windowSeconds: number
 export function resetRateLimits(): void {
   buckets.clear();
 }
+
+/**
+ * Kuota menyeluruh per tenant (PLAN/12 F6).
+ *
+ * Berbeda tujuan dari `rateLimit` per rute. Yang itu menjaga jalur tertentu
+ * dari penyalahgunaan — coba-coba kata sandi, banjir pendaftaran. Yang ini
+ * menjaga TETANGGA: satu tenant yang menjalankan skrip impor tanpa jeda tidak
+ * boleh menghabiskan koneksi basis data dan membuat sembilan tenant lain
+ * melihat aplikasinya berhenti merespons.
+ *
+ * Batasnya sengaja longgar. Ia bukan alat penagihan dan bukan pembatas
+ * pemakaian wajar; ia hanya menangkap yang jelas keluar batas. Tenant seratus
+ * karyawan yang seluruhnya presensi pada pukul delapan pagi menghasilkan
+ * sekitar seratus permintaan dalam satu menit — dan itu harus lewat tanpa
+ * hambatan, karena itulah hari kerja normal.
+ *
+ * Angkanya perlu dikalibrasi dengan data pilot. Sampai itu ada, yang lebih
+ * penting daripada nilainya adalah bahwa pelanggarannya TERLIHAT: setiap
+ * penolakan dicatat, sehingga batas yang salah setel ketahuan dari log alih-alih
+ * dari keluhan pelanggan.
+ */
+const TENANT_QUOTA = { windowSeconds: 60, max: 600 } as const;
+
+export interface QuotaOutcome {
+  allowed: boolean;
+  /** Sisa jatah pada jendela berjalan. Dikirim sebagai header. */
+  remaining: number;
+  /** Detik sampai jendela berikutnya. */
+  resetSeconds: number;
+}
+
+export function consumeTenantQuota(tenantId: string): QuotaOutcome {
+  const now = Date.now();
+  sweep(now);
+
+  const key = `tenant:${tenantId}`;
+  const bucket = buckets.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    buckets.set(key, { count: 1, resetAt: now + TENANT_QUOTA.windowSeconds * 1000 });
+    return {
+      allowed: true,
+      remaining: TENANT_QUOTA.max - 1,
+      resetSeconds: TENANT_QUOTA.windowSeconds,
+    };
+  }
+
+  const resetSeconds = Math.ceil((bucket.resetAt - now) / 1000);
+
+  if (bucket.count >= TENANT_QUOTA.max) {
+    return { allowed: false, remaining: 0, resetSeconds };
+  }
+
+  bucket.count += 1;
+  return { allowed: true, remaining: TENANT_QUOTA.max - bucket.count, resetSeconds };
+}
+
+export const TENANT_QUOTA_MAX = TENANT_QUOTA.max;

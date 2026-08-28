@@ -36,29 +36,51 @@ export async function resolveEffectiveAccess(
 ): Promise<EffectiveAccess> {
   const now = new Date();
 
-  const [enabledTenantModules, coreModules, userRoles, grants, accessVersion] = await Promise.all([
-    tx.tenantModule.findMany({
-      where: { tenantId, status: 'ENABLED' },
-      select: { moduleCode: true },
-    }),
-    tx.module.findMany({ where: { isCore: true }, select: { code: true } }),
-    tx.userRole.findMany({
-      where: { userId },
-      select: { role: { select: { permissions: { select: { permissionCode: true } } } } },
-    }),
-    tx.userPermissionGrant.findMany({
-      where: {
-        userId,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      },
-      select: { permissionCode: true, effect: true },
-    }),
-    tx.accessVersion.findUnique({ where: { userId }, select: { version: true } }),
-  ]);
+  const [enabledTenantModules, coreModules, planModules, userRoles, grants, accessVersion] =
+    await Promise.all([
+      tx.tenantModule.findMany({
+        where: { tenantId, status: 'ENABLED' },
+        select: { moduleCode: true },
+      }),
+      tx.module.findMany({ where: { isCore: true }, select: { code: true } }),
+      // Modul yang termasuk paket yang dilanggan tenant SAAT INI.
+      tx.tenant.findFirst({
+        where: { id: tenantId },
+        select: { plan: { select: { modules: { select: { moduleCode: true } } } } },
+      }),
+      tx.userRole.findMany({
+        where: { userId },
+        select: { role: { select: { permissions: { select: { permissionCode: true } } } } },
+      }),
+      tx.userPermissionGrant.findMany({
+        where: {
+          userId,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        select: { permissionCode: true, effect: true },
+      }),
+      tx.accessVersion.findUnique({ where: { userId }, select: { version: true } }),
+    ]);
 
+  /**
+   * Entitlement adalah IRISAN antara "diaktifkan tenant" dan "termasuk paket".
+   *
+   * Membaca `TenantModule.status` saja tidak cukup, dan celahnya bernilai uang:
+   * tenant yang menurunkan paketnya dari Basic ke Starter tetap memegang baris
+   * `payroll` berstatus ENABLED dari masa langganan sebelumnya, sehingga ia
+   * terus memakai penggajian tanpa membayarnya. Tidak ada galat yang muncul —
+   * satu-satunya yang berubah adalah tagihannya.
+   *
+   * Perpotongan ini membuat penurunan paket berlaku seketika tanpa perlu ada
+   * proses rekonsiliasi yang harus diingat orang untuk dijalankan.
+   *
+   * Modul CORE selalu masuk, apa pun paketnya: tanpa `core` dan `iam`, tenant
+   * tidak dapat masuk ke sistemnya sendiri untuk memperbaiki langganannya.
+   */
+  const inPlan = new Set(planModules?.plan?.modules.map((m) => m.moduleCode) ?? []);
   const modules = new Set<string>([
     ...coreModules.map((m) => m.code),
-    ...enabledTenantModules.map((m) => m.moduleCode),
+    ...enabledTenantModules.map((m) => m.moduleCode).filter((code) => inPlan.has(code)),
   ]);
 
   // 1 + 2

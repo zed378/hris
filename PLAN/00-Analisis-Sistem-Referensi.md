@@ -182,6 +182,7 @@ MODUL EKSPANSI USULAN (rincian & prioritas di dokumen 08)
 | `10-Presensi-Geolokasi-Foto.md` | Izin kamera & lokasi, geofence, bukti foto, penilaian kepercayaan berlapis, presensi luring, privasi |
 | `11-PWA-Frontend.md` | Service worker, caching per tenant, antrean luring, Web Push, batas platform, anggaran performa |
 | `12-Rencana-Eksekusi-Tim-Kecil.md` | **Rencana eksekusi untuk tim 1–3 orang.** Monolit modular siap dipecah, cakupan 4 modul inti, gerbang komersial, estimasi ulang. Menggantikan roadmap `04` §2–§10 |
+| `13-Status-Implementasi.md` | **Keadaan sebenarnya**: apa yang sudah dibangun dan terbukti, penyimpangan dari rencana beserta alasannya, bug yang ditemukan lewat pengujian ujung-ke-ujung, dan yang masih terbuka. Dokumen `12` menyatakan niat; dokumen ini menyatakan keadaan |
 
 **Urutan baca yang disarankan:** `00` → `01` → `06` → `07` → `05` → `02` → `09` → `03` → `10` → `11` → `04` → `08` → `12`.
 

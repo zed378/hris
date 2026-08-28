@@ -241,9 +241,9 @@ export async function getEmployee(
 
 /** Membentuk kolom tersimpan dari masukan mentah. */
 function piiColumns(input: EmployeeInput) {
-  const nationalId = preparePii(input.nationalId, maskNationalId);
-  const taxId = preparePii(input.taxId, maskTaxId);
-  const bankAccount = preparePii(input.bankAccount, maskBankAccount);
+  const nationalId = preparePii(input.nationalId, maskNationalId, 'NIK');
+  const taxId = preparePii(input.taxId, maskTaxId, 'NPWP');
+  const bankAccount = preparePii(input.bankAccount, maskBankAccount, 'nomor rekening');
 
   return {
     nationalIdEncrypted: nationalId.encrypted,

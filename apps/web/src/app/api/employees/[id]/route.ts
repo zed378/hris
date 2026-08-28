@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
-import { getEmployee, updateEmployee, EmployeeError } from '@hrms/core/employee';
+import {
+  getEmployee,
+  updateEmployee,
+  EmployeeError,
+  MaskedValueError,
+  InvalidIdentifierError,
+} from '@hrms/core/employee';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 
 export const runtime = 'nodejs';
@@ -18,6 +24,11 @@ export const GET = defineRoute('GET /api/employees/[id]', async (_req, ctx) => {
       await getEmployee(ctx.tx, ctx.tenantId, id, ctx.access.permissions.includes(UNMASK)),
     );
   } catch (error) {
+    if (error instanceof MaskedValueError || error instanceof InvalidIdentifierError) {
+      // 400 dengan pesan aslinya: yang salah adalah nilai yang dikirim,
+      // dan pesannya sudah menjelaskan cara memperbaikinya.
+      return apiError(400, ErrorCode.VALIDATION_FAILED, error.message, ctx.correlationId);
+    }
     if (error instanceof EmployeeError) {
       return apiError(404, ErrorCode.NOT_FOUND, error.message, ctx.correlationId);
     }
@@ -63,6 +74,11 @@ export const PATCH = defineRoute('PATCH /api/employees/[id]', async (req, ctx) =
       }),
     );
   } catch (error) {
+    if (error instanceof MaskedValueError || error instanceof InvalidIdentifierError) {
+      // 400 dengan pesan aslinya: yang salah adalah nilai yang dikirim,
+      // dan pesannya sudah menjelaskan cara memperbaikinya.
+      return apiError(400, ErrorCode.VALIDATION_FAILED, error.message, ctx.correlationId);
+    }
     if (error instanceof EmployeeError) {
       // 409 untuk konflik versi: klien harus memuat ulang, bukan mencoba lagi
       // dengan data yang sama.

@@ -29,6 +29,11 @@ export const EventTopic = {
   CONTRACT_EXPIRING: 'employee.contract.expiring',
 
   PUNCH_FLAGGED: 'attendance.punch.flagged',
+
+  LEAVE_REQUEST_SUBMITTED: 'leave.request.submitted',
+  LEAVE_REQUEST_APPROVED: 'leave.request.approved',
+  LEAVE_REQUEST_REJECTED: 'leave.request.rejected',
+  LEAVE_BALANCE_CHANGED: 'leave.balance.changed',
 } as const;
 
 export type EventTopic = (typeof EventTopic)[keyof typeof EventTopic];

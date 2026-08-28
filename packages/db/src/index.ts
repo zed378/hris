@@ -19,6 +19,13 @@ export {
 } from './tenant-context.ts';
 export { writeAudit, type AuditEntry } from './audit.ts';
 export { publishEvent, type OutboxEvent } from './outbox.ts';
+export {
+  listenTenant,
+  tenantChannel,
+  activeStreamCount,
+  TooManyStreamsError,
+  type LiveStream,
+} from './live-events.ts';
 export { Prisma } from '@prisma/client';
 export type {
   Tenant,

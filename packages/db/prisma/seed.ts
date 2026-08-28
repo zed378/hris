@@ -87,6 +87,8 @@ const PERMISSIONS: Array<[string, string, string]> = [
   ['employee', 'employee.pii.unmask', 'Membuka masking NIK, NPWP, dan rekening'],
   ['employee', 'employee.import.execute', 'Menjalankan impor Excel'],
   ['employee', 'employee.export.execute', 'Mengekspor data karyawan'],
+  ['employee', 'employee.document.read', 'Melihat dokumen karyawan'],
+  ['employee', 'employee.document.manage', 'Mengunggah dan mengarsipkan dokumen karyawan'],
   ['employee', 'employee.contract.read', 'Melihat kontrak kerja'],
   ['employee', 'employee.contract.manage', 'Mengelola kontrak kerja'],
 
@@ -136,8 +138,12 @@ const MENUS: MenuSeed[] = [
     children: [
       { code: 'employees.list', label: 'Daftar Karyawan', moduleCode: 'employee',
         permissionCode: 'employee.employee.read.all', path: '/employees', sortOrder: 0 },
+      { code: 'employees.grid', label: 'Grid Karyawan', moduleCode: 'employee',
+        permissionCode: 'employee.employee.read.all', path: '/employees/grid', sortOrder: 5 },
       { code: 'employees.import', label: 'Impor Excel', moduleCode: 'employee',
         permissionCode: 'employee.import.execute', path: '/employees/import', sortOrder: 10 },
+      { code: 'employees.documents', label: 'Dokumen Karyawan', moduleCode: 'employee',
+        permissionCode: 'employee.document.read', path: '/employees/documents', sortOrder: 15 },
       { code: 'employees.contracts', label: 'Kontrak Kerja', moduleCode: 'employee',
         permissionCode: 'employee.contract.read', path: '/employees/contracts', sortOrder: 20 },
     ] },
@@ -150,8 +156,14 @@ const MENUS: MenuSeed[] = [
         permissionCode: 'attendance.punch.create.own', path: '/attendance/punch', sortOrder: 0 },
       { code: 'attendance.me', label: 'Presensi Saya', moduleCode: 'attendance',
         permissionCode: 'attendance.record.read.own', path: '/attendance/me', sortOrder: 5 },
+      { code: 'attendance.consent', label: 'Persetujuan Data', moduleCode: 'attendance',
+        permissionCode: 'attendance.punch.create.own', path: '/attendance/consent', sortOrder: 8 },
+      { code: 'attendance.live', label: 'Dasbor Langsung', moduleCode: 'attendance',
+        permissionCode: 'attendance.record.read.all', path: '/attendance/live', sortOrder: 9 },
       { code: 'attendance.records', label: 'Rekap Kehadiran', moduleCode: 'attendance',
         permissionCode: 'attendance.record.read.all', path: '/attendance/records', sortOrder: 10 },
+      { code: 'attendance.device', label: 'Impor Mesin Absensi', moduleCode: 'attendance',
+        permissionCode: 'attendance.record.correct', path: '/attendance/device-import', sortOrder: 15 },
       { code: 'attendance.review', label: 'Antrean Tinjauan', moduleCode: 'attendance',
         permissionCode: 'attendance.review.handle', path: '/attendance/review', sortOrder: 20 },
       { code: 'attendance.shifts', label: 'Shift & Jadwal', moduleCode: 'attendance',
@@ -163,6 +175,8 @@ const MENUS: MenuSeed[] = [
         permissionCode: 'leave.request.read.own', path: '/leave/me', sortOrder: 0 },
       { code: 'leave.approvals', label: 'Persetujuan', moduleCode: 'leave',
         permissionCode: 'leave.request.approve', path: '/leave/approvals', sortOrder: 10 },
+      { code: 'leave.calendar', label: 'Kalender Cuti', moduleCode: 'leave',
+        permissionCode: 'leave.request.read.team', path: '/leave/calendar', sortOrder: 15 },
       { code: 'leave.policies', label: 'Kebijakan Cuti', moduleCode: 'leave',
         permissionCode: 'leave.policy.manage', path: '/leave/policies', sortOrder: 20 },
     ] },
@@ -172,11 +186,15 @@ const MENUS: MenuSeed[] = [
         permissionCode: 'payroll.payslip.read.own', path: '/payroll/me', sortOrder: 0 },
       { code: 'payroll.runs', label: 'Proses Gaji', moduleCode: 'payroll',
         permissionCode: 'payroll.run.execute', path: '/payroll/runs', sortOrder: 10 },
+      { code: 'payroll.structures', label: 'Struktur Gaji', moduleCode: 'payroll',
+        permissionCode: 'payroll.salary.read', path: '/payroll/structures', sortOrder: 15 },
       { code: 'payroll.components', label: 'Komponen Gaji', moduleCode: 'payroll',
         permissionCode: 'payroll.component.manage', path: '/payroll/components', sortOrder: 20 },
     ] },
   { code: 'settings', label: 'Pengaturan', moduleCode: 'iam', icon: 'settings', sortOrder: 90,
     children: [
+      { code: 'settings.subscription', label: 'Langganan & Modul', moduleCode: 'core',
+        permissionCode: 'core.settings.manage', path: '/settings/subscription', sortOrder: -10 },
       { code: 'settings.users', label: 'Pengguna', moduleCode: 'iam',
         permissionCode: 'iam.user.read', path: '/settings/users', sortOrder: 0 },
       { code: 'settings.roles', label: 'Peran & Hak Akses', moduleCode: 'iam',
@@ -205,6 +223,7 @@ const SYSTEM_ROLES: Array<{ code: string; name: string; permissions: string[] | 
       'iam.user.read', 'iam.user.create', 'iam.user.update', 'iam.role.read', 'iam.audit.read',
       'employee.employee.read.all', 'employee.employee.create', 'employee.employee.update',
       'employee.pii.unmask', 'employee.import.execute', 'employee.export.execute',
+      'employee.document.read', 'employee.document.manage',
       'employee.contract.read', 'employee.contract.manage',
       'attendance.punch.create.own', 'attendance.record.read.own', 'attendance.record.read.all',
       'attendance.record.correct', 'attendance.review.handle', 'attendance.shift.manage',
@@ -213,6 +232,7 @@ const SYSTEM_ROLES: Array<{ code: string; name: string; permissions: string[] | 
       'leave.request.approve', 'leave.balance.read.own', 'leave.balance.manage',
       'leave.policy.manage',
       'payroll.payslip.read.own', 'payroll.payslip.read.all', 'payroll.run.execute',
+      'payroll.run.approve',
       'payroll.component.manage', 'payroll.salary.read', 'payroll.salary.manage',
     ],
   },
@@ -470,6 +490,169 @@ async function seedAttendance(tenantId: string): Promise<void> {
   }
 }
 
+/**
+ * Jenis cuti bawaan menurut UU Ketenagakerjaan Indonesia.
+ *
+ * Angkanya bukan tebakan: 12 hari cuti tahunan setelah 12 bulan masa kerja
+ * (UU 13/2003 Pasal 79), 3 bulan cuti melahirkan (Pasal 82), 2 hari cuti
+ * menikah dan cuti kematian keluarga inti (Pasal 93).
+ *
+ * Cuti melahirkan dan cuti sakit tidak memotong saldo — keduanya hak yang tidak
+ * berbasis kuota tahunan, dan memotongnya dari jatah 12 hari akan membuat
+ * seorang ibu kehilangan seluruh cuti tahunannya karena melahirkan.
+ */
+async function seedLeaveTypes(tenantId: string): Promise<void> {
+  const types = [
+    {
+      code: 'TAHUNAN',
+      name: 'Cuti Tahunan',
+      defaultQuotaDays: 12,
+      minServiceMonths: 12,
+      maxCarryOverDays: 6,
+      colorHex: '#3b82f6',
+    },
+    {
+      code: 'SAKIT',
+      name: 'Cuti Sakit',
+      defaultQuotaDays: 0,
+      minServiceMonths: 0,
+      accrualMethod: 'UNLIMITED' as const,
+      deductFromBalance: false,
+      requiresAttachment: true,
+      colorHex: '#ef4444',
+    },
+    {
+      code: 'MELAHIRKAN',
+      name: 'Cuti Melahirkan',
+      defaultQuotaDays: 0,
+      minServiceMonths: 0,
+      accrualMethod: 'NONE' as const,
+      deductFromBalance: false,
+      requiresAttachment: true,
+      affectsPayroll: true,
+      colorHex: '#ec4899',
+    },
+    {
+      code: 'MENIKAH',
+      name: 'Cuti Menikah',
+      defaultQuotaDays: 3,
+      minServiceMonths: 0,
+      accrualMethod: 'NONE' as const,
+      deductFromBalance: false,
+      colorHex: '#a855f7',
+    },
+    {
+      code: 'DUKA',
+      name: 'Cuti Kematian Keluarga Inti',
+      defaultQuotaDays: 2,
+      minServiceMonths: 0,
+      accrualMethod: 'NONE' as const,
+      deductFromBalance: false,
+      colorHex: '#64748b',
+    },
+    {
+      code: 'TANPA_GAJI',
+      name: 'Cuti Tanpa Gaji',
+      defaultQuotaDays: 0,
+      minServiceMonths: 0,
+      isPaid: false,
+      accrualMethod: 'NONE' as const,
+      deductFromBalance: false,
+      affectsPayroll: true,
+      colorHex: '#f59e0b',
+    },
+  ];
+
+  for (const type of types) {
+    await db.leaveType.upsert({
+      where: { tenantId_code: { tenantId, code: type.code } },
+      create: { tenantId, ...type },
+      update: { name: type.name },
+    });
+  }
+}
+
+/**
+ * Komponen gaji contoh.
+ *
+ * SENGAJA tidak memuat PPh21 maupun BPJS. Keduanya terkunci Gerbang C
+ * (dokumen 12 §F5): ahli payroll terikat, 30 slip nyata sebagai kasus uji, dan
+ * spike S1 lulus 30/30. Menaruh angka pajak di seed berarti menaruh angka yang
+ * belum diperiksa siapa pun ke dalam basis data setiap tenant baru — dan angka
+ * itu akan terlihat resmi justru karena ia sudah ada di sana sejak awal.
+ *
+ * Yang ada di sini hanya komponen yang bentuknya universal dan tidak
+ * memerlukan penafsiran peraturan: gaji pokok, tunjangan tetap, tunjangan
+ * kehadiran harian, lembur per jam, dan potongan alfa.
+ */
+async function seedPayrollComponents(tenantId: string): Promise<void> {
+  const components = [
+    {
+      code: 'GAJI_POKOK',
+      name: 'Gaji Pokok',
+      type: 'EARNING' as const,
+      calcMethod: 'FIXED' as const,
+      amount: 0,
+      taxable: true,
+      bpjsBase: true,
+      sortOrder: 10,
+    },
+    {
+      code: 'TUNJANGAN_TETAP',
+      name: 'Tunjangan Tetap',
+      type: 'EARNING' as const,
+      calcMethod: 'FIXED' as const,
+      amount: 0,
+      taxable: true,
+      bpjsBase: true,
+      sortOrder: 20,
+    },
+    {
+      code: 'TUNJANGAN_HADIR',
+      name: 'Tunjangan Kehadiran',
+      type: 'EARNING' as const,
+      calcMethod: 'PER_DAY' as const,
+      amount: 0,
+      taxable: true,
+      bpjsBase: false,
+      sortOrder: 30,
+    },
+    {
+      code: 'LEMBUR',
+      name: 'Upah Lembur',
+      type: 'EARNING' as const,
+      calcMethod: 'PER_HOUR' as const,
+      amount: 0,
+      taxable: true,
+      bpjsBase: false,
+      sortOrder: 40,
+    },
+    {
+      // Prorata alfa: gaji pokok dibagi hari kerja, dikali hari alfa.
+      //
+      // Ditulis sebagai formula alih-alih kode supaya tenant dapat mengubahnya
+      // tanpa deploy — sebagian perusahaan memotong dari gaji pokok saja,
+      // sebagian dari pokok ditambah tunjangan tetap.
+      code: 'POTONGAN_ALFA',
+      name: 'Potongan Ketidakhadiran',
+      type: 'DEDUCTION' as const,
+      calcMethod: 'FORMULA' as const,
+      expression: 'if(HARI_KERJA > 0, GAJI_POKOK / HARI_KERJA * HARI_ALFA, 0)',
+      taxable: false,
+      bpjsBase: false,
+      sortOrder: 100,
+    },
+  ];
+
+  for (const component of components) {
+    await db.payrollComponent.upsert({
+      where: { tenantId_code: { tenantId, code: component.code } },
+      create: { tenantId, ...component },
+      update: { name: component.name },
+    });
+  }
+}
+
 async function seedSuperuser(): Promise<void> {
   const { hash } = await import('@node-rs/argon2');
   await db.superuser.upsert({
@@ -493,6 +676,8 @@ async function main(): Promise<void> {
   await seedCatalog();
   const tenantId = await seedDemoTenant();
   await seedAttendance(tenantId);
+  await seedLeaveTypes(tenantId);
+  await seedPayrollComponents(tenantId);
   await seedSuperuser();
 
   const counts = {
@@ -505,6 +690,8 @@ async function main(): Promise<void> {
     lokasiKerja: await db.workSite.count(),
     shift: await db.shift.count(),
     hariLibur: await db.holiday.count(),
+    jenisCuti: await db.leaveType.count(),
+    komponenGaji: await db.payrollComponent.count(),
   };
   console.log('Seed selesai:', counts);
   console.log('Login demo — tenantCode: demo | owner@demo.test | DemoPassword123');

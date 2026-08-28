@@ -1,5 +1,6 @@
 import { writeAudit, type TenantClient } from '@hrms/db';
 import { localMinutesToInstant, tenantTimeZone } from './workdate.ts';
+import { leaveOnDate } from '../leave/index.ts';
 
 /**
  * Kalkulasi presensi harian.
@@ -47,7 +48,7 @@ export async function calculateDay(
 
   const timeZone = await tenantTimeZone(tx, tenantId);
 
-  const [punches, schedule, holiday] = await Promise.all([
+  const [punches, schedule, holiday, leave] = await Promise.all([
     tx.punchLog.findMany({
       where: {
         tenantId,
@@ -72,6 +73,9 @@ export async function calculateDay(
       where: { tenantId_date: { tenantId, date: dateOnly } },
       select: { name: true },
     }),
+    // Cuti dibaca lewat pintu depan modul cuti, bukan dengan query langsung ke
+    // tabelnya: presensi tidak boleh tahu bentuk tabel cuti.
+    leaveOnDate(tx, tenantId, employeeId, dateOnly),
   ]);
 
   const checkIn = punches.find((p) => p.type === 'IN')?.punchedAt ?? null;
@@ -96,6 +100,20 @@ export async function calculateDay(
   // ia lembur.
   if (holiday && !checkIn) return { ...base, status: 'HOLIDAY' };
   if (schedule?.isDayOff && !checkIn) return { ...base, status: 'DAY_OFF' };
+
+  /**
+   * Cuti yang disetujui diperiksa SEBELUM alfa.
+   *
+   * Tanpa pemeriksaan ini, status `LEAVE` yang ada di tipe tidak pernah
+   * dihasilkan siapa pun, dan karyawan yang cutinya sudah disetujui manajernya
+   * tetap tercatat ABSENT — lalu dipotong gajinya sebagai mangkir. Kegagalannya
+   * tidak menghasilkan galat apa pun; ia muncul sebagai slip gaji yang salah.
+   *
+   * Diletakkan setelah hari libur karena cuti yang jatuh pada hari libur bukan
+   * cuti — jatahnya memang tidak dipotong untuk hari itu.
+   */
+  if (leave && !checkIn) return { ...base, status: 'LEAVE' };
+
   if (!checkIn) return { ...base, status: 'ABSENT' };
 
   const workMinutes =

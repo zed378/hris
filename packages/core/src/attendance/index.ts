@@ -31,6 +31,7 @@ export {
   MAX_PHOTO_BYTES,
   type StoredPhoto,
 } from './photo.ts';
+export type { DeleteOutcome } from '../storage/index.ts';
 export {
   resolveWorkDate,
   zonedParts,
@@ -39,3 +40,28 @@ export {
   tenantTimeZone,
   type ZonedParts,
 } from './workdate.ts';
+export {
+  importDevicePunches,
+  DeviceImportError,
+  type DeviceImportResult,
+  type DeviceImportIssue,
+} from './device-import.ts';
+export {
+  detectDeviceColumns,
+  parseWallClock,
+  parseStatus,
+  inferPunchTypes,
+  type DeviceColumnMapping,
+  type WallClock,
+  type TimedPunch,
+} from './device-format.ts';
+export {
+  readConsents,
+  recordConsent,
+  punchPermissions,
+  CONSENT_VERSION,
+  type ConsentType,
+  type ConsentState,
+  type ConsentDecision,
+  type PunchPermissions,
+} from './consent.ts';

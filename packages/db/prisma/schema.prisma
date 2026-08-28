@@ -18,7 +18,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["tenant", "auth", "iam", "audit", "messaging", "platform", "employee", "notification", "attendance"]
+  schemas  = ["tenant", "auth", "iam", "audit", "messaging", "platform", "employee", "notification", "attendance", "leave", "payroll"]
 }
 
 // =============================================================================
@@ -1145,6 +1145,122 @@ model PunchLog {
   @@schema("attendance")
 }
 
+/// Dokumen karyawan (PLAN/12 F2).
+///
+/// Isinya bukan lampiran biasa: pindaian KTP, kartu keluarga, ijazah, kontrak.
+/// Seluruhnya data pribadi menurut UU PDP No. 27/2022, dan sebagiannya cukup
+/// untuk membuka rekening bank atas nama orang lain.
+///
+/// Tidak pernah dihapus, hanya diarsipkan (aturan M4 dokumen 09). Berkas
+/// fisiknya boleh hilang karena retensi; barisnya bertahan supaya riwayat
+/// "pernah ada dokumen ini, diunggah oleh siapa" tidak ikut hilang.
+model EmployeeDocument {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  employeeId String @map("employee_id") @db.Uuid
+
+  /// KTP, KK, NPWP, IJAZAH, KONTRAK, SERTIFIKAT, LAINNYA.
+  kind       String
+  title      String
+  fileName   String @map("file_name")
+  /// Kunci objek di penyimpanan. Acak, bukan turunan dari id karyawan.
+  storageKey String @unique @map("storage_key")
+  mimeType   String @map("mime_type")
+  sizeBytes  Int    @map("size_bytes")
+
+  /// Untuk dokumen yang memang berumur — KITAS, SIM, kontrak. Null = abadi.
+  expiresAt DateTime? @map("expires_at")
+
+  uploadedBy String   @map("uploaded_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  archivedAt DateTime? @map("archived_at")
+  archivedBy String?   @map("archived_by") @db.Uuid
+
+  @@index([tenantId, employeeId])
+  @@index([tenantId, expiresAt])
+  @@map("employee_documents")
+  @@schema("employee")
+}
+
+/// Jejak pembacaan dokumen karyawan.
+///
+/// Sejajar dengan `PhotoAccessLog` dan untuk alasan yang sama: `audit_logs`
+/// mencatat perubahan, sedangkan pertanyaan yang harus dapat dijawab di sini
+/// adalah "siapa saja yang pernah membuka pindaian KTP saya".
+model DocumentAccessLog {
+  id         BigInt   @id @default(autoincrement())
+  tenantId   String   @map("tenant_id") @db.Uuid
+  documentId String   @map("document_id") @db.Uuid
+  /// Pemilik dokumen, bukan yang mengaksesnya.
+  employeeId String   @map("employee_id") @db.Uuid
+  accessedBy String   @map("accessed_by") @db.Uuid
+  /// VIEW, DOWNLOAD, atau EXPORT.
+  action     String
+  accessedAt DateTime @default(now()) @map("accessed_at")
+
+  @@index([tenantId, employeeId, accessedAt])
+  @@map("document_access_logs")
+  @@schema("employee")
+}
+
+/// Persetujuan pemrosesan data presensi (dokumen 10 §8.2 PR2).
+///
+/// Terpisah dari persetujuan umum aplikasi, dan dapat ditarik. Keterpisahan itu
+/// bukan pilihan tata letak: UU PDP No. 27/2022 menuntut persetujuan yang
+/// spesifik per tujuan, dan kotak centang "Saya menyetujui syarat dan ketentuan"
+/// bukan persetujuan atas pengambilan koordinat seseorang.
+///
+/// Versinya ikut disimpan karena persetujuan diberikan atas kalimat tertentu.
+/// Ketika kalimatnya berubah — retensi diperpanjang, tujuan ditambah —
+/// persetujuan atas kalimat lama tidak berlaku untuk yang baru.
+model AttendanceConsent {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  employeeId String @map("employee_id") @db.Uuid
+
+  /// LOCATION, PHOTO, atau BIOMETRIC.
+  consentType String @map("consent_type")
+  /// Versi teks persetujuan yang disetujui, mis. `2026-08-lokasi-v1`.
+  version     String
+
+  grantedAt   DateTime? @map("granted_at")
+  withdrawnAt DateTime? @map("withdrawn_at")
+  ip          String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, employeeId, consentType, version], map: "attendance_consents_tenant_employee_type_version_key")
+  @@index([tenantId, employeeId])
+  @@map("attendance_consents")
+  @@schema("attendance")
+}
+
+/// Jejak pembacaan foto presensi (dokumen 10 §8.2 PR6).
+///
+/// Mencatat PEMBACAAN, bukan perubahan — karena itu tidak dapat digantikan
+/// `audit_logs`, yang mencatat tindakan yang mengubah keadaan. "Siapa saja yang
+/// pernah melihat foto saya" adalah pertanyaan yang berhak dijawab karyawan, dan
+/// tidak ada tabel lain yang menyimpan jawabannya.
+model PhotoAccessLog {
+  id         BigInt   @id @default(autoincrement())
+  tenantId   String   @map("tenant_id") @db.Uuid
+  punchId    String   @map("punch_id") @db.Uuid
+  /// Pemilik foto, bukan yang mengaksesnya.
+  employeeId String   @map("employee_id") @db.Uuid
+  accessedBy String   @map("accessed_by") @db.Uuid
+  /// VIEW, DOWNLOAD, atau EXPORT.
+  action     String
+  accessedAt DateTime @default(now()) @map("accessed_at")
+
+  @@index([tenantId, employeeId, accessedAt])
+  @@index([tenantId, accessedBy, accessedAt])
+  @@map("photo_access_logs")
+  @@schema("attendance")
+}
+
 /// Hasil kalkulasi harian per karyawan.
 ///
 /// Diturunkan dari punch_logs, dan dapat dihitung ulang. Disimpan karena rekap
@@ -1210,4 +1326,441 @@ model AttendancePeriod {
   @@unique([tenantId, year, month])
   @@map("attendance_periods")
   @@schema("attendance")
+}
+
+// =============================================================================
+// SCHEMA: leave — cuti, saldo, dan persetujuan
+// =============================================================================
+
+enum AccrualMethod {
+  /// Jatah penuh diberikan di awal tahun.
+  ANNUAL_GRANT
+  /// Bertambah tiap bulan berjalan.
+  MONTHLY_ACCRUAL
+  /// Dihitung dari tanggal masuk kerja, bukan tahun kalender.
+  ANNIVERSARY
+  /// Tanpa batas — cuti sakit berbayar pada sebagian tenant.
+  UNLIMITED
+  /// Tidak berbasis saldo sama sekali, mis. cuti melahirkan.
+  NONE
+
+  @@schema("leave")
+}
+
+enum RequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  /// Sudah lewat dan benar-benar diambil. Dipakai payroll.
+  TAKEN
+
+  @@schema("leave")
+}
+
+/// Jenis cuti beserta kebijakan akrualnya.
+model LeaveType {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  code     String
+  name     String
+
+  isPaid            Boolean       @default(true) @map("is_paid")
+  accrualMethod     AccrualMethod @default(ANNUAL_GRANT) @map("accrual_method")
+  defaultQuotaDays  Decimal       @default(12) @map("default_quota_days") @db.Decimal(5, 2)
+  /// Sisa yang boleh dibawa ke tahun berikutnya. 0 berarti hangus.
+  maxCarryOverDays  Decimal       @default(0) @map("max_carry_over_days") @db.Decimal(5, 2)
+  /// Masa kerja minimum sebelum berhak. UU Ketenagakerjaan: 12 bulan untuk cuti tahunan.
+  minServiceMonths  Int           @default(12) @map("min_service_months") @db.SmallInt
+  requiresAttachment Boolean      @default(false) @map("requires_attachment")
+  deductFromBalance Boolean       @default(true) @map("deduct_from_balance")
+  affectsPayroll    Boolean       @default(false) @map("affects_payroll")
+  colorHex          String        @default("#3b82f6") @map("color_hex")
+  isActive          Boolean       @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  balances LeaveBalance[]
+  requests LeaveRequest[]
+
+  @@unique([tenantId, code])
+  @@map("leave_types")
+  @@schema("leave")
+}
+
+/// Saldo cuti seorang karyawan untuk satu jenis pada satu tahun.
+///
+/// `pending_days` ditahan saat PENGAJUAN, bukan saat persetujuan. Tanpa
+/// penahanan, seseorang dapat mengajukan tiga cuti dua hari di atas saldo dua
+/// hari — setiap pengajuan melihat saldo yang masih utuh karena belum ada satu
+/// pun yang memotong.
+///
+/// `available_days` adalah kolom GENERATED di basis data, sengaja tidak
+/// dideklarasikan di sini: rumus saldo yang hidup di dua tempat akan berbeda
+/// pada hari seseorang menambahkan jenis mutasi baru. Bacanya lewat
+/// `readBalances()` di `@hrms/core/leave`.
+model LeaveBalance {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  employeeId  String @map("employee_id") @db.Uuid
+  leaveTypeId String @map("leave_type_id") @db.Uuid
+  periodYear  Int    @map("period_year") @db.SmallInt
+
+  entitledDays    Decimal @default(0) @map("entitled_days") @db.Decimal(6, 2)
+  carriedOverDays Decimal @default(0) @map("carried_over_days") @db.Decimal(6, 2)
+  adjustmentDays  Decimal @default(0) @map("adjustment_days") @db.Decimal(6, 2)
+  usedDays        Decimal @default(0) @map("used_days") @db.Decimal(6, 2)
+  pendingDays     Decimal @default(0) @map("pending_days") @db.Decimal(6, 2)
+  expiredDays     Decimal @default(0) @map("expired_days") @db.Decimal(6, 2)
+
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  leaveType LeaveType       @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  ledger    BalanceLedger[]
+
+  @@unique([tenantId, employeeId, leaveTypeId, periodYear], map: "leave_balances_tenant_employee_type_year_key")
+  @@index([tenantId, employeeId])
+  @@map("leave_balances")
+  @@schema("leave")
+}
+
+/// Pengajuan cuti.
+///
+/// Tumpang tindih dicegah constraint EXCLUDE di basis data, bukan pemeriksaan
+/// aplikasi. Pemeriksaan aplikasi selalu punya jendela antara membaca dan
+/// menulis, dan dua pengajuan yang tiba bersamaan akan sama-sama membaca
+/// "belum ada cuti di tanggal itu".
+model LeaveRequest {
+  id            String @id @default(uuid()) @db.Uuid
+  tenantId      String @map("tenant_id") @db.Uuid
+  requestNumber String @map("request_number")
+  employeeId    String @map("employee_id") @db.Uuid
+  leaveTypeId   String @map("leave_type_id") @db.Uuid
+
+  startDate     DateTime @map("start_date") @db.Date
+  endDate       DateTime @map("end_date") @db.Date
+  isHalfDay     Boolean  @default(false) @map("is_half_day")
+  totalDays     Decimal  @map("total_days") @db.Decimal(5, 2)
+  reason        String
+  attachmentKey String?  @map("attachment_key")
+
+  status            RequestStatus @default(DRAFT)
+  currentApproverId String?       @map("current_approver_id") @db.Uuid
+  submittedAt       DateTime?     @map("submitted_at")
+  decidedAt         DateTime?     @map("decided_at")
+  version           Int           @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  leaveType LeaveType       @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  approvals LeaveApproval[]
+
+  @@unique([tenantId, requestNumber])
+  @@index([tenantId, employeeId, startDate])
+  @@map("leave_requests")
+  @@schema("leave")
+}
+
+/// Satu langkah dalam alur persetujuan berjenjang.
+model LeaveApproval {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  requestId  String    @map("request_id") @db.Uuid
+  stepOrder  Int       @map("step_order") @db.SmallInt
+  approverId String    @map("approver_id") @db.Uuid
+  /// APPROVED, REJECTED, atau DELEGATED. Null selama belum diputuskan.
+  decision   String?
+  comment    String?
+  decidedAt  DateTime? @map("decided_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  request LeaveRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, stepOrder])
+  @@map("leave_approvals")
+  @@schema("leave")
+}
+
+/// Buku besar mutasi saldo.
+///
+/// Setiap perubahan saldo meninggalkan barisnya di sini tanpa kecuali. "Saldo
+/// saya berkurang tiga hari padahal saya cuti dua" adalah pertanyaan yang tidak
+/// dapat dijawab kolom angka — hanya oleh riwayat mutasinya.
+model BalanceLedger {
+  id        BigInt @id @default(autoincrement())
+  tenantId  String @map("tenant_id") @db.Uuid
+  balanceId String @map("balance_id") @db.Uuid
+
+  /// GRANT, ACCRUAL, HOLD, RELEASE, CONSUME, EXPIRE, ADJUST.
+  entryType String  @map("entry_type")
+  /// Positif menambah saldo tersedia, negatif menguranginya.
+  days      Decimal @db.Decimal(6, 2)
+
+  referenceType String?  @map("reference_type")
+  referenceId   String?  @map("reference_id") @db.Uuid
+  note          String?
+  createdBy     String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  balance LeaveBalance @relation(fields: [balanceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, balanceId, createdAt])
+  @@map("balance_ledger")
+  @@schema("leave")
+}
+
+// =============================================================================
+// SCHEMA: payroll — komponen gaji, run, slip, dan jejak perhitungan
+// =============================================================================
+//
+// Yang ada di sini KERANGKANYA saja. Aturan PPh21 dan BPJS tidak boleh
+// ditambahkan tanpa Gerbang C (dokumen 12 §F5): ahli payroll terikat, 30 slip
+// nyata sebagai kasus uji, dan spike S1 lulus 30/30.
+
+enum ComponentType {
+  EARNING
+  DEDUCTION
+  /// Iuran yang ditanggung perusahaan. Tidak mengurangi gaji bersih, tetapi
+  /// wajib tampil di slip supaya karyawan melihat total biaya atas dirinya.
+  EMPLOYER_CONTRIBUTION
+  /// Hanya informasi, tidak masuk perhitungan.
+  INFO
+
+  @@schema("payroll")
+}
+
+enum CalcMethod {
+  FIXED
+  FORMULA
+  PER_DAY
+  PER_HOUR
+  PERCENTAGE
+
+  @@schema("payroll")
+}
+
+enum RunStatus {
+  DRAFT
+  CALCULATING
+  CALCULATED
+  FAILED
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+  CANCELLED
+
+  @@schema("payroll")
+}
+
+enum RunType {
+  MONTHLY
+  THR
+  BONUS
+  ADJUSTMENT
+
+  @@schema("payroll")
+}
+
+/// Komponen gaji yang dapat dikonfigurasi tenant.
+model PayrollComponent {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  code     String
+  name     String
+
+  type       ComponentType
+  calcMethod CalcMethod    @map("calc_method")
+
+  amount            Decimal? @db.Decimal(18, 2)
+  /// Ekspresi formula. Diurai parser berdaftar-izin, TIDAK PERNAH oleh `eval`.
+  expression        String?
+  rate              Decimal? @db.Decimal(9, 6)
+  baseComponentCode String?  @map("base_component_code")
+
+  taxable  Boolean @default(true)
+  bpjsBase Boolean @default(false) @map("bpjs_base")
+
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  structures SalaryStructure[]
+  lines      PayslipLine[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, sortOrder])
+  @@map("components")
+  @@schema("payroll")
+}
+
+/// Struktur gaji seorang karyawan, berperiode (P13).
+///
+/// Baris ditutup, tidak ditimpa. Kenaikan gaji bulan Juli tidak boleh mengubah
+/// slip bulan Juni — dan slip Juni harus tetap dapat dihitung ulang dengan
+/// angka yang berlaku saat itu.
+model SalaryStructure {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  employeeId  String @map("employee_id") @db.Uuid
+  componentId String @map("component_id") @db.Uuid
+
+  amount        Decimal?  @db.Decimal(18, 2)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+
+  note      String?
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  component PayrollComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, employeeId, effectiveFrom], map: "salary_structures_tenant_employee_idx")
+  @@map("salary_structures")
+  @@schema("payroll")
+}
+
+/// Tarif pajak dan BPJS sebagai DATA berversi tanggal, bukan konstanta di kode.
+///
+/// `tenantId` null berarti nilai bawaan platform yang dibaca seluruh tenant.
+/// Kebijakan RLS-nya membaca baris global tetapi hanya menulis baris sendiri —
+/// tanpa pemisahan itu, satu tenant dapat mengubah tarif PPh21 tenant lain.
+model StatutoryConfig {
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String? @map("tenant_id") @db.Uuid
+
+  /// PPH21_TER, PTKP, BPJS_KES, BPJS_JHT, BPJS_JP, BPJS_JKK, BPJS_JKM, UMR.
+  kind  String
+  code  String
+  value Json
+
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  /// Peraturan yang menjadi dasarnya. Wajib: angka pajak tanpa dasar hukum
+  /// tidak dapat dipertanggungjawabkan saat diperiksa.
+  legalBasis    String    @map("legal_basis")
+
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([kind, code, effectiveFrom], map: "statutory_configs_kind_effective_idx")
+  @@map("statutory_configs")
+  @@schema("payroll")
+}
+
+/// Satu putaran penggajian.
+model PayrollRun {
+  id        String  @id @default(uuid()) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  runNumber String  @map("run_number")
+  runType   RunType @default(MONTHLY) @map("run_type")
+
+  periodYear  Int       @map("period_year") @db.SmallInt
+  periodMonth Int       @map("period_month") @db.SmallInt
+  status      RunStatus @default(DRAFT)
+
+  employeeCount  Int     @default(0) @map("employee_count")
+  totalGross     Decimal @default(0) @map("total_gross") @db.Decimal(18, 2)
+  totalDeduction Decimal @default(0) @map("total_deduction") @db.Decimal(18, 2)
+  totalNet       Decimal @default(0) @map("total_net") @db.Decimal(18, 2)
+
+  calculatedAt DateTime? @map("calculated_at")
+  approvedAt   DateTime? @map("approved_at")
+  approvedBy   String?   @map("approved_by") @db.Uuid
+  paidAt       DateTime? @map("paid_at")
+  lastError    String?   @map("last_error")
+
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  payslips Payslip[]
+
+  @@unique([tenantId, runNumber])
+  @@map("payroll_runs")
+  @@schema("payroll")
+}
+
+/// Slip gaji seorang karyawan pada satu run.
+model Payslip {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  runId      String @map("run_id") @db.Uuid
+  employeeId String @map("employee_id") @db.Uuid
+
+  gross     Decimal @default(0) @db.Decimal(18, 2)
+  deduction Decimal @default(0) @db.Decimal(18, 2)
+  net       Decimal @default(0) @db.Decimal(18, 2)
+
+  /// Potret data hulu saat dihitung. Perhitungan ulang dari potret yang sama
+  /// memberi hasil identik meski presensinya berubah kemudian.
+  snapshot Json
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  run    PayrollRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  lines  PayslipLine[]
+  traces CalculationTrace[]
+
+  @@unique([runId, employeeId])
+  @@index([tenantId, employeeId])
+  @@map("payslips")
+  @@schema("payroll")
+}
+
+/// Satu baris pada slip gaji.
+///
+/// Kode dan nama komponen DIDENORMALISASI. Slip berlaku bertahun-tahun, dan
+/// mengganti nama komponen tidak boleh mengubah slip yang sudah diterbitkan.
+model PayslipLine {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  payslipId   String @map("payslip_id") @db.Uuid
+  componentId String @map("component_id") @db.Uuid
+
+  componentCode String        @map("component_code")
+  componentName String        @map("component_name")
+  type          ComponentType
+  amount        Decimal       @db.Decimal(18, 2)
+  sortOrder     Int           @default(0) @map("sort_order")
+
+  payslip   Payslip          @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+  component PayrollComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  @@index([payslipId, sortOrder])
+  @@map("payslip_lines")
+  @@schema("payroll")
+}
+
+/// Jejak perhitungan: satu baris per angka, memuat formula dan variabelnya.
+///
+/// Saat karyawan menyanggah gajinya, HR menunjukkan rinciannya alih-alih
+/// berdebat. Tanpa ini, satu-satunya jawaban atas "kenapa potongan saya segini"
+/// adalah "begitu hasil sistemnya".
+model CalculationTrace {
+  id            BigInt  @id @default(autoincrement())
+  tenantId      String  @map("tenant_id") @db.Uuid
+  payslipId     String  @map("payslip_id") @db.Uuid
+  componentCode String  @map("component_code")
+
+  expression  String?
+  /// Nilai setiap variabel pada saat dihitung.
+  inputs      Json
+  result      Decimal @db.Decimal(18, 2)
+  /// Penjelasan satu kalimat untuk ditampilkan ke karyawan.
+  explanation String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  payslip Payslip @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+
+  @@index([payslipId])
+  @@map("calculation_traces")
+  @@schema("payroll")
 }

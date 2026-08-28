@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
-import { listEmployees, createEmployee, EmployeeError } from '@hrms/core/employee';
+import {
+  listEmployees,
+  createEmployee,
+  EmployeeError,
+  MaskedValueError,
+  InvalidIdentifierError,
+} from '@hrms/core/employee';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 import { Prisma } from '@hrms/db';
 
@@ -76,6 +82,11 @@ export const POST = defineRoute('POST /api/employees', async (req, ctx) => {
         'Nomor karyawan atau NIK sudah terdaftar',
         ctx.correlationId,
       );
+    }
+    if (error instanceof MaskedValueError || error instanceof InvalidIdentifierError) {
+      // 400 dengan pesan aslinya: yang salah adalah nilai yang dikirim,
+      // dan pesannya sudah menjelaskan cara memperbaikinya.
+      return apiError(400, ErrorCode.VALIDATION_FAILED, error.message, ctx.correlationId);
     }
     if (error instanceof EmployeeError) {
       return apiError(409, ErrorCode.CONFLICT, error.message, ctx.correlationId);

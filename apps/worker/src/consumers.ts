@@ -61,6 +61,24 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
     },
   },
 
+  /**
+   * Cuti disetujui — presensi harus tahu.
+   *
+   * Hari bercuti tidak boleh dihitung alfa (lingkup F4). Kalkulasi harian
+   * membaca cuti langsung dari basis data, sehingga event ini belum punya efek;
+   * yang belum ada adalah pemicu hitung ulang otomatis untuk rentang cutinya.
+   */
+  [EventTopic.LEAVE_REQUEST_APPROVED]: {
+    kind: 'drain',
+    reason: 'hitung ulang rekap otomatis untuk rentang cuti, menyusul',
+  },
+  [EventTopic.LEAVE_REQUEST_REJECTED]: { kind: 'drain', reason: 'pemberitahuan penolakan, F4 lanjutan' },
+  [EventTopic.LEAVE_REQUEST_SUBMITTED]: {
+    kind: 'drain',
+    reason: 'inbox approver realtime, F4 lanjutan',
+  },
+  [EventTopic.LEAVE_BALANCE_CHANGED]: { kind: 'drain', reason: 'widget saldo di dasbor, F6' },
+
   // Aliran audit dan metrik. Semuanya sudah tercatat di basis data pada
   // transaksi yang sama; event-nya ada untuk konsumen yang belum dibangun.
   [EventTopic.TENANT_PROVISIONED]: { kind: 'drain', reason: 'onboarding otomatis, Fase 6' },

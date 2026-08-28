@@ -6,3 +6,10 @@ export {
   type ProvisionInput,
   type ProvisionResult,
 } from './provision.ts';
+export {
+  listModules,
+  setModuleEnabled,
+  SubscriptionError,
+  type ModuleState,
+  type ToggleResult,
+} from './subscription.ts';

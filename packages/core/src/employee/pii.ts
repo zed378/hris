@@ -193,12 +193,92 @@ export function revealPii(stored: StoredPii, canUnmask: boolean): PiiFields {
 }
 
 /** Menyiapkan satu nilai PII untuk disimpan: ciphertext, indeks buta, dan mask. */
+/**
+ * Karakter yang dipakai menyamarkan PII di seluruh sistem.
+ *
+ * `*` berasal dari ekspor Excel; `•` dari tampilan layar. Keduanya harus ada di
+ * sini — versi pertama penjaga ini hanya memeriksa `*`, sehingga nilai yang
+ * disalin dari GRID (yang memakai `•`) lolos dan tersimpan sebagai NIK.
+ */
+const MASK_CHARACTERS = /[*•·]/;
+
+export class InvalidIdentifierError extends Error {
+  constructor(
+    readonly field: string,
+    readonly received: string,
+  ) {
+    super(
+      `Kolom ${field} berisi karakter yang tidak mungkin ada pada nomor identitas: ` +
+        `"${received.slice(0, 24)}". NIK, NPWP, dan nomor rekening hanya terdiri dari ` +
+        'angka dan huruf.',
+    );
+    this.name = 'InvalidIdentifierError';
+  }
+}
+
+export class MaskedValueError extends Error {
+  constructor(readonly field: string) {
+    super(
+      `Kolom ${field} berisi nilai tersamar, bukan nilai sebenarnya. ` +
+        'Nilai ini berasal dari tampilan atau ekspor tanpa izin melihat data lengkap. ' +
+        'Kosongkan kolomnya, atau minta nilai aslinya dari pengguna yang berizin.',
+    );
+    this.name = 'MaskedValueError';
+  }
+}
+
+/** True bila nilainya adalah hasil penyamaran, bukan nilai sebenarnya. */
+export function looksMasked(value: string): boolean {
+  return MASK_CHARACTERS.test(value);
+}
+
 export function preparePii(
   value: string | null | undefined,
   mask: (value: string) => string,
+  field = 'PII',
 ): { encrypted: string | null; index: string | null; masked: string | null } {
   const trimmed = value?.trim();
   if (!trimmed) return { encrypted: null, index: null, masked: null };
+
+  /**
+   * Nilai tersamar ditolak DI SINI, bukan di formulir yang mengirimnya.
+   *
+   * Prinsip P9: layar menyembunyikan, server menolak. Grid karyawan memang
+   * mengunci kolom PII ketika penggunanya tidak berizin membuka samaran — tetapi
+   * penjagaan itu hanya berlaku pada satu layar, sementara jalur tulis yang
+   * sama dipakai impor Excel, pembaruan massal, dan API langsung.
+   *
+   * Kerusakannya senyap dan permanen: NIK asli tertimpa menjadi deretan tanda
+   * bintang, terenkripsi rapi, dan baru ketahuan saat payroll pertama
+   * membutuhkan nomor rekening yang sudah tidak ada lagi.
+   */
+  if (looksMasked(trimmed)) throw new MaskedValueError(field);
+
+  /**
+   * Nilai yang tidak mungkin menjadi nomor identitas ditolak juga.
+   *
+   * Impor Excel sudah memvalidasi bentuk NIK dan NPWP, tetapi jalur tulis
+   * lainnya — API langsung, pembaruan massal dari grid — tidak. Satu field yang
+   * ketat di satu pintu dan longgar di pintu lain bukan validasi; ia hanya
+   * memindahkan masalahnya ke pintu yang lebih jarang dilihat.
+   *
+   * Dua syarat, dan keduanya diperlukan:
+   *
+   *   1. Hanya angka dan huruf setelah pemisah dibuang. Ini menangkap salin
+   *      tempel yang rusak encoding-nya dan karakter samaran yang terlewat.
+   *   2. Memuat sekurangnya satu angka. Tanpa syarat ini, "tidak ada" menjadi
+   *      "TIDAKADA" dan lolos — dan teks semacam itulah yang benar-benar
+   *      diketik orang ketika kolomnya tidak ia miliki datanya.
+   *
+   * Aturan panjang sengaja TIDAK dipasang: format nomor rekening berbeda
+   * antarbank, dan menolak nasabah yang sah lebih merugikan daripada menerima
+   * nomor yang tampak tidak biasa. Sebagian bank juga memakai awalan huruf,
+   * sehingga "hanya angka" pun terlalu ketat.
+   */
+  const normalizedForCheck = normalizeIdentifier(trimmed);
+  if (!/^[0-9A-Z]+$/.test(normalizedForCheck) || !/[0-9]/.test(normalizedForCheck)) {
+    throw new InvalidIdentifierError(field, trimmed);
+  }
 
   const normalized = normalizeIdentifier(trimmed);
   return {

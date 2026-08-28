@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
+import { downloadFile, type DownloadOutcome } from '@/lib/download.ts';
 
 interface EmployeeRow {
   id: string;
@@ -34,8 +35,19 @@ export default function EmployeesPage() {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [unduhan, setUnduhan] = useState<DownloadOutcome | null>(null);
+  const [unduhBusy, setUnduhBusy] = useState<string | null>(null);
 
   const canUnmask = can('employee.pii.unmask');
+
+  const unduh = useCallback(
+    async (path: string, nama: string) => {
+      setUnduhBusy(nama);
+      setUnduhan(await downloadFile(api, path, nama));
+      setUnduhBusy(null);
+    },
+    [api],
+  );
 
   const load = useCallback(
     async (nextPage: number, query: string) => {
@@ -79,18 +91,29 @@ export default function EmployeesPage() {
           {/* Penyaring yang aktif ikut terbawa: yang terunduh persis yang
               terlihat. Ekspor yang selalu mengambil semuanya membuat orang
               mengunduh 5.000 baris PII untuk membaca 12. */}
-          <a
-            href={`/api/employees/export${search ? `?search=${encodeURIComponent(search)}` : ''}`}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+          {/* Tombol, bukan tautan. Peramban mengikuti `<a href>` dengan
+              permintaan yang tidak membawa header Authorization, sehingga
+              seluruh endpoint di aplikasi ini menjawabnya 401 — dan unduhan
+              yang gagal muncul sebagai berkas rusak, bukan sebagai pesan. */}
+          <button
+            onClick={() =>
+              void unduh(
+                `/api/employees/export${search ? `?search=${encodeURIComponent(search)}` : ''}`,
+                'karyawan.xlsx',
+              )
+            }
+            disabled={unduhBusy !== null}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm transition hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800"
           >
-            Ekspor Excel
-          </a>
-          <a
-            href="/api/employees/template"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+            {unduhBusy === 'karyawan.xlsx' ? 'Menyiapkan…' : 'Ekspor Excel'}
+          </button>
+          <button
+            onClick={() => void unduh('/api/employees/template', 'templat-karyawan.xlsx')}
+            disabled={unduhBusy !== null}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm transition hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800"
           >
-            Unduh templat
-          </a>
+            {unduhBusy === 'templat-karyawan.xlsx' ? 'Menyiapkan…' : 'Unduh templat'}
+          </button>
           <Link
             href="/employees/import"
             className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
@@ -99,6 +122,29 @@ export default function EmployeesPage() {
           </Link>
         </div>
       </header>
+
+      {/* Pemotongan hasil ekspor DIKATAKAN, bukan didiamkan.
+          Berkas yang terpotong terlihat persis seperti berkas yang lengkap, dan
+          orang yang memakainya untuk menghitung gaji tidak punya cara
+          mengetahuinya. Server sudah mengirim `x-export-truncated`; sebelum ini
+          tidak ada satu pun tempat yang membacanya. */}
+      {unduhan && (
+        <p
+          className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+            !unduhan.ok
+              ? 'bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-300'
+              : unduhan.truncated
+                ? 'border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
+                : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+          }`}
+        >
+          {!unduhan.ok
+            ? unduhan.error
+            : unduhan.truncated
+              ? `Hasil ekspor DIPOTONG pada ${unduhan.rows?.toLocaleString('id-ID')} baris. Berkas ini tidak memuat seluruh karyawan — persempit pencarian, lalu ekspor per bagian.`
+              : `${unduhan.fileName} tersimpan${unduhan.rows !== null ? ` (${unduhan.rows.toLocaleString('id-ID')} baris)` : ''}.`}
+        </p>
+      )}
 
       <input
         value={search}

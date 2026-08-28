@@ -2,6 +2,7 @@ import { EventTopic } from '@hrms/contracts';
 import { writeAudit, publishEvent, Prisma, type TenantClient } from '@hrms/db';
 import { assessTrust, haversineMeters, type TrustFlag } from './trust.ts';
 import { resolveWorkDate, tenantTimeZone } from './workdate.ts';
+import { punchPermissions } from './consent.ts';
 
 /**
  * Pencatatan ketukan presensi (dokumen 10).
@@ -84,6 +85,27 @@ export async function recordPunch(
 
   const timeZone = await tenantTimeZone(tx, tenantId);
 
+  /**
+   * Persetujuan diperiksa di SERVER, bukan hanya di layar (P9).
+   *
+   * Layar presensi memang menyembunyikan tombol kamera ketika persetujuan foto
+   * ditarik — tetapi layar dapat diganti, dan yang menanggung akibatnya adalah
+   * orang yang mengira permintaannya dihormati. Koordinat dan foto yang dikirim
+   * tanpa persetujuan dibuang di sini, sebelum menyentuh basis data.
+   *
+   * Ketukan mesin absensi dan entri HR tidak membawa keduanya, jadi tidak ada
+   * yang perlu diperiksa untuk mereka.
+   */
+  const consent =
+    input.source === 'WEB' || input.source === 'MOBILE'
+      ? await punchPermissions(tx, tenantId, input.employeeId)
+      : { location: true, photo: true, pending: [] };
+
+  const latitude = consent.location ? (input.latitude ?? null) : null;
+  const longitude = consent.location ? (input.longitude ?? null) : null;
+  const accuracyM = consent.location ? (input.accuracyM ?? null) : null;
+  const photoKey = consent.photo ? (input.photoKey ?? null) : null;
+
   // Pengiriman ulang diperiksa SEBELUM menyisipkan, bukan ditangkap sesudahnya.
   //
   // Versi pertama mengandalkan constraint unique lalu memulihkan diri di blok
@@ -117,7 +139,7 @@ export async function recordPunch(
   let radiusM: number | null = null;
   let maxAccuracyM: number | null = null;
 
-  if (input.latitude != null && input.longitude != null) {
+  if (latitude != null && longitude != null) {
     const sites = await tx.workSite.findMany({
       where: { tenantId, isActive: true },
       select: {
@@ -134,7 +156,7 @@ export async function recordPunch(
     // salah, dan rekap per lokasi menjadi tidak berarti.
     for (const site of sites) {
       const d = haversineMeters(
-        { lat: input.latitude, lon: input.longitude },
+        { lat: latitude, lon: longitude },
         { lat: Number(site.latitude), lon: Number(site.longitude) },
       );
       if (distanceM === null || d < distanceM) {
@@ -191,13 +213,14 @@ export async function recordPunch(
     source: input.source,
     distanceM,
     radiusM,
-    accuracyM: input.accuracyM ?? null,
+    accuracyM,
     maxAccuracyM,
-    hasPhoto: Boolean(input.photoKey),
+    hasPhoto: Boolean(photoKey),
     // Ketukan luring dikirim belakangan; selisih waktu di situ wajar dan bukan
     // sinyal. Yang dinilai hanya ketukan yang dikirim seketika.
     clockSkewSeconds: input.source === 'DEVICE' ? null : clockSkewSeconds,
     mockLocationReported: input.mockLocationReported ?? false,
+    consentWithheld: { location: !consent.location, photo: !consent.photo },
   });
 
   // --- Tanggal kerja ---------------------------------------------------------
@@ -212,13 +235,13 @@ export async function recordPunch(
         source: input.source,
         punchedAt: input.punchedAt,
         workDate,
-        latitude: input.latitude != null ? new Prisma.Decimal(input.latitude) : null,
-        longitude: input.longitude != null ? new Prisma.Decimal(input.longitude) : null,
-        accuracyM: input.accuracyM ?? null,
+        latitude: latitude != null ? new Prisma.Decimal(latitude) : null,
+        longitude: longitude != null ? new Prisma.Decimal(longitude) : null,
+        accuracyM,
         workSiteId,
         distanceM,
-        photoKey: input.photoKey ?? null,
-        photoExpiresAt: input.photoKey
+        photoKey,
+        photoExpiresAt: photoKey
           ? new Date(Date.now() + PHOTO_RETENTION_DAYS * 86_400_000)
           : null,
         trustScore: assessment.score,

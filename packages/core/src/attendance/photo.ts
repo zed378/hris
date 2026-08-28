@@ -1,7 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { createBlobStore, BlobError, type DeleteOutcome } from '../storage/index.ts';
 
 /**
  * Pipeline foto presensi (dokumen 10 §4).
@@ -104,36 +101,19 @@ export interface StoredPhoto {
  * menjadi satu-satunya penjaga, bukan lapisan kedua.
  */
 /**
- * Akar penyimpanan foto.
+ * Penyimpanan foto presensi.
  *
- * Path relatif diselesaikan terhadap akar repositori, BUKAN terhadap direktori
- * kerja proses. Perbedaannya bukan kerapian: `apps/web` dan `apps/worker`
- * berjalan dari direktori yang berbeda, sehingga path relatif membuat keduanya
- * menunjuk tempat yang berlainan — web menulis foto di satu tempat, job retensi
- * mencarinya di tempat lain.
- *
- * Kegagalannya tidak terlihat: job melaporkan berhasil menghapus, rujukan di
- * basis data dibersihkan, dan berkasnya tetap ada di disk selamanya. Janji
- * retensi 90 hari batal tanpa satu pun galat.
+ * Path, validasi kunci, dan pembedaan "sudah tidak ada" dari "gagal dihapus"
+ * ditangani `@hrms/core/storage` — ketiganya pernah salah di sini, dan
+ * memperbaikinya di satu tempat lebih murah daripada mengingat untuk
+ * memperbaikinya di setiap tempat.
  */
-function storageRoot(): string {
-  const configured = process.env['PHOTO_STORAGE_DIR'] ?? './.storage/attendance-photos';
-  if (isAbsolute(configured)) return configured;
-
-  // packages/core/src/attendance/photo.ts → naik lima tingkat ke akar repositori.
-  const here = dirname(fileURLToPath(import.meta.url));
-  return resolve(here, '../../../..', configured);
-}
-
-function pathFor(key: string): string {
-  // Kunci divalidasi agar tidak dapat keluar dari direktori penyimpanan. Tanpa
-  // ini, kunci berisi "../" mengubah endpoint penyajian foto menjadi pembaca
-  // berkas sembarang.
-  if (!/^[0-9a-f-]{36}\.jpg$/.test(key)) {
-    throw new PhotoError('Kunci foto tidak sah', 'invalid_format');
-  }
-  return join(storageRoot(), key.slice(0, 2), key);
-}
+const store = createBlobStore({
+  envVar: 'PHOTO_STORAGE_DIR',
+  fallbackDir: './.storage/attendance-photos',
+  extensions: ['jpg'],
+  maxBytes: MAX_PHOTO_BYTES,
+});
 
 export async function storePhoto(input: Buffer): Promise<StoredPhoto> {
   if (input.length > MAX_PHOTO_BYTES) {
@@ -143,29 +123,22 @@ export async function storePhoto(input: Buffer): Promise<StoredPhoto> {
     );
   }
 
-  const clean = stripJpegMetadata(input);
-  const key = `${randomUUID()}.jpg`;
-  const path = pathFor(key);
-
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, clean);
-
-  return { key, bytes: clean.length };
+  // EXIF dibuang SEBELUM disimpan, bukan saat disajikan. Berkas yang pernah
+  // menyentuh disk dengan koordinat di dalamnya sudah terlanjur ada di cadangan.
+  return store.put(stripJpegMetadata(input), 'jpg');
 }
 
 export async function readPhoto(key: string): Promise<Buffer> {
   try {
-    return await readFile(pathFor(key));
-  } catch {
-    throw new PhotoError('Foto tidak ditemukan atau sudah melewati masa retensi', 'not_found');
+    return await store.get(key);
+  } catch (error) {
+    throw new PhotoError(
+      error instanceof BlobError && error.kind === 'invalid_key'
+        ? 'Kunci foto tidak sah'
+        : 'Foto tidak ditemukan atau sudah melewati masa retensi',
+      error instanceof BlobError && error.kind === 'invalid_key' ? 'invalid_format' : 'not_found',
+    );
   }
-}
-
-export interface DeleteOutcome {
-  /** Berkas benar-benar dihapus pada pemanggilan ini. */
-  removed: boolean;
-  /** Berkas memang sudah tidak ada. Bukan galat. */
-  alreadyGone: boolean;
 }
 
 /**
@@ -183,11 +156,17 @@ export interface DeleteOutcome {
  */
 export async function deletePhoto(key: string): Promise<DeleteOutcome> {
   try {
-    await unlink(pathFor(key));
-    return { removed: true, alreadyGone: false };
+    return await store.remove(key);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { removed: false, alreadyGone: true };
+    // Galat penyimpanan diterjemahkan ke kosakata modul ini. Pemanggil di
+    // `apps/worker` dan `apps/web` menangkap `PhotoError`; membocorkan
+    // `BlobError` lewat pintu depan akan membuat penanganan galat mereka
+    // meleset tanpa satu pun galat kompilasi.
+    if (error instanceof BlobError) {
+      throw new PhotoError(
+        error.kind === 'invalid_key' ? 'Kunci foto tidak sah' : error.message,
+        error.kind === 'invalid_key' ? 'invalid_format' : 'not_found',
+      );
     }
     throw error;
   }

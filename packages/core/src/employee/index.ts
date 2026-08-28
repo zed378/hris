@@ -20,6 +20,9 @@ export {
   maskBankAccount,
   revealPii,
   preparePii,
+  looksMasked,
+  MaskedValueError,
+  InvalidIdentifierError,
   type PiiFields,
   type StoredPii,
 } from './pii.ts';
@@ -65,3 +68,25 @@ export {
   type DepartmentNode,
   type PlacementInput,
 } from './org.ts';
+export {
+  bulkUpdateEmployees,
+  BulkTooLargeError,
+  MAX_BULK_ROWS,
+  type BulkChange,
+  type BulkRowResult,
+  type BulkUpdateResult,
+} from './bulk-update.ts';
+export {
+  listDocuments,
+  uploadDocument,
+  readDocument,
+  archiveDocument,
+  expiringDocuments,
+  sniffType,
+  DocumentError,
+  DOCUMENT_KINDS,
+  MAX_DOCUMENT_BYTES,
+  type DocumentKind,
+  type DocumentSummary,
+  type UploadInput,
+} from './documents.ts';

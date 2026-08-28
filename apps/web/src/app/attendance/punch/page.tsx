@@ -63,6 +63,19 @@ export default function PunchPage() {
   const [storageWarning, setStorageWarning] = useState(false);
   const [photo, setPhoto] = useState<{ key: string; preview: string } | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+
+  /**
+   * Persetujuan UU PDP yang berlaku untuk pengguna ini.
+   *
+   * `null` selama belum terbaca. Selama itu, tombol lokasi dan kamera tidak
+   * ditampilkan — arah bawaan yang benar untuk data pribadi adalah tidak
+   * mengambilnya sampai jelas boleh, bukan sebaliknya.
+   */
+  const [consent, setConsent] = useState<{
+    location: boolean;
+    photo: boolean;
+    pending: string[];
+  } | null>(null);
   const mounted = useRef(true);
 
   const refreshQueue = useCallback(async () => {
@@ -125,6 +138,27 @@ export default function PunchPage() {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [flush, refreshQueue]);
+
+  useEffect(() => {
+    void (async () => {
+      const response = await api('/api/attendance/consent');
+      if (!response.ok) {
+        // Gagal membaca persetujuan diperlakukan sebagai belum menyetujui.
+        // Presensinya tetap bisa dilakukan; yang tidak dilakukan adalah
+        // mengambil data pribadi berdasarkan tebakan.
+        setConsent({ location: false, photo: false, pending: [] });
+        return;
+      }
+      const json = (await response.json()) as {
+        consents: Array<{ type: string; granted: boolean; decided: boolean }>;
+      };
+      setConsent({
+        location: json.consents.some((c) => c.type === 'LOCATION' && c.granted),
+        photo: json.consents.some((c) => c.type === 'PHOTO' && c.granted),
+        pending: json.consents.filter((c) => !c.decided).map((c) => c.type),
+      });
+    })();
+  }, [api]);
 
   const askLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -295,7 +329,21 @@ export default function PunchPage() {
             </p>
           )}
 
-          {(geo.status === 'idle' || geo.status === 'asking') && (
+          {consent !== null && !consent.location && (
+            // Persetujuan lokasi tidak diberikan: tombolnya tidak ditampilkan
+            // sama sekali. Menampilkannya lalu menolak di server akan membuat
+            // peramban tetap meminta izin GPS — permintaan yang sudah dijawab
+            // "tidak" di layar persetujuan.
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Lokasi tidak diambil sesuai pilihan Anda pada{' '}
+              <a href="/attendance/consent" className="text-brand-600 underline">
+                Persetujuan Data Presensi
+              </a>
+              . Presensi Anda tetap tercatat.
+            </p>
+          )}
+
+          {consent?.location && (geo.status === 'idle' || geo.status === 'asking') && (
             <>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Lokasi dipakai untuk memastikan Anda berada di area kerja. Diambil
@@ -311,7 +359,7 @@ export default function PunchPage() {
             </>
           )}
 
-          {(geo.status === 'denied' || geo.status === 'unavailable') && (
+          {consent?.location && (geo.status === 'denied' || geo.status === 'unavailable') && (
             // Izin ditolak TIDAK memblokir presensi. Yang terjadi hanya skor
             // kepercayaan lebih rendah dan tinjauan HR — dan itu dikatakan
             // terus terang, bukan disembunyikan.
@@ -325,7 +373,20 @@ export default function PunchPage() {
         <section className="mt-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <p className="text-sm font-medium">Foto swafoto</p>
 
-          {photo ? (
+          {consent !== null && !consent.photo && (
+            // Kamera tidak diminta sama sekali. Ini janji yang paling konkret
+            // di layar persetujuan, dan satu-satunya cara menepatinya adalah
+            // tidak pernah memanggil getUserMedia.
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Foto tidak diambil sesuai pilihan Anda pada{' '}
+              <a href="/attendance/consent" className="text-brand-600 underline">
+                Persetujuan Data Presensi
+              </a>
+              .
+            </p>
+          )}
+
+          {consent?.photo && photo ? (
             <div className="mt-2 flex items-center gap-3">
               {/* `next/image` sengaja tidak dipakai di sini: sumbernya blob:
                   URL dari kamera perangkat, yang tidak dapat dioptimasi server
@@ -343,7 +404,7 @@ export default function PunchPage() {
                 Ambil ulang
               </button>
             </div>
-          ) : (
+          ) : consent?.photo ? (
             <>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Foto menaikkan keandalan bukti presensi Anda. Disimpan 90 hari,
@@ -357,8 +418,20 @@ export default function PunchPage() {
                 {photoBusy ? 'Memproses…' : online ? 'Ambil foto' : 'Perlu koneksi'}
               </button>
             </>
-          )}
+          ) : null}
         </section>
+
+        {consent && consent.pending.length > 0 && (
+          // Ditempatkan tepat di atas tombol presensi, bukan di bagian atas
+          // halaman: inilah titik ketika orang benar-benar membacanya.
+          <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            Anda belum memutuskan apakah lokasi dan foto boleh diambil saat presensi.{' '}
+            <a href="/attendance/consent" className="underline">
+              Putuskan sekarang
+            </a>
+            . Presensi tetap dapat dilakukan tanpa memutuskannya.
+          </p>
+        )}
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button

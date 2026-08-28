@@ -38,6 +38,20 @@ export interface TrustInput {
   clockSkewSeconds: number | null;
   /** Perangkat melaporkan lokasi tiruan. Hanya tersedia di aplikasi native. */
   mockLocationReported: boolean;
+  /**
+   * Bukti yang tidak ada KARENA karyawan menarik persetujuannya (UU PDP).
+   *
+   * Dibedakan dari bukti yang sekadar tidak ada, dan pembedaan itu menentukan
+   * keabsahan persetujuannya. Bila menarik persetujuan lokasi membuat setiap
+   * presensi masuk antrean tinjauan, karyawan akan menyetujuinya untuk berhenti
+   * dipanggil HR — dan persetujuan yang diberikan untuk menghindari akibat
+   * bukan persetujuan bebas, sehingga tidak sah menurut UU PDP No. 27/2022.
+   *
+   * Karena itu penaltinya nol. Tandanya tetap ada supaya catatan presensinya
+   * jujur tentang mengapa buktinya tipis, tetapi ia tidak mendorong siapa pun
+   * ke antrean.
+   */
+  consentWithheld?: { location?: boolean; photo?: boolean } | undefined;
 }
 
 export interface TrustAssessment {
@@ -80,13 +94,47 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     });
   }
 
+  /**
+   * Mesin absensi tidak dinilai dengan ukuran ponsel.
+   *
+   * Ketukan dari mesin fingerprint atau face recognition tidak membawa koordinat
+   * dan tidak membawa swafoto — dan tidak satu pun dari keduanya berarti buktinya
+   * lemah. Lokasinya adalah mesin itu sendiri, yang terpasang di dinding kantor
+   * dan tidak bisa dibawa pulang. Identitasnya adalah sidik jari, yang lebih sulit
+   * dipalsukan daripada foto apa pun yang dikirim peramban.
+   *
+   * Tanpa pengecualian ini, ketukan mesin bernilai 50 — di bawah ambang — sehingga
+   * SETIAP ketukan dari mesin masuk antrean tinjauan. Bagi tenant yang memang
+   * memakai mesin, antrean itu berisi seluruh presensinya, dan HR berhenti
+   * meninjau pada hari pertama.
+   *
+   * Yang tetap dinilai adalah jalur masuknya. Berkas CSV diunggah oleh manusia
+   * dan isinya dapat disunting sebelum diunggah; kepercayaannya melekat pada
+   * mesinnya, bukan pada berkasnya. Penaltinya kecil supaya tidak sendirian
+   * memicu tinjauan, dan akan hilang ketika integrasi langsung menggantikan impor.
+   */
+  if (input.source === 'DEVICE') {
+    flags.push({
+      code: 'DEVICE_IMPORT_UNVERIFIED',
+      penalty: 10,
+      message: 'Dari impor berkas mesin absensi, bukan integrasi langsung',
+    });
+
+    const score = Math.max(0, 100 - flags.reduce((sum, flag) => sum + flag.penalty, 0));
+    return { score, flags, needsReview: score < REVIEW_THRESHOLD };
+  }
+
   // --- Lokasi ----------------------------------------------------------------
   if (input.distanceM === null) {
-    flags.push({
-      code: 'NO_LOCATION',
-      penalty: 30,
-      message: 'Tanpa data lokasi',
-    });
+    flags.push(
+      input.consentWithheld?.location
+        ? {
+            code: 'LOCATION_CONSENT_WITHHELD',
+            penalty: 0,
+            message: 'Tanpa lokasi — persetujuan lokasi tidak diberikan',
+          }
+        : { code: 'NO_LOCATION', penalty: 30, message: 'Tanpa data lokasi' },
+    );
   } else if (input.radiusM !== null && input.distanceM > input.radiusM) {
     const excess = input.distanceM - input.radiusM;
 
@@ -118,7 +166,15 @@ export function assessTrust(input: TrustInput): TrustAssessment {
 
   // --- Bukti foto ------------------------------------------------------------
   if (!input.hasPhoto) {
-    flags.push({ code: 'NO_PHOTO', penalty: 20, message: 'Tanpa foto swafoto' });
+    flags.push(
+      input.consentWithheld?.photo
+        ? {
+            code: 'PHOTO_CONSENT_WITHHELD',
+            penalty: 0,
+            message: 'Tanpa foto — persetujuan foto tidak diberikan',
+          }
+        : { code: 'NO_PHOTO', penalty: 20, message: 'Tanpa foto swafoto' },
+    );
   }
 
   // --- Waktu perangkat -------------------------------------------------------

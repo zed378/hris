@@ -23,7 +23,7 @@ export const GET = defineRoute('GET /api/attendance/photo/[key]', async (_req, c
 
   const punch = await ctx.tx.punchLog.findFirst({
     where: { tenantId: ctx.tenantId, photoKey: key },
-    select: { employeeId: true },
+    select: { id: true, employeeId: true },
   });
 
   if (!punch) {
@@ -31,6 +31,7 @@ export const GET = defineRoute('GET /api/attendance/photo/[key]', async (_req, c
   }
 
   const canReviewAll = ctx.access.permissions.includes('attendance.review.handle');
+  let isOwner = false;
 
   if (!canReviewAll) {
     const me = await ctx.tx.employee.findFirst({
@@ -40,6 +41,31 @@ export const GET = defineRoute('GET /api/attendance/photo/[key]', async (_req, c
     if (!me || me.id !== punch.employeeId) {
       return apiError(403, ErrorCode.PERMISSION_DENIED, 'Bukan foto Anda', ctx.correlationId);
     }
+    isOwner = true;
+  }
+
+  /**
+   * Aturan PR6: akses HR ke foto presensi dicatat.
+   *
+   * Dicatat SEBELUM berkasnya dibaca, bukan sesudah. Percobaan akses yang gagal
+   * karena berkasnya sudah kedaluwarsa tetap merupakan percobaan akses, dan
+   * mencatatnya hanya setelah berhasil akan membuat jejaknya bergantung pada
+   * apakah retensi sudah berjalan.
+   *
+   * Karyawan yang melihat fotonya sendiri tidak dicatat. Yang hendak dijawab
+   * tabel ini adalah "siapa lagi yang pernah melihat foto saya", dan mengisinya
+   * dengan kunjungan pemiliknya sendiri hanya membuat jawabannya sulit dibaca.
+   */
+  if (!isOwner) {
+    await ctx.tx.photoAccessLog.create({
+      data: {
+        tenantId: ctx.tenantId,
+        punchId: punch.id,
+        employeeId: punch.employeeId,
+        accessedBy: ctx.userId,
+        action: 'VIEW',
+      },
+    });
   }
 
   try {
