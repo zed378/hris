@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { workerClient } from '@hrms/db';
 
 /**
@@ -45,14 +46,14 @@ export async function runSchemaDriftCheck(): Promise<DriftResult> {
     // `error`, bukan `warn`. Temuan di sini berarti isolasi tenant sedang
     // bocor atau sebuah modul sedang mati total — keduanya adalah insiden,
     // bukan catatan yang menunggu ditinjau minggu depan.
-    console.error({
+    log.error({
       scope: 'schema-drift',
       severity: 'critical',
       count: findings.length,
       findings,
     });
   } else {
-    console.log({ scope: 'schema-drift', status: 'bersih' });
+    log.info({ scope: 'schema-drift', status: 'bersih' });
   }
 
   return { findings, checkedAt: new Date().toISOString() };

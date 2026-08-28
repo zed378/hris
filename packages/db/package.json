@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@hrms/contracts": "workspace:*",
+    "@hrms/observability": "workspace:*",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "pg": "^8.23.0"

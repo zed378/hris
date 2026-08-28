@@ -27,6 +27,12 @@ import { disconnectAll, withOutboxPump } from '@hrms/db';
  * percobaan menjadi tidak berarti — dan yang memutuskan sebuah kegagalan layak
  * diulang adalah orang yang sudah tahu penyebabnya sudah hilang, bukan penjadwal.
  *
+ * Keluarannya teks biasa, BUKAN JSON terstruktur — dan itu disengaja. Alat ini
+ * dijalankan orang di terminal saat sedang menyelesaikan masalah; JSON akan
+ * membuat keluarannya lebih sulit dibaca justru pada saat ia paling perlu
+ * dibaca cepat. Log terstruktur adalah untuk mesin yang mengumpulkannya, dan
+ * di sini tidak ada mesin yang mengumpulkan apa pun.
+ *
  *   pnpm --filter @hrms/worker outbox:retry                       # lihat saja
  *   pnpm --filter @hrms/worker outbox:retry attendance.punch.flagged
  *   pnpm --filter @hrms/worker outbox:retry --all

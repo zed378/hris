@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { listenTenant, TooManyStreamsError } from '@hrms/db';
 import { ErrorCode } from '@hrms/contracts';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
@@ -47,7 +48,7 @@ export const GET = defineRoute('GET /api/attendance/live', async (req, ctx) => {
           ctx.tenantId,
           (payload) => send('punch', payload),
           (error) => {
-            console.error({ scope: 'attendance-live', tenantId: ctx.tenantId, error });
+            log.error({ scope: 'attendance-live', tenantId: ctx.tenantId, error });
             send('error', { message: 'Koneksi peristiwa terputus' });
           },
         );

@@ -62,6 +62,7 @@ export default tseslint.config(
         },
         { type: 'db', mode: 'file', pattern: 'packages/db/src/**' },
         { type: 'contracts', mode: 'file', pattern: 'packages/contracts/src/**' },
+        { type: 'observability', mode: 'file', pattern: 'packages/observability/src/**' },
         { type: 'app', mode: 'file', pattern: 'apps/**' },
       ],
     },
@@ -79,6 +80,7 @@ export default tseslint.config(
                 { to: { element: { type: 'core-module-api' } } },
                 { to: { element: { type: 'db' } } },
                 { to: { element: { type: 'contracts' } } },
+                { to: { element: { type: 'observability' } } },
                 { to: { element: { type: 'app' } } },
               ],
             },
@@ -100,6 +102,7 @@ export default tseslint.config(
                 },
                 { to: { element: { type: 'db' } } },
                 { to: { element: { type: 'contracts' } } },
+                { to: { element: { type: 'observability' } } },
               ],
             },
 
@@ -119,6 +122,7 @@ export default tseslint.config(
                 },
                 { to: { element: { type: 'db' } } },
                 { to: { element: { type: 'contracts' } } },
+                { to: { element: { type: 'observability' } } },
               ],
             },
 
@@ -137,6 +141,14 @@ export default tseslint.config(
             {
               from: [{ element: { type: 'contracts' } }],
               allow: [{ to: { element: { type: 'contracts' } } }],
+            },
+            // Observability adalah daun paling bawah: setiap lapisan boleh
+            // mencatat log, dan ia tidak boleh bergantung pada satu pun di
+            // antaranya. Ketergantungan ke arah sebaliknya akan membuat logger
+            // ikut gagal ketika lapisan yang hendak dicatatnya gagal.
+            {
+              from: [{ element: { type: 'observability' } }],
+              allow: [{ to: { element: { type: 'observability' } } }],
             },
           ],
         },

@@ -13,6 +13,7 @@
     "@hrms/contracts": "workspace:*",
     "@hrms/core": "workspace:*",
     "@hrms/db": "workspace:*",
+    "@hrms/observability": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "ag-grid-community": "^36.1.0",
     "ag-grid-react": "^36.1.0",

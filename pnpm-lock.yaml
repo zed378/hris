@@ -47,6 +47,9 @@ importers:
       '@hrms/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@hrms/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -99,6 +102,9 @@ importers:
       '@hrms/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@hrms/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       pg-boss:
         specifier: ^12.27.0
         version: 12.27.0
@@ -121,6 +127,9 @@ importers:
       '@hrms/db':
         specifier: workspace:*
         version: link:../db
+      '@hrms/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@node-rs/argon2':
         specifier: ^2.0.2
         version: 2.1.0
@@ -152,6 +161,9 @@ importers:
       '@hrms/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@hrms/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@prisma/adapter-pg':
         specifier: ^7.9.1
         version: 7.9.1
@@ -177,6 +189,8 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0))
+
+  packages/observability: {}
 
 packages:
 

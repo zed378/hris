@@ -60,6 +60,40 @@ if [ "$TABLES" -lt 10 ]; then
   exit 1
 fi
 
+# -----------------------------------------------------------------------------
+# Berkas penyimpanan
+# -----------------------------------------------------------------------------
+#
+# Foto presensi dan dokumen karyawan TIDAK ada di dalam basis data — keduanya
+# berkas di disk, dan `pg_dump` tidak mengetahui keberadaannya.
+#
+# Cadangan yang hanya memuat basis data akan terlihat lengkap: seluruh tabel
+# ada, seluruh baris ada, dan `punch_logs.photo_key` menunjuk berkas yang sudah
+# tidak ada. Kegagalannya baru terlihat saat seseorang membuka foto presensi
+# untuk menyelesaikan sengketa upah — yaitu satu-satunya saat foto itu penting.
+#
+# Diarsipkan terpisah dan diberi stempel waktu yang SAMA dengan dump-nya,
+# supaya pasangan yang benar dapat dikenali saat memulihkan. Cadangan basis data
+# dan berkas dari waktu berbeda menghasilkan rujukan yang tidak cocok.
+STORAGE_DIR="${HRMS_STORAGE_DIR:-./.storage}"
+
+if [ -d "$STORAGE_DIR" ]; then
+  STORAGE_FILE="$OUT_DIR/hrms-$STAMP-storage.tar.gz"
+  echo "Mengarsipkan berkas penyimpanan dari $STORAGE_DIR…"
+
+  tar -czf "$STORAGE_FILE" -C "$(dirname "$STORAGE_DIR")" "$(basename "$STORAGE_DIR")"
+
+  FILES=$(tar -tzf "$STORAGE_FILE" | grep -c -v '/$' || true)
+  echo "Selesai: $STORAGE_FILE ($(du -h "$STORAGE_FILE" | cut -f1), $FILES berkas)"
+else
+  # Dinyatakan, bukan didiamkan. Direktori penyimpanan yang tidak ada bisa
+  # berarti belum ada foto yang diunggah — atau berarti skrip ini dijalankan
+  # dari direktori yang salah, dan cadangannya kehilangan seluruh berkas tanpa
+  # satu pun peringatan.
+  echo "CATATAN: direktori penyimpanan \"$STORAGE_DIR\" tidak ada — tidak ada berkas yang diarsipkan."
+  echo "         Bila seharusnya ada, periksa HRMS_STORAGE_DIR dan direktori kerja."
+fi
+
 # Retensi: simpan 14 cadangan terakhir.
 #
 # Bukan berdasarkan umur, melainkan jumlah. Cadangan harian yang dihapus
@@ -68,4 +102,7 @@ fi
 ls -1t "$OUT_DIR"/hrms-*.dump 2>/dev/null | tail -n +15 | while read -r old; do
   echo "Menghapus cadangan lama: $old"
   rm -f "$old"
+  # Arsip berkas pasangannya ikut dihapus. Membiarkannya menumpuk akan
+  # menghabiskan disk dengan foto yang basis datanya sudah tidak ada.
+  rm -f "${old%.dump}-storage.tar.gz"
 done

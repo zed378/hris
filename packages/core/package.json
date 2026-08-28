@@ -23,6 +23,7 @@
   "dependencies": {
     "@hrms/contracts": "workspace:*",
     "@hrms/db": "workspace:*",
+    "@hrms/observability": "workspace:*",
     "@node-rs/argon2": "^2.0.2",
     "jose": "^6.2.9",
     "otplib": "^13.4.1",

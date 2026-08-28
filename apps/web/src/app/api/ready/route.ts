@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { appClient } from '@hrms/db';
 import { definePublicRoute } from '@/lib/define-route.ts';
 
@@ -38,7 +39,7 @@ export const GET = definePublicRoute('GET /api/ready', async () => {
       headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
     });
   } catch (error) {
-    console.error({ scope: 'readiness', error });
+    log.error({ scope: 'readiness', error });
 
     // 503, bukan 500. Orkestrator dan load balancer memperlakukan 503 sebagai
     // "jangan kirim lalu lintas ke sini untuk sementara"; 500 dibaca sebagai

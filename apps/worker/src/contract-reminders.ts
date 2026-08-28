@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { withTenant, workerClient } from '@hrms/db';
 import { scanContractReminders } from '@hrms/core/employee';
 
@@ -43,7 +44,7 @@ export async function runContractReminders(): Promise<ReminderJobResult> {
       // pengingatnya hari itu — dan kehilangan itu tidak akan terlihat sampai
       // ada PKWT yang terlanjur lewat.
       result.failed += 1;
-      console.error({ scope: 'contract-reminders', tenantId, error });
+      log.error({ scope: 'contract-reminders', tenantId, error });
     }
   }
 

@@ -24,7 +24,7 @@ Terakhir diperbarui: 28 Agustus 2026.
 | F4 | Cuti | Selesai |
 | F5 | Payroll | **Kerangka selesai; perhitungan pajak & BPJS terkunci Gerbang C** |
 | F6 | Komersialisasi | **Semua selesai kecuali penagihan (butuh akun payment gateway)** |
-| F7 | Observabilitas, kesiapan produksi | Sebagian |
+| F7 | Observabilitas, kesiapan produksi | Sebagian — probe kesehatan & cadangan selesai |
 
 Gerbang A (tiga pilot mengimpor mandiri) dan Gerbang B (satu tenant membayar)
 **belum diuji** — keduanya menuntut pengguna nyata, bukan kode.
@@ -181,6 +181,10 @@ berjalan, bukan hanya lolos uji unit.
 | Ekspor menyertakan modul yang TIDAK dilanggan | Data payroll ikut meski modulnya nonaktif — portabilitas bukan fungsi langganan |
 | **Pemulihan dari cadangan diuji, bukan hanya ditulis** | Cadangan 272 KB dipulihkan ke basis data baru: seluruh jumlah baris identik, 47 kebijakan RLS ikut, laporan drift 0 |
 | Isolasi tenant utuh setelah pemulihan | Diuji sebagai `hrms_app`: tanpa konteks 0 baris, konteks demo 3 karyawan / 32 punch, konteks tenant lain 0 |
+| Liveness dan readiness benar-benar berbeda | PostgreSQL dihentikan: `/api/health` tetap 200, `/api/ready` menjadi 503 dengan `retry-after` |
+| Readiness pulih sendiri | Setelah PostgreSQL dinyalakan: `ready` 200 dalam 40 ms |
+| **Pemulihan diukur pada ukuran nyata** | 160 MB / 261.000 ketukan: cadangan 2 detik, pemulihan 5 detik, 261.000 baris identik, drift 0 |
+| Pemulihan berkas penyimpanan diuji | Hash SHA-256 identik, `storage_key` resolve ke path yang benar |
 
 ---
 
@@ -255,7 +259,17 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     know how to serialize a BigInt", dan galatnya menggagalkan SELURUH berkas,
     bukan satu kolomnya. Yang memakainya adalah kunci pada buku besar saldo
     cuti dan jejak akses — justru yang paling perlu ikut terbawa.
-17. **Status `LEAVE` tidak pernah dihasilkan** — nilainya ada di tipe sejak awal,
+17. **Healthcheck kontainer menunjuk halaman klien** — `HEALTHCHECK` memanggil
+    `/`, yang merender halaman React dan mengembalikan 200 meski basis datanya
+    mati. Kontainer melaporkan sehat sementara aplikasinya tidak dapat melayani
+    apa pun, dan orkestrator tidak punya alasan mengalihkan lalu lintas.
+18. **Pemeriksa cakupan manifes buta terhadap `export function GET()`** — regex
+    penemunya hanya mengenali `export const GET =`. Sebuah route yang ditulis
+    dengan bentuk `function` adalah handler Next.js yang sah sepenuhnya, tetapi
+    tidak terlihat oleh uji P7: ia melewati pendaftaran manifes, melewati
+    pemeriksaan pembungkus `defineRoute`, dan bekerja sempurna saat diuji
+    manual — tanpa memeriksa izin apa pun. Lubang pada penjaganya sendiri.
+19. **Status `LEAVE` tidak pernah dihasilkan** — nilainya ada di tipe sejak awal,
     tetapi tidak ada satu pun jalur kode yang memproduksinya. Karyawan yang
     cutinya sudah disetujui manajernya tetap tercatat `ABSENT`, lalu dipotong
     gajinya sebagai mangkir. Kelas yang sama dengan nomor 4: nilai enum yang
@@ -272,9 +286,12 @@ Prosedur cadangan dan pemulihan sudah **diuji dan terdokumentasi**
 Tiga batasnya perlu diketahui:
 
 - **Belum ada PITR.** Kehilangan data maksimum = jarak antar-cadangan.
-- **Berkas foto dan dokumen tidak ikut dalam dump.** Keduanya di penyimpanan
-  berkas, bukan basis data; direktori `.storage/` harus dicadangkan terpisah,
-  dan itu belum otomatis.
+- **Berkas foto dan dokumen ikut dicadangkan** sebagai arsip terpisah
+  berstempel waktu sama, dan pemulihannya sudah diuji sampai hash.
+- **Belum diuji di atas 160 MB.** Angkanya linear pada rentang yang diuji,
+  tetapi ekstrapolasi bukan pengukuran.
+- **Pengarsipan puluhan ribu berkas kecil belum diukur** — `tar` atas banyak
+  berkas kecil berperilaku berbeda dari `tar` atas satu berkas besar.
 - **Diuji pada basis data ratusan kilobita.** Waktu pemulihan pada ukuran
   produksi belum diukur.
 

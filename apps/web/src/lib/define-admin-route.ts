@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { ErrorCode, type ApiError } from '@hrms/contracts';
@@ -96,7 +97,7 @@ function build(
 
       return await (handler as AdminHandler)(req, { ...base, superuser });
     } catch (error) {
-      console.error({ correlationId: base.correlationId, routeId, error });
+      log.error({ scope: 'admin-route', correlationId: base.correlationId, routeId, error });
       return fail(500, ErrorCode.INTERNAL, 'Terjadi kesalahan pada sistem', base.correlationId);
     }
   };

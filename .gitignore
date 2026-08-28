@@ -17,3 +17,4 @@ ops/.env
 
 # Cadangan basis data. Memuat seluruh data pelanggan.
 backups/
+backups-skala

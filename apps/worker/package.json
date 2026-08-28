@@ -14,9 +14,10 @@
   },
   "dependencies": {
     "@hrms/contracts": "workspace:*",
+    "@hrms/core": "workspace:*",
     "@hrms/db": "workspace:*",
-    "pg-boss": "^12.27.0",
-    "@hrms/core": "workspace:*"
+    "@hrms/observability": "workspace:*",
+    "pg-boss": "^12.27.0"
   },
   "devDependencies": {
     "dotenv": "^17.2.4"

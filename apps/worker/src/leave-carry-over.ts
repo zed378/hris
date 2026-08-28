@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { withTenant, workerClient } from '@hrms/db';
 import { runCarryOver } from '@hrms/core/leave';
 
@@ -49,7 +50,7 @@ export async function runLeaveCarryOver(fromYear: number): Promise<CarryOverSumm
       summary.expired += result.expired;
     } catch (error) {
       summary.failed += 1;
-      console.error({ scope: 'leave-carry-over', tenantId, fromYear, error });
+      log.error({ scope: 'leave-carry-over', tenantId, fromYear, error });
     }
   }
 

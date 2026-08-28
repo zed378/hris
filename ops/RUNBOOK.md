@@ -21,6 +21,19 @@ Aturan yang berlaku pada seluruh prosedur di bawah:
 **Gejala.** Halaman lama dimuat. Log memuat `{"scope":"overload"}` atau balasan
 503. Pengguna melaporkan "sistem lemot", bukan galat.
 
+**Periksa lebih dulu, sebelum apa pun:**
+
+```bash
+curl -s -o /dev/null -w '%{http_code}
+' http://<host>/api/health   # proses hidup?
+curl -s http://<host>/api/ready                                     # basis data terjangkau?
+```
+
+`health` 200 tetapi `ready` 503 berarti aplikasinya hidup dan basis datanya
+yang bermasalah — dan pada keadaan itu **jangan merestart aplikasi**. Restart
+tidak memperbaiki basis data, dan setiap instance yang menyala kembali langsung
+membuka pool koneksi baru ke basis data yang sudah kewalahan.
+
 **Penyebab paling sering.** Pool transaksi habis — biasanya satu tenant
 menjalankan impor besar, atau satu query menyapu tabel tanpa indeks.
 
@@ -195,9 +208,21 @@ Skrip memverifikasi isinya, bukan hanya keberadaan berkasnya — cadangan yang
 gagal separuh jalan tetap meninggalkan berkas, dan yang membedakannya dari
 cadangan yang dapat dipakai adalah apakah daftar isinya dapat dibaca.
 
+Menghasilkan **dua** berkas dengan stempel waktu yang sama:
+
+| Berkas | Isi |
+|---|---|
+| `hrms-<stamp>.dump` | Basis data |
+| `hrms-<stamp>-storage.tar.gz` | Foto presensi dan dokumen karyawan |
+
+Keduanya harus dipulihkan sebagai pasangan. Cadangan basis data tanpa berkasnya
+akan terlihat lengkap — seluruh tabel ada, seluruh baris ada, dan
+`punch_logs.photo_key` menunjuk berkas yang sudah tidak ada. Kegagalannya baru
+terlihat saat seseorang membuka foto presensi untuk menyelesaikan sengketa upah.
+
 Retensi 14 cadangan terakhir, dihitung per **jumlah** bukan umur: retensi
 berbasis umur akan menghapus semuanya sekaligus bila job-nya berhenti dua pekan
-lalu berjalan lagi.
+lalu berjalan lagi. Arsip berkas ikut terhapus bersama dump pasangannya.
 
 ### Memulihkan
 
@@ -210,6 +235,16 @@ bash ops/scripts/restore.sh backups/hrms-20260828T090736Z.dump hrms_restore
 ```
 
 Skrip menuntut konfirmasi berupa **nama basis datanya**, bukan sekadar "y".
+
+Berkas penyimpanan dipulihkan terpisah, dari arsip berstempel waktu SAMA:
+
+```bash
+tar -xzf backups/hrms-20260828T090736Z-storage.tar.gz -C /path/tujuan
+```
+
+**Diuji ujung-ke-ujung:** berkas hasil ekstraksi identik sampai hash SHA-256,
+struktur direktorinya utuh, dan `storage_key` pada `employee_documents` resolve
+ke path yang benar. Arsip yang belum pernah dibuka bukan cadangan.
 
 ### Yang WAJIB diperiksa setelah pemulihan
 
@@ -242,7 +277,30 @@ DATABASE_URL=<url-ke-basis-data-pulih> pnpm --filter @hrms/db exec prisma migrat
 
 Migrasi bersifat idempoten dan aditif; ia hanya melengkapi yang belum ada.
 
-### Hasil uji terakhir — 28 Agustus 2026
+### Hasil uji — 28 Agustus 2026
+
+Dua uji: satu pada data pengembangan, satu pada data seukuran tenant menengah.
+
+#### Pada ukuran nyata — 500 karyawan, satu tahun presensi
+
+| | |
+|---|---|
+| Basis data | 160 MB — 261.000 ketukan, 130.500 rekap harian, 500 karyawan |
+| **Waktu cadangan** | **2 detik** → dump 11 MB (terkompresi dari 160 MB) |
+| **Waktu pemulihan** | **5 detik**, termasuk membuat ulang basis data dan memeriksa drift |
+| Kelengkapan | 261.000 / 130.500 / 500 — identik baris demi baris |
+| Kebijakan RLS | 47 pada asal, 47 pada hasil pulih |
+| Laporan drift | 0 temuan |
+
+Angka ini yang menentukan target pemulihan: **pemulihan penuh tenant berukuran
+500 karyawan selesai di bawah sepuluh detik**, sehingga jendela pemadaman pada
+insiden pemulihan ditentukan oleh keputusan manusia, bukan oleh mesin.
+
+Ekstrapolasi kasar untuk tenant lebih besar: waktunya hampir linear terhadap
+jumlah baris. 5.000 karyawan dengan riwayat yang sama ≈ 1,6 GB, dan pemulihannya
+di kisaran satu menit — masih jauh di bawah ambang yang menuntut PITR.
+
+#### Pada data pengembangan
 
 | Yang diperiksa | Hasil |
 |---|---|
@@ -259,11 +317,12 @@ Migrasi bersifat idempoten dan aditif; ia hanya melengkapi yang belum ada.
 - **Belum ada PITR.** Yang ada cadangan berkala, sehingga kehilangan data
   maksimum adalah jarak antar-cadangan. PITR menuntut WAL archiving yang belum
   dikonfigurasi.
-- **Berkas foto presensi dan dokumen karyawan TIDAK ikut dalam dump.** Keduanya
-  ada di penyimpanan berkas, bukan basis data. Cadangan yang lengkap harus
-  menyertakan direktori `.storage/` — dan itu belum otomatis.
-- **Uji ini dijalankan pada basis data pengembangan** berukuran ratusan kilobita.
-  Waktu pemulihan pada basis data produksi berukuran gigabita belum diukur.
+- **Belum diuji di atas 160 MB.** Angka di atas linear pada rentang yang diuji,
+  tetapi ekstrapolasi bukan pengukuran. Tenant pertama yang melewati satu
+  gigabita layak diukur ulang.
+- **Berkas penyimpanan pada uji skala hanya satu berkas.** Waktu pengarsipan
+  puluhan ribu foto presensi belum diukur, dan `tar` atas banyak berkas kecil
+  berperilaku berbeda dari `tar` atas satu berkas besar.
 
 ---
 

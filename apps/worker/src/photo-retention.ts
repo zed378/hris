@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { withTenant, workerClient } from '@hrms/db';
 import { deletePhoto } from '@hrms/core/attendance';
 
@@ -68,7 +69,7 @@ export async function runPhotoRetention(): Promise<RetentionResult> {
           // tetap ada di disk — persis kegagalan yang membuat janji retensi
           // 90 hari batal tanpa satu pun galat terlihat.
           result.failed += 1;
-          console.error({ scope: 'photo-retention', punchId: punch.id, error });
+          log.error({ scope: 'photo-retention', punchId: punch.id, error });
           continue;
         }
 
@@ -87,7 +88,7 @@ export async function runPhotoRetention(): Promise<RetentionResult> {
       }
     } catch (error) {
       result.failed += 1;
-      console.error({ scope: 'photo-retention', tenantId, error });
+      log.error({ scope: 'photo-retention', tenantId, error });
     }
   }
 

@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { config as loadEnv } from 'dotenv';
@@ -47,7 +48,7 @@ async function main(): Promise<void> {
     schema: 'pgboss',
   });
 
-  boss.on('error', (error: unknown) => console.error({ scope: 'pg-boss', error }));
+  boss.on('error', (error: unknown) => log.error({ scope: 'pg-boss', error }));
   await boss.start();
 
   // pg-boss 12 menuntut antrean dibuat eksplisit sebelum dipakai. Membuatnya di
@@ -88,7 +89,7 @@ async function main(): Promise<void> {
         try {
           await consumer.run(envelope);
         } catch (error) {
-          console.error({ scope: 'consumer', topic, jobId: job.id, error });
+          log.error({ scope: 'consumer', topic, jobId: job.id, error });
         }
       }
     });
@@ -98,7 +99,7 @@ async function main(): Promise<void> {
   const stop = async (signal: string): Promise<void> => {
     if (!running) return;
     running = false;
-    console.log(`worker: ${signal} diterima, berhenti dengan rapi...`);
+    log.info({ scope: 'worker', event: 'shutdown', signal });
     await boss.stop({ graceful: true });
     await disconnectAll();
     process.exit(0);
@@ -124,10 +125,10 @@ async function main(): Promise<void> {
     try {
       const result = await runContractReminders();
       if (result.reminded > 0 || result.failed > 0) {
-        console.log({ scope: 'contract-reminders', ...result });
+        log.info({ scope: 'contract-reminders', ...result });
       }
     } catch (error) {
-      console.error({ scope: 'contract-reminders', error });
+      log.error({ scope: 'contract-reminders', error });
     }
   };
 
@@ -142,10 +143,10 @@ async function main(): Promise<void> {
     try {
       const result = await runPhotoRetention();
       if (result.deleted > 0 || result.failed > 0 || result.alreadyGone > 0) {
-        console.log({ scope: 'photo-retention', ...result });
+        log.info({ scope: 'photo-retention', ...result });
       }
     } catch (error) {
-      console.error({ scope: 'photo-retention', error });
+      log.error({ scope: 'photo-retention', error });
     }
   };
 
@@ -164,7 +165,7 @@ async function main(): Promise<void> {
     try {
       await runSchemaDriftCheck();
     } catch (error) {
-      console.error({ scope: 'schema-drift', error });
+      log.error({ scope: 'schema-drift', error });
     }
   };
 
@@ -178,24 +179,24 @@ async function main(): Promise<void> {
   }, REMINDER_INTERVAL_MS);
   reminderTimer.unref?.();
 
-  console.log('worker: berjalan. Memompa outbox setiap 2 detik.');
+  log.info({ scope: 'worker', event: 'started', outboxIntervalMs: POLL_INTERVAL_MS });
 
   while (running) {
     try {
       const stats = await pumpOnce(boss);
       if (stats.published > 0 || stats.failed > 0) {
-        console.log({ scope: 'outbox', ...stats });
+        log.info({ scope: 'outbox', ...stats });
       }
       const stuck = await countStuck();
-      if (stuck > 0) console.warn({ scope: 'outbox', stuck });
+      if (stuck > 0) log.warn({ scope: 'outbox', stuck });
     } catch (error) {
-      console.error({ scope: 'outbox-pump', error });
+      log.error({ scope: 'outbox-pump', error });
     }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
 }
 
 main().catch((error: unknown) => {
-  console.error(error);
+  log.error({ scope: 'worker', event: 'fatal', error });
   process.exit(1);
 });

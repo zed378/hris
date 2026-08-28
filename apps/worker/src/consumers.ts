@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { EventTopic } from '@hrms/contracts';
 import { deliverNotification, type NotifiableTopic } from '@hrms/core/notification';
 import type { OutboxEnvelope } from './outbox-pump.ts';
@@ -31,7 +32,7 @@ function notify(topic: NotifiableTopic): Consumer {
     async run({ tenantId, payload }) {
       const result = await deliverNotification(tenantId, topic, payload);
       if (result.status !== 'skipped') {
-        console.log({ scope: 'notification', topic, ...result });
+        log.info({ scope: 'notification', topic, ...result });
       }
     },
   };
@@ -57,7 +58,7 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
         trustScore?: number;
         flags?: string[];
       };
-      console.log({ scope: 'punch-flagged', tenantId, punchId, trustScore, flags });
+      log.info({ scope: 'punch-flagged', tenantId, punchId, trustScore, flags });
     },
   },
 

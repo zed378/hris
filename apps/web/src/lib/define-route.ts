@@ -1,3 +1,4 @@
+import { log } from '@hrms/observability';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { withTenant, type TenantClient } from '@hrms/db';
@@ -148,7 +149,7 @@ function build(
       try {
         return await (handler as PublicHandler)(req, { ...ctx, params });
       } catch (error) {
-        console.error({ correlationId: ctx.correlationId, routeId, error });
+        log.error({ scope: 'route', correlationId: ctx.correlationId, routeId, error });
         return fail(500, ErrorCode.INTERNAL, 'Terjadi kesalahan pada sistem', ctx.correlationId);
       }
     }
@@ -196,7 +197,7 @@ function build(
       // Dicatat, bukan hanya ditolak. Batas yang salah setel harus ketahuan
       // dari log — bukan dari pelanggan yang menelepon karena aplikasinya
       // berhenti bekerja pada jam sibuk.
-      console.warn({
+      log.warn({
         scope: 'tenant-quota',
         tenantId: claims.tid,
         routeId,
@@ -272,7 +273,7 @@ function build(
         );
 
       if (overloaded) {
-        console.warn({ scope: 'overload', correlationId: ctx.correlationId, routeId });
+        log.warn({ scope: 'overload', correlationId: ctx.correlationId, routeId });
         const response = fail(
           503,
           ErrorCode.RATE_LIMITED,
@@ -283,7 +284,7 @@ function build(
         return response;
       }
 
-      console.error({ correlationId: ctx.correlationId, routeId, error });
+      log.error({ scope: 'route', correlationId: ctx.correlationId, routeId, error });
       return fail(
         500,
         ErrorCode.INTERNAL,
