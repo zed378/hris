@@ -102,6 +102,30 @@ export async function calculateDay(
   if (schedule?.isDayOff && !checkIn) return { ...base, status: 'DAY_OFF' };
 
   /**
+   * Tanpa baris jadwal, akhir pekan tetap akhir pekan.
+   *
+   * Anggapan yang sama dipakai `countWorkingDays` pada modul cuti, dan
+   * kesamaannya bukan kerapian: sebelum ini keduanya berbeda pendapat tentang
+   * hari mana yang hari kerja. Cuti menganggap Sabtu dan Minggu bukan hari
+   * kerja; presensi tidak menganggap apa pun, sehingga **setiap Minggu tercatat
+   * ALFA** bagi tenant yang belum menjadwalkan siapa pun.
+   *
+   * Akibatnya tidak berhenti di layar rekap. `buildSnapshot` menghitung
+   * `hariAlfa` dari status ALFA, dan formula gaji memotong berdasarkan angka
+   * itu — sehingga akhir pekan menjadi potongan gaji. Kegagalannya tidak
+   * menghasilkan galat apa pun; ia muncul sebagai slip gaji yang lebih kecil
+   * dari yang seharusnya, pada orang yang tidak punya cara membuktikannya.
+   *
+   * Jadwal tetap menang bila ada — pabrik enam hari yang menjadwalkan Sabtu
+   * masuk tidak terpengaruh anggapan ini, karena baris jadwalnya menjawab lebih
+   * dulu di atas.
+   */
+  if (!schedule && !checkIn) {
+    const weekday = dateOnly.getUTCDay();
+    if (weekday === 0 || weekday === 6) return { ...base, status: 'DAY_OFF' };
+  }
+
+  /**
    * Cuti yang disetujui diperiksa SEBELUM alfa.
    *
    * Tanpa pemeriksaan ini, status `LEAVE` yang ada di tipe tidak pernah

@@ -182,7 +182,7 @@ async function main(): Promise<void> {
   const runAccrualJob = async (): Promise<void> => {
     try {
       const result = await runLeaveAccrual();
-      if (result.accrued > 0 || result.failed > 0) {
+      if (result.accrued > 0 || result.failed > 0 || result.jointLeaveDays > 0) {
         log.info({ scope: 'leave-accrual', ...result });
       }
     } catch (error) {

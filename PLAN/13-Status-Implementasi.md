@@ -386,6 +386,53 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     diketik pengguna" — adalah rencana, bukan fitur. Kolom yang tidak dibaca
     siapa pun tetapi menyimpan data pribadi adalah kewajiban murni, dan itu
     dinyatakan di kodenya alih-alih dibiarkan tampak seperti fitur.
+29. **Tenant tidak dapat memasukkan hari libur nasional sama sekali** — tabelnya
+    ada sejak modul presensi dibangun dan dibaca dua modul, tetapi satu-satunya
+    pengisinya adalah seed: **lima tanggal tahun 2026 yang ditulis tangan**,
+    tanpa satu pun hari raya Islam, Nyepi, Waisak, atau Imlek. Tahun 2027 tidak
+    punya satu pun. Tanggalnya ditetapkan SKB 3 Menteri setiap tahun dan
+    sebagian mengikuti penanggalan Hijriah, sehingga tidak dapat dihitung di
+    muka oleh kode mana pun — ia harus dapat dimasukkan tenant, dan tidak ada
+    jalannya. Akibatnya berlipat dan seluruhnya senyap: cuti yang diajukan
+    melintasi Idul Fitri **memotong saldo** untuk hari kantor tutup, dan
+    rekapitulasi presensi sebelum payroll mencatat **semua orang ALFA** pada
+    setiap hari libur — angka yang langsung dipakai formula gaji untuk memotong
+    upah. Kini ada `GET`/`POST`/`DELETE /api/attendance/holidays` beserta
+    layarnya.
+30. **Akhir pekan tercatat ALFA** — dan ini membatalkan sebagian klaim yang saya
+    tulis sendiri pada nomor sebelumnya. `countWorkingDays` pada modul cuti
+    punya anggapan Senin–Jumat; `calculateDay` pada modul presensi **tidak punya
+    anggapan apa pun**, sehingga tanpa baris jadwal setiap Sabtu dan Minggu
+    menjadi ALFA. `buildSnapshot` menghitung `hariAlfa` dari status itu dan
+    formula gaji memotong berdasarkan angkanya — akhir pekan menjadi potongan
+    gaji. Kedua modul kini memakai anggapan yang sama, dan jadwal tetap menang
+    bila ada.
+31. **`holidays.is_joint_leave` tidak pernah dibaca siapa pun** — kolomnya ada
+    sejak awal dengan komentar yang menyatakan maksudnya persis: *"Cuti bersama
+    memotong hak cuti tahunan; libur nasional tidak."* Tidak ada satu pun jalur
+    kode yang membacanya. Akibatnya berpihak pada karyawan dan karena itu tidak
+    akan pernah dilaporkan: perusahaan dengan empat hari cuti bersama memberikan
+    **empat hari libur berbayar tambahan per karyawan per tahun** di luar jatah
+    12 hari — untuk seratus karyawan, empat ratus hari kerja yang hilang dari
+    perhitungan siapa pun. Dasarnya SKB 3 Menteri, yang menetapkan cuti bersama
+    sebagai pengurang jatah cuti tahunan.
+
+    Pemotongannya idempoten lewat **baris buku besar**, bukan lewat penanda pada
+    tabel libur: penanda akan benar hanya sampai seseorang menambahkan karyawan
+    baru setelah pemotongan berjalan. Ia juga **tidak pernah membuat saldo
+    minus** — karyawan yang jatahnya habis tetap ikut libur karena kantornya
+    tutup, dan kekurangannya dilaporkan agar HR dapat memutuskan, bukan
+    dipaksakan sampai `chk_no_negative_balance` menolaknya pada orang berikutnya
+    yang mengajukan cuti. Menghapus tanggalnya, atau menurunkannya menjadi libur
+    biasa, **mengembalikan** potongannya — pemerintah memang merevisi tanggal
+    cuti bersama di tengah tahun, dan koreksi yang hanya berlaku satu arah
+    berarti hari libur seseorang hilang tanpa jejak.
+
+    Diverifikasi e2e: potongan pertama 2 hari untuk 2 karyawan dengan 1
+    kekurangan tercatat; potongan kedua **0 hari**; libur nasional tidak
+    menghasilkan satu pun baris buku besar; presensi menandai kedua tanggal
+    `HOLIDAY` dan Minggu biasa `DAY_OFF` (bukan `ABSENT`); pembatalan
+    mengembalikan tepat 2 hari.
 
 ---
 

@@ -41,6 +41,13 @@ interface Employee {
   fullName: string;
 }
 
+interface Holiday {
+  id: string;
+  date: string;
+  name: string;
+  isJointLeave: boolean;
+}
+
 interface GenerateResult {
   created: number;
   updated: number;
@@ -88,6 +95,11 @@ export default function ShiftsPage() {
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [tahun, setTahun] = useState(() => new Date().getUTCFullYear());
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [holidayForm, setHolidayForm] = useState({ date: '', name: '', isJointLeave: false });
+  const [holidayMsg, setHolidayMsg] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     const [shiftRes, empRes] = await Promise.all([
@@ -99,9 +111,61 @@ export default function ShiftsPage() {
     setLoading(false);
   }, [api]);
 
+  const loadHolidays = useCallback(async () => {
+    const response = await api(`/api/attendance/holidays?year=${tahun}`);
+    if (response.ok) setHolidays(((await response.json()) as { holidays: Holiday[] }).holidays);
+  }, [api, tahun]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadHolidays();
+  }, [loadHolidays]);
+
+  const simpanHoliday = useCallback(async () => {
+    setHolidayMsg(null);
+    const response = await api('/api/attendance/holidays', {
+      method: 'POST',
+      body: JSON.stringify({ entries: [holidayForm] }),
+    });
+    if (response.ok) {
+      const json = (await response.json()) as { created: number; updated: number; revertedDays: number };
+      setHolidayForm({ date: '', name: '', isJointLeave: false });
+      setHolidayMsg(
+        json.revertedDays > 0
+          ? `Tersimpan. ${json.revertedDays} hari jatah cuti dikembalikan karena tanggal ini tidak lagi ditandai cuti bersama.`
+          : 'Tersimpan.',
+      );
+      void loadHolidays();
+    } else {
+      const json = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+      setHolidayMsg(json?.error?.message ?? 'Gagal menyimpan hari libur.');
+    }
+  }, [api, holidayForm, loadHolidays]);
+
+  const hapusHoliday = useCallback(
+    async (holiday: Holiday) => {
+      setHolidayMsg(null);
+      const response = await api('/api/attendance/holidays', {
+        method: 'DELETE',
+        body: JSON.stringify({ id: holiday.id }),
+      });
+      if (response.ok) {
+        const json = (await response.json()) as { reverted: { employees: number; days: number } };
+        setHolidayMsg(
+          json.reverted.days > 0
+            ? `Dihapus. ${json.reverted.days} hari jatah cuti dikembalikan kepada ${json.reverted.employees} karyawan.`
+            : 'Dihapus.',
+        );
+        void loadHolidays();
+      } else {
+        setHolidayMsg('Gagal menghapus.');
+      }
+    },
+    [api, loadHolidays],
+  );
 
   const hariKerjaSeminggu = useMemo(() => 7 - dayOffs.length, [dayOffs]);
 
@@ -182,6 +246,108 @@ export default function ShiftsPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+      <section className="mt-10 max-w-4xl">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium">Hari libur &amp; cuti bersama</h2>
+          <input
+            type="number"
+            value={tahun}
+            onChange={(e) => setTahun(Number(e.target.value))}
+            className="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
+        </div>
+
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Tanggal libur nasional ditetapkan SKB 3 Menteri setiap tahun dan
+          sebagian mengikuti penanggalan Hijriah, sehingga tidak dapat dihitung
+          di muka — ia harus dimasukkan di sini. Tanpa tanggalnya, cuti yang
+          diajukan melintasi hari libur akan memotong saldo, dan rekap presensi
+          akan mencatat semua orang alfa.
+        </p>
+
+        {holidays.length === 0 ? (
+          <p className="mt-3 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            Belum ada hari libur untuk {tahun}.
+          </p>
+        ) : (
+          <ul className="mt-3 divide-y divide-slate-200 dark:divide-slate-800">
+            {holidays.map((holiday) => (
+              <li key={holiday.id} className="flex items-center gap-3 py-2 text-sm">
+                <span className="w-28 font-mono text-xs text-slate-500">{holiday.date}</span>
+                <span className="flex-1">{holiday.name}</span>
+                {holiday.isJointLeave && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                    cuti bersama — memotong jatah
+                  </span>
+                )}
+                <button
+                  onClick={() => void hapusHoliday(holiday)}
+                  className="text-xs text-rose-600 underline"
+                >
+                  Hapus
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            <span className="block text-slate-600 dark:text-slate-400">Tanggal</span>
+            <input
+              type="date"
+              value={holidayForm.date}
+              onChange={(e) => setHolidayForm((f) => ({ ...f, date: e.target.value }))}
+              className="mt-1 rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
+          <label className="flex-1 text-sm">
+            <span className="block text-slate-600 dark:text-slate-400">Nama</span>
+            <input
+              value={holidayForm.name}
+              onChange={(e) => setHolidayForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="mis. Hari Raya Idul Fitri"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
+          {/*
+            Pembedaan ini bukan tata nama, dan karena itu dijelaskan di layar.
+            SKB 3 Menteri menetapkan cuti bersama sebagai PENGURANG jatah cuti
+            tahunan; libur nasional tidak. Salah menandai berarti perusahaan
+            memberi empat hari libur berbayar tambahan per karyawan per tahun,
+            atau memotong jatah yang seharusnya utuh — dan keduanya tidak akan
+            terlihat sampai seseorang menghitung ulang saldonya sendiri.
+          */}
+          <label className="flex items-center gap-2 pb-2 text-sm">
+            <input
+              type="checkbox"
+              checked={holidayForm.isJointLeave}
+              onChange={(e) => setHolidayForm((f) => ({ ...f, isJointLeave: e.target.checked }))}
+            />
+            Cuti bersama
+          </label>
+          <button
+            onClick={() => void simpanHoliday()}
+            disabled={!holidayForm.date || holidayForm.name.trim().length < 2}
+            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-50"
+          >
+            Simpan
+          </button>
+        </div>
+
+        {holidayForm.isJointLeave && (
+          <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+            Cuti bersama memotong jatah cuti tahunan setiap karyawan sebanyak
+            satu hari. Pemotongannya berjalan otomatis dan tercatat di buku besar
+            saldo; menghapus tanggal ini mengembalikannya.
+          </p>
+        )}
+
+        {holidayMsg && (
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{holidayMsg}</p>
         )}
       </section>
 

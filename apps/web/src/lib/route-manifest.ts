@@ -249,6 +249,20 @@ export const ROUTE_MANIFEST = {
   'POST /api/attendance/records': { module: 'attendance', permission: 'attendance.record.correct' },
   'GET /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.record.read.own' },
   'POST /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.shift.manage' },
+  'GET /api/attendance/holidays': {
+    module: 'attendance',
+    // Semua orang perlu melihatnya: kalender cuti menampilkannya, dan karyawan
+    // yang mengajukan cuti perlu tahu tanggal mana yang tidak memotong saldo.
+    permission: 'attendance.record.read.own',
+  },
+  'POST /api/attendance/holidays': {
+    module: 'attendance',
+    permission: 'attendance.shift.manage',
+  },
+  'DELETE /api/attendance/holidays': {
+    module: 'attendance',
+    permission: 'attendance.shift.manage',
+  },
   'GET /api/attendance/schedules': {
     module: 'attendance',
     permission: 'attendance.record.read.own',

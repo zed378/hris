@@ -1,6 +1,6 @@
 import { log } from '@hrms/observability';
 import { withTenant, workerClient } from '@hrms/db';
-import { runAccrual } from '@hrms/core/leave';
+import { applyJointLeave, runAccrual } from '@hrms/core/leave';
 
 /**
  * Akrual jatah cuti: menaikkan jatah orang-orang yang menabungnya per bulan.
@@ -20,6 +20,10 @@ export interface AccrualSummary {
   reviewed: number;
   accrued: number;
   days: number;
+  /** Hari yang dipotong cuti bersama. */
+  jointLeaveDays: number;
+  /** Karyawan yang jatahnya tidak cukup untuk cuti bersama. */
+  jointLeaveShortfalls: number;
   failed: number;
 }
 
@@ -33,6 +37,8 @@ export async function runLeaveAccrual(asOf: Date = new Date()): Promise<AccrualS
     reviewed: 0,
     accrued: 0,
     days: 0,
+    jointLeaveDays: 0,
+    jointLeaveShortfalls: 0,
     failed: 0,
   };
 
@@ -47,6 +53,27 @@ export async function runLeaveAccrual(asOf: Date = new Date()): Promise<AccrualS
       summary.reviewed += result.reviewed;
       summary.accrued += result.accrued;
       summary.days += result.days;
+
+      /**
+       * Cuti bersama dipotong pada irama yang sama, dan transaksi terpisah.
+       *
+       * Terpisah karena keduanya menyentuh baris saldo yang sama: kegagalan
+       * pemotongan cuti bersama tidak boleh membatalkan akrual yang sudah benar
+       * pada tenant itu.
+       *
+       * Harian dan idempoten dengan alasan yang sama seperti akrual —
+       * idempotensinya bertumpu pada baris buku besar yang sudah ada, bukan
+       * pada penanda yang harus diingat siapa pun. HR yang menempelkan daftar
+       * SKB pada bulan Maret tetap mendapat pemotongan yang benar keesokan
+       * harinya, tanpa menekan apa pun.
+       */
+      const joint = await withTenant(
+        tenantId,
+        (tx) => applyJointLeave(tx, tenantId, asOf.getUTCFullYear()),
+        { client: workerClient() },
+      );
+      summary.jointLeaveDays += joint.days;
+      summary.jointLeaveShortfalls += joint.shortfalls.length;
     } catch (error) {
       summary.failed += 1;
       log.error({ scope: 'leave-accrual', tenantId, error });

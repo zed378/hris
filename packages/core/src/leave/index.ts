@@ -34,3 +34,8 @@ export {
   type LeaveOnDate,
   type DayOffMap,
 } from './requests.ts';
+export {
+  applyJointLeave,
+  revertJointLeave,
+  type JointLeaveResult,
+} from './joint-leave.ts';
