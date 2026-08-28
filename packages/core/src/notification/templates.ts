@@ -147,6 +147,87 @@ export function contractExpiringEmail(input: {
   return { subject, text: [`Halo,`, '', ...body].join('\n') };
 }
 
+/**
+ * Pengingat dokumen yang akan kedaluwarsa.
+ *
+ * Isinya berbeda menurut jenis dokumen, dan itu yang membuat email ini bernilai.
+ * "Dokumen KITAS akan berakhir" tidak dapat ditindaklanjuti siapa pun yang
+ * membacanya sambil lalu; "tenaga kerja asing bekerja tanpa izin adalah pidana
+ * bagi perusahaan" dapat.
+ */
+export function documentExpiringEmail(input: {
+  tenantName: string;
+  employeeName: string;
+  employeeNumber: string;
+  kind: string;
+  title: string;
+  expiresAt: string;
+  daysLeft: number;
+  threshold: string;
+}): RenderedEmail {
+  const expired = input.threshold === 'EXPIRED';
+
+  const subject = expired
+    ? `PERLU TINDAKAN: ${input.kind} ${input.employeeName} sudah kedaluwarsa`
+    : `${input.kind} ${input.employeeName} ${remainingText(input.daysLeft)}`;
+
+  const body = [
+    `Dokumen berikut ${remainingText(input.daysLeft)}:`,
+    '',
+    `  Karyawan        : ${input.employeeName} (${input.employeeNumber})`,
+    `  Jenis dokumen   : ${input.kind}`,
+    `  Judul           : ${input.title}`,
+    `  Berlaku sampai  : ${formatDate(input.expiresAt)}`,
+    '',
+  ];
+
+  const konsekuensi = consequenceText(input.kind);
+  if (konsekuensi) body.push(konsekuensi, '');
+
+  if (expired) {
+    body.push(
+      `Dokumen ini kedaluwarsa ${Math.abs(input.daysLeft)} hari lalu dan belum diperbarui.`,
+    );
+  } else {
+    body.push('Perpanjangan perlu dimulai sekarang — sebagian izin memakan waktu berminggu-minggu.');
+  }
+
+  body.push('', 'Lihat dokumen karyawan:', appUrl('/employees/documents'));
+
+  return { subject, text: [`Halo,`, '', ...body].join('\n') };
+}
+
+/**
+ * Akibat yang menunggu bila dokumen ini dibiarkan lewat.
+ *
+ * Hanya untuk jenis yang akibatnya konkret dan dapat dinyatakan tanpa menebak.
+ * Jenis lain tidak diberi kalimat apa pun — peringatan yang dikarang untuk
+ * setiap jenis dokumen akan membuat yang sungguhan ikut diabaikan.
+ */
+function consequenceText(kind: string): string | null {
+  switch (kind.toUpperCase()) {
+    case 'KITAS':
+    case 'IMTA':
+      return (
+        'KITAS/IMTA yang kedaluwarsa berarti tenaga kerja asing bekerja tanpa izin.\n' +
+        'Menurut UU 6/2011 tentang Keimigrasian, ini pidana bagi perusahaan dan dapat\n' +
+        'berujung deportasi bagi yang bersangkutan.'
+      );
+    case 'SIM':
+      return (
+        'SIM yang kedaluwarsa berarti mengemudi tanpa izin. Klaim asuransi kendaraan\n' +
+        'dapat ditolak pada kecelakaan pertama, dan tanggung jawabnya jatuh ke perusahaan.'
+      );
+    case 'SERTIFIKAT':
+      return (
+        'Sertifikat kompetensi yang kedaluwarsa dapat membatalkan kelayakan pada\n' +
+        'pekerjaan yang mensyaratkannya.'
+      );
+    default:
+      return null;
+  }
+}
+
 function formatDate(iso: string): string {
   const [year, month, day] = iso.slice(0, 10).split('-');
   const months = [

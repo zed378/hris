@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { DOCUMENT_KINDS } from '@hrms/contracts';
 import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 import { openFile } from '@/lib/download.ts';
@@ -37,7 +38,10 @@ interface DocumentRow {
   archivedAt: string | null;
 }
 
-const KINDS = ['KTP', 'KK', 'NPWP', 'IJAZAH', 'KONTRAK', 'SERTIFIKAT', 'LAINNYA'];
+// Satu sumber, bukan salinan. Daftar yang ditulis ulang di sini akan berbeda
+// dari basis data pada penambahan pertama yang lupa menyalinnya, dan bedanya
+// baru muncul sebagai 500 pada unggahan pertama.
+const KINDS = DOCUMENT_KINDS;
 
 const FIELD =
   'rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-950';

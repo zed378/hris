@@ -317,6 +317,24 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     tidak ada satu pun jalur yang akan memperbaikinya kemudian. Ditemukan saat
     menelusuri interaksinya dengan penutupan tahun, bukan oleh uji. Kini dijaga
     uji regresi yang diverifikasi lewat mutasi.
+23. **Kolom `expires_at` dibangun untuk dokumen yang tidak dapat dimasukkan** —
+    bentuk kegagalan diam yang belum pernah muncul sebelumnya di daftar ini.
+    Daftar jenis dokumen yang diizinkan CHECK constraint berisi KTP, KK, NPWP,
+    IJAZAH, KONTRAK, SERTIFIKAT, LAINNYA. Dari tujuh itu hanya KONTRAK dan
+    SERTIFIKAT yang punya tanggal berakhir — dan KONTRAK sudah punya jalur
+    pengingatnya sendiri. **KITAS, IMTA, dan SIM tidak ada di daftar itu**,
+    sehingga izin kerja tenaga asing hanya dapat disimpan sebagai 'LAINNYA', dan
+    sebagai 'LAINNYA' ia tidak dapat dibedakan dari fotokopi apa pun. Fitur
+    kedaluwarsa dibangun untuk kasus yang tidak dapat direpresentasikan.
+    Ditemukan hanya karena uji e2e mencoba membuat dokumen KITAS sungguhan.
+24. **Daftar jenis dokumen ditulis tangan di tiga tempat** — CHECK constraint,
+    konstanta di core, dan sebuah array di halaman unggah. Ketiganya sudah
+    berbeda. Perbedaan seperti itu tidak menghasilkan galat saat kompilasi
+    maupun deploy; ia muncul sebagai HTTP 500 pada unggahan pertama seseorang.
+    Kini satu konstanta di `@hrms/contracts` (klien-aman, tanpa Prisma) dan satu
+    constraint, dengan uji yang membandingkan keduanya terhadap **katalog
+    PostgreSQL** — bukan terhadap daftar yang ditulis ulang di berkas uji.
+    Diverifikasi lewat mutasi: mengubah satu nilai menggagalkan 2 uji.
 
 ---
 

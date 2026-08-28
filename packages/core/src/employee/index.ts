@@ -90,3 +90,4 @@ export {
   type DocumentSummary,
   type UploadInput,
 } from './documents.ts';
+export { scanDocumentReminders } from './document-reminders.ts';

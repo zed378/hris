@@ -46,6 +46,7 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
   [EventTopic.PASSWORD_RESET_REQUESTED]: notify('auth.password.reset_requested'),
   [EventTopic.USER_INVITED]: notify('iam.user.invited'),
   [EventTopic.CONTRACT_EXPIRING]: notify('employee.contract.expiring'),
+  [EventTopic.DOCUMENT_EXPIRING]: notify('employee.document.expiring'),
 
   /**
    * Presensi yang ditandai untuk ditinjau.

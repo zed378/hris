@@ -1,6 +1,6 @@
 import { log } from '@hrms/observability';
 import { withTenant, workerClient } from '@hrms/db';
-import { scanContractReminders } from '@hrms/core/employee';
+import { scanContractReminders, scanDocumentReminders } from '@hrms/core/employee';
 
 /**
  * Job harian pengingat kontrak.
@@ -31,13 +31,27 @@ export async function runContractReminders(): Promise<ReminderJobResult> {
 
   for (const { tenant_id: tenantId } of tenants) {
     try {
-      const scan = await withTenant(
+      // Kontrak dan dokumen dipindai dalam TRANSAKSI TERPISAH, bukan satu.
+      //
+      // Keduanya menerbitkan event ke outbox, dan satu transaksi bersama berarti
+      // kegagalan pemindaian dokumen membatalkan pengingat kontrak yang sudah
+      // benar — pada tenant yang sama, di hari yang sama, tanpa ada yang tahu
+      // mengapa email kontraknya tidak datang.
+      const contracts = await withTenant(
         tenantId,
         (tx) => scanContractReminders(tx, tenantId),
         { client: workerClient() },
       );
-      result.scanned += scan.scanned;
-      result.reminded += scan.reminded;
+      result.scanned += contracts.scanned;
+      result.reminded += contracts.reminded;
+
+      const documents = await withTenant(
+        tenantId,
+        (tx) => scanDocumentReminders(tx, tenantId),
+        { client: workerClient() },
+      );
+      result.scanned += documents.scanned;
+      result.reminded += documents.reminded;
     } catch (error) {
       // Kegagalan satu tenant tidak menghentikan sisanya. Job yang berhenti di
       // tenant pertama yang bermasalah berarti seluruh pelanggan lain kehilangan

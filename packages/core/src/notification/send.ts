@@ -2,6 +2,7 @@ import { withTenant, workerClient, Prisma, type TenantClient } from '@hrms/db';
 import { emailTransport, type EmailMessage } from './transport.ts';
 import {
   contractExpiringEmail,
+  documentExpiringEmail,
   invitationEmail,
   passwordResetEmail,
   type RenderedEmail,
@@ -33,7 +34,8 @@ import {
 export type NotifiableTopic =
   | 'auth.password.reset_requested'
   | 'iam.user.invited'
-  | 'employee.contract.expiring';
+  | 'employee.contract.expiring'
+  | 'employee.document.expiring';
 
 export interface DeliveryResult {
   status: 'sent' | 'skipped' | 'failed';
@@ -105,19 +107,33 @@ async function planDelivery(
     };
   }
 
+  if (topic === 'employee.document.expiring') {
+    // Ditujukan ke pemegang izin mengelola dokumen, bukan ke karyawannya.
+    // Yang dapat memperpanjang KITAS bukan orang yang KITAS-nya habis.
+    const recipients = await hrRecipients(tx, tenantId, 'employee.document.manage');
+    if (recipients.length === 0) return null;
+
+    return {
+      // Dokumen + ambang, bukan tanggal — alasannya sama dengan kontrak:
+      // pemindaian harian akan menemukan dokumen yang sama setiap hari.
+      dedupeKey: `document_expiring:${String(payload['documentId'])}:${String(payload['threshold'])}`,
+      recipient: recipients.join(', '),
+      email: documentExpiringEmail({
+        tenantName: tenant.name,
+        employeeName: String(payload['employeeName']),
+        employeeNumber: String(payload['employeeNumber']),
+        kind: String(payload['kind']),
+        title: String(payload['title']),
+        expiresAt: String(payload['expiresAt']),
+        daysLeft: Number(payload['daysLeft']),
+        threshold: String(payload['threshold']),
+      }),
+    };
+  }
+
   // Pengingat kontrak ditujukan ke HR, bukan ke karyawan yang bersangkutan.
   // Yang perlu bertindak adalah pemegang izin mengelola kontrak.
-  const recipients = await tx.user.findMany({
-    where: {
-      tenantId,
-      status: 'ACTIVE',
-      roles: {
-        some: { role: { permissions: { some: { permissionCode: 'employee.contract.manage' } } } },
-      },
-    },
-    select: { email: true },
-    take: 5,
-  });
+  const recipients = await hrRecipients(tx, tenantId, 'employee.contract.manage');
 
   if (recipients.length === 0) return null;
 
@@ -126,7 +142,7 @@ async function planDelivery(
     // yang sama akan terus masuk rentang; kunci inilah yang membuat HR menerima
     // satu pengingat per ambang, bukan satu per hari selama tiga bulan.
     dedupeKey: `contract_expiring:${String(payload['contractId'])}:${String(payload['threshold'])}`,
-    recipient: recipients.map((r) => r.email).join(', '),
+    recipient: recipients.join(', '),
     email: contractExpiringEmail({
       tenantName: tenant.name,
       employeeName: String(payload['employeeName']),
@@ -138,6 +154,30 @@ async function planDelivery(
       threshold: String(payload['threshold']),
     }),
   };
+}
+
+/**
+ * Alamat email pemegang sebuah izin di tenant ini.
+ *
+ * Dibatasi lima. Pengingat yang dikirim ke tiga puluh orang bukan pengingat;
+ * ia pengumuman, dan tidak ada satu pun dari tiga puluh orang itu yang merasa
+ * dirinyalah yang harus bertindak.
+ */
+async function hrRecipients(
+  tx: TenantClient,
+  tenantId: string,
+  permissionCode: string,
+): Promise<string[]> {
+  const users = await tx.user.findMany({
+    where: {
+      tenantId,
+      status: 'ACTIVE',
+      roles: { some: { role: { permissions: { some: { permissionCode } } } } },
+    },
+    select: { email: true },
+    take: 5,
+  });
+  return users.map((u) => u.email);
 }
 
 export async function deliverNotification(

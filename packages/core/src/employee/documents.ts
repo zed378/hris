@@ -1,3 +1,4 @@
+import { type DocumentKind } from '@hrms/contracts';
 import { writeAudit, type TenantClient } from '@hrms/db';
 import { createBlobStore, BlobError } from '../storage/index.ts';
 
@@ -30,17 +31,11 @@ export class DocumentError extends Error {
   }
 }
 
-export const DOCUMENT_KINDS = [
-  'KTP',
-  'KK',
-  'NPWP',
-  'IJAZAH',
-  'KONTRAK',
-  'SERTIFIKAT',
-  'LAINNYA',
-] as const;
+// Daftar jenisnya tinggal di `@hrms/contracts` supaya layar unggah — komponen
+// klien — dapat memakainya tanpa menarik Prisma ke dalam bundel peramban.
+// Di-ekspor ulang di sini agar pemanggil di modul karyawan tidak perlu tahu itu.
+export { DOCUMENT_KINDS, type DocumentKind } from '@hrms/contracts';
 
-export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
 /** Pindaian KTP resolusi wajar ≈ 1-3 MB; ijazah berwarna bisa 8 MB. */
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;

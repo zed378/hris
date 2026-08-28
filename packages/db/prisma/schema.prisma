@@ -1178,9 +1178,31 @@ model EmployeeDocument {
   archivedAt DateTime? @map("archived_at")
   archivedBy String?   @map("archived_by") @db.Uuid
 
+  reminders DocumentReminder[]
+
   @@index([tenantId, employeeId])
   @@index([tenantId, expiresAt])
   @@map("employee_documents")
+  @@schema("employee")
+}
+
+/// Pengingat yang sudah dikirim untuk satu dokumen pada satu ambang.
+///
+/// Unique (documentId, threshold) adalah kunci idempotensinya: pemindaian
+/// harian yang menemukan dokumen yang sama setiap hari selama tiga bulan tetap
+/// menghasilkan satu pengingat per ambang.
+model DocumentReminder {
+  id         String            @id @default(uuid()) @db.Uuid
+  tenantId   String            @map("tenant_id") @db.Uuid
+  documentId String            @map("document_id") @db.Uuid
+  threshold  ReminderThreshold
+  sentAt     DateTime          @default(now()) @map("sent_at")
+
+  document EmployeeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, threshold])
+  @@index([tenantId, sentAt])
+  @@map("document_reminders")
   @@schema("employee")
 }
 

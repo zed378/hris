@@ -27,6 +27,7 @@ export const EventTopic = {
   EMPLOYEE_CREATED: 'employee.created',
   EMPLOYEE_IMPORT_COMMITTED: 'employee.import.committed',
   CONTRACT_EXPIRING: 'employee.contract.expiring',
+  DOCUMENT_EXPIRING: 'employee.document.expiring',
 
   PUNCH_FLAGGED: 'attendance.punch.flagged',
 
