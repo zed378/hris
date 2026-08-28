@@ -433,6 +433,48 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     menghasilkan satu pun baris buku besar; presensi menandai kedua tanggal
     `HOLIDAY` dan Minggu biasa `DAY_OFF` (bukan `ABSENT`); pembatalan
     mengembalikan tepat 2 hari.
+32. **Pelanggan yang berhenti membayar tidak dapat dinonaktifkan** —
+    `TenantStatus.SUSPENDED` dan `CHURNED` diperiksa sejak awal pada login,
+    refresh token, dan permintaan reset kata sandi, seluruhnya fail-closed dan
+    benar. Yang tidak ada adalah satu pun jalur yang **menghasilkan** status itu.
+    Seluruh mesin langganan bekerja — paket, entitlement, uji coba 14 hari,
+    penolakan 402 per modul — tanpa tombol terakhir yang menghentikan akses
+    ketika tagihan tidak dibayar. Demikian pula pelanggan yang meminta
+    pengakhiran layanan: `CHURNED` tidak dapat dicapai, sehingga permintaan itu
+    hanya dapat dilayani dengan menghapus data — tindakan yang tidak dapat
+    dibatalkan, dan bukan yang diminta. Kini ada
+    `POST /admin/api/tenants/status` dengan alasan wajib.
+
+    **Penolakan hak akses yang muncul saat mengujinya adalah rancangan yang
+    bekerja, bukan bug.** `hrms_platform` hanya punya SELECT pada
+    `tenant.tenants`; control plane sengaja hampir tidak dapat menulis apa pun
+    ke bidang tenant. Karena itu haknya diperluas sekecil mungkin — `UPDATE`
+    pada **empat kolom**, bukan pada tabel — sehingga superuser yang kelak
+    dikompromikan tidak dapat mengganti nama perusahaan atau memindahkan
+    paketnya.
+
+    Satu detail yang mahal untuk didiagnosis dan karena itu dicatat di
+    migrasinya: `updated_at` harus ikut di dalam daftar kolom, karena
+    `@updatedAt` pada Prisma menuliskannya pada **setiap** pembaruan. Tanpa itu
+    PostgreSQL menjawab *"permission denied for **table** tenants"* — menyebut
+    tabelnya, bukan kolom yang kurang — sehingga penolakannya terlihat seperti
+    hak tabel yang lupa diberikan, dan godaan berikutnya adalah memberikan
+    `UPDATE` penuh.
+
+    Diverifikasi: penangguhan menulis `suspendedAt`, pengulangan status yang
+    sama ditolak 409, pengaktifan kembali **tidak mengosongkan** `suspendedAt`
+    (riwayatnya dibutuhkan saat sengketa tagihan), dan kedua transisi tercatat
+    di jejak audit platform beserta alasannya. Percobaan menghapus jejak itu
+    ditolak — tabelnya append-only, juga bagi peran platform.
+33. **Tidak ada satu pun jalur yang menandai run payroll terbayar** — status
+    `PAID` dan kolom `paid_at` ada sejak awal, dan **dua jalur baca
+    memeriksanya** (dasbor dan daftar slip sama-sama memperlakukan `APPROVED`
+    dan `PAID` sebagai "sudah dirilis"). Tidak ada yang memproduksinya.
+    Persetujuan dan pembayaran adalah dua peristiwa berbeda yang sering terpisah
+    berhari-hari — run disetujui tanggal 25, transfer bank dieksekusi tanggal 28
+    — dan tanpa pembedaan itu pertanyaan "apakah gaji bulan lalu sudah
+    benar-benar keluar" tidak punya jawaban di dalam sistem. Yang bertanya
+    adalah karyawan yang uangnya belum masuk.
 
 ---
 
@@ -613,6 +655,19 @@ Yang tidak terkunci Gerbang C tetapi belum dibangun:
 - **Penagihan (Midtrans/Xendit)** — menuntut akun payment gateway beserta
   kredensialnya. Model langganan, invoice, dan dunning dapat dibangun tanpa
   akun, tetapi integrasinya tidak dapat diuji tanpa sandbox yang sungguhan.
+- ~~**Menangguhkan pelanggan yang tidak membayar**~~ — **selesai** (nomor 32).
+  `POST /admin/api/tenants/status`. Penangguhan tidak menghapus apa pun:
+  pelanggan yang membayar tunggakannya pada hari ketiga menemukan datanya utuh,
+  dan yang tidak kembali tetap berhak atas ekspor portabilitasnya. Sesi yang
+  sudah berjalan tidak dicabut paksa — access token yang terbit tetap berlaku
+  sampai kedaluwarsa, sementara login dan refresh ditolak sejak detik itu.
+  Jendelanya selebar umur access token, dan itu diterima: mencabut paksa
+  menuntut daftar pencabutan yang dibaca setiap permintaan, dan biaya itu
+  ditanggung seluruh pelanggan yang tidak pernah ditangguhkan.
+- **Bidang admin belum punya satu pun layar** — seluruh control plane hanya
+  berupa endpoint. Ini bukan kelalaian (dokumen 11: bidang admin bukan PWA dan
+  sengaja terpisah), tetapi menangguhkan pelanggan lewat `curl` bukan operasi
+  yang layak dilakukan dua kali.
 - **Penagihan tetap satu-satunya yang belum ada.** Selebihnya — pendaftaran
   mandiri, uji coba 14 hari, aktivasi modul, dasbor, pengerasan, dan ekspor
   portabilitas — sudah berjalan dan terbukti.

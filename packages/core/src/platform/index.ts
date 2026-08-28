@@ -10,6 +10,9 @@ export {
   listTenants,
   platformOverview,
   setTenantModule,
+  setTenantStatus,
+  TenantStatusError,
+  type TenantLifecycleStatus,
   ModuleToggleError,
   type TenantSummary,
 } from './tenant-admin.ts';

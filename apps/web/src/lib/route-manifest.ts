@@ -326,6 +326,7 @@ export const ADMIN_ROUTE_MANIFEST = {
   },
   'GET /admin/api/tenants': {},
   'POST /admin/api/tenants': {},
+  'POST /admin/api/tenants/status': {},
   'GET /admin/api/overview': {},
 } as const satisfies Record<string, AdminRouteRule>;
 

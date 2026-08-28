@@ -51,6 +51,7 @@ const STATUS_TONE: Record<string, string> = {
   CALCULATING: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
   CALCULATED: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   APPROVED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  PAID: 'bg-emerald-600 text-white dark:bg-emerald-700',
   FAILED: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
   CANCELLED: 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
 };
@@ -313,6 +314,26 @@ export default function PayrollRunsPage() {
                     className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
                   >
                     Setujui
+                  </button>
+                )}
+
+                {/*
+                  Persetujuan dan pembayaran adalah dua peristiwa berbeda yang
+                  sering terpisah berhari-hari: run disetujui tanggal 25,
+                  transfer bank dieksekusi tanggal 28. Tanpa pembedaan itu,
+                  pertanyaan "apakah gaji bulan lalu sudah benar-benar keluar"
+                  tidak punya jawaban di dalam sistem — dan yang bertanya adalah
+                  karyawan yang uangnya belum masuk.
+                */}
+                {run.status === 'APPROVED' && canApprove && (
+                  <button
+                    onClick={() =>
+                      void act(run.id, { action: 'markPaid' }, 'Ditandai sudah dibayarkan.')
+                    }
+                    disabled={busy}
+                    className="rounded-md border border-emerald-600 px-3 py-1.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                  >
+                    Tandai sudah dibayar
                   </button>
                 )}
 

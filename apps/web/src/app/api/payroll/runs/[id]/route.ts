@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
 import { PayrollError } from '@hrms/core/payroll';
 import { EventTopic } from '@hrms/contracts';
-import { publishEvent } from '@hrms/db';
+import { publishEvent, writeAudit } from '@hrms/db';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 
 export const runtime = 'nodejs';
@@ -59,6 +59,7 @@ export const GET = defineRoute('GET /api/payroll/runs/[id]', async (_req, ctx) =
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('calculate') }),
   z.object({ action: z.literal('approve') }),
+  z.object({ action: z.literal('markPaid'), reference: z.string().trim().max(120).optional() }),
   z.object({ action: z.literal('cancel'), reason: z.string().trim().min(4).max(500) }),
 ]);
 
@@ -171,6 +172,66 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
         select: { id: true, status: true },
       });
       return NextResponse.json(approved);
+    }
+
+    if (parsed.data.action === 'markPaid') {
+      /**
+       * Menandai gaji sudah benar-benar dibayarkan.
+       *
+       * Status `PAID` dan kolom `paid_at` ada sejak modul payroll dibangun, dan
+       * dua jalur baca memeriksanya — dasbor dan daftar slip keduanya
+       * memperlakukan `APPROVED` dan `PAID` sebagai "sudah dirilis". Tetapi
+       * **tidak ada satu pun jalur yang menghasilkannya**, pola yang sama dengan
+       * `LEAVE`, `MANUAL`, `DISCARDED`, dan status tenant.
+       *
+       * Yang hilang bukan kosakata. Persetujuan dan pembayaran adalah dua
+       * peristiwa berbeda yang sering terpisah berhari-hari: run disetujui
+       * tanggal 25, transfer bank dieksekusi tanggal 28. Tanpa pembedaan itu,
+       * pertanyaan "apakah gaji bulan lalu sudah benar-benar keluar" tidak punya
+       * jawaban di dalam sistem — dan pertanyaan itu datang dari karyawan yang
+       * uangnya belum masuk.
+       *
+       * Izinnya sama dengan menyetujui: yang berhak melepas run adalah yang
+       * berhak menyatakan uangnya sudah keluar.
+       */
+      if (!ctx.access.permissions.includes(APPROVE)) {
+        return apiError(
+          403,
+          ErrorCode.PERMISSION_DENIED,
+          'Menandai run terbayar membutuhkan izin persetujuan run.',
+          ctx.correlationId,
+        );
+      }
+
+      const run = await ctx.tx.payrollRun.findFirst({
+        where: { id: runId, tenantId: ctx.tenantId },
+        select: { status: true },
+      });
+      if (run?.status !== 'APPROVED') {
+        return apiError(
+          409,
+          ErrorCode.CONFLICT,
+          `Hanya run yang sudah disetujui dapat ditandai terbayar. Status saat ini: ${run?.status ?? 'tidak ada'}.`,
+          ctx.correlationId,
+        );
+      }
+
+      const paid = await ctx.tx.payrollRun.update({
+        where: { id: runId },
+        data: { status: 'PAID', paidAt: new Date() },
+        select: { id: true, status: true, paidAt: true },
+      });
+
+      await writeAudit(ctx.tx, ctx.tenantId, {
+        action: 'payroll.run.paid',
+        entityType: 'payroll_run',
+        entityId: runId,
+        actorUserId: ctx.userId,
+        correlationId: ctx.correlationId,
+        after: { paidAt: paid.paidAt, reference: parsed.data.reference ?? null },
+      });
+
+      return NextResponse.json(paid);
     }
 
     // Pembatalan. Slipnya TIDAK dihapus — run yang dibatalkan tetap dapat

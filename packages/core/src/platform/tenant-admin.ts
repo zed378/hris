@@ -198,3 +198,95 @@ export async function setTenantModule(input: {
 
   return row;
 }
+
+export class TenantStatusError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TenantStatusError';
+  }
+}
+
+export type TenantLifecycleStatus = 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CHURNED';
+
+/**
+ * Mengubah status siklus hidup satu tenant.
+ *
+ * `SUSPENDED` dan `CHURNED` **diperiksa sejak awal** pada login, refresh token,
+ * dan permintaan reset kata sandi — seluruhnya fail-closed dan benar. Yang tidak
+ * ada adalah **satu pun jalur yang menghasilkan status itu.** Keduanya nilai
+ * enum tanpa produsen, pola yang sama dengan `LEAVE`, `MANUAL`, `DISCARDED`, dan
+ * metode akrual cuti.
+ *
+ * Akibatnya langsung mengenai sisi komersial: pelanggan yang berhenti membayar
+ * **tidak dapat dinonaktifkan**. Seluruh mesin langganan — paket, entitlement,
+ * uji coba 14 hari, penolakan 402 per modul — bekerja, tetapi tidak ada tombol
+ * terakhir yang menghentikan akses ketika tagihan tidak dibayar. Demikian pula
+ * pelanggan yang meminta pengakhiran layanan: `CHURNED` tidak dapat dicapai,
+ * sehingga permintaan itu hanya dapat dipenuhi dengan menghapus data — tindakan
+ * yang tidak dapat dibatalkan, dan bukan yang diminta.
+ *
+ * ## Yang sengaja TIDAK dilakukan
+ *
+ * **Tidak menghapus apa pun.** Penangguhan adalah keadaan, bukan penghapusan.
+ * Pelanggan yang membayar tunggakannya pada hari ketiga harus menemukan seluruh
+ * datanya utuh — dan pelanggan yang tidak kembali tetap berhak atas ekspor
+ * portabilitasnya.
+ *
+ * **Tidak mencabut sesi yang sedang berjalan secara paksa.** Access token yang
+ * sudah terbit tetap berlaku sampai kedaluwarsa; login dan refresh ditolak
+ * sejak detik ini. Jendelanya selebar umur access token, dan itu diterima:
+ * mencabut paksa menuntut daftar pencabutan yang dibaca setiap permintaan, dan
+ * biaya itu ditanggung seluruh pelanggan yang tidak pernah ditangguhkan.
+ */
+export async function setTenantStatus(input: {
+  tenantId: string;
+  status: TenantLifecycleStatus;
+  /** Alasan wajib. Penangguhan tanpa alasan tidak dapat dijelaskan kepada pelanggan yang menelepon. */
+  reason: string;
+  actorSuperuserId: string;
+}): Promise<{ tenantId: string; status: string; previousStatus: string }> {
+  const db = platformClient();
+
+  const tenant = await db.tenant.findUnique({
+    where: { id: input.tenantId },
+    select: { id: true, code: true, status: true },
+  });
+  if (!tenant) throw new TenantStatusError('Tenant tidak ditemukan');
+
+  if (tenant.status === input.status) {
+    throw new TenantStatusError(`Tenant sudah berstatus ${input.status}`);
+  }
+
+  const now = new Date();
+
+  // Stempel waktu hanya DIPASANG, tidak pernah dikosongkan.
+  //
+  // "Kapan tenant ini pernah ditangguhkan" adalah pertanyaan yang akan
+  // ditanyakan saat ada sengketa tagihan, dan mengaktifkan kembali bukan alasan
+  // untuk menghapus jawabannya.
+  const stamps =
+    input.status === 'SUSPENDED'
+      ? { suspendedAt: now }
+      : input.status === 'CHURNED'
+        ? { churnedAt: now }
+        : {};
+
+  await db.tenant.update({
+    where: { id: tenant.id },
+    data: { status: input.status, ...stamps },
+  });
+
+  await db.$executeRaw`
+    INSERT INTO platform.platform_audit_logs (superuser_id, action, target_type, target_id, detail)
+    VALUES (${input.actorSuperuserId}::uuid, ${'tenant.status.' + input.status.toLowerCase()},
+            'tenant', ${tenant.id},
+            ${JSON.stringify({
+              from: tenant.status,
+              to: input.status,
+              reason: input.reason,
+              tenantCode: tenant.code,
+            })}::jsonb)
+  `;
+
+  return { tenantId: tenant.id, status: input.status, previousStatus: tenant.status };
+}
