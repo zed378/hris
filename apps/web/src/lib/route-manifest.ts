@@ -93,6 +93,7 @@ export const ROUTE_MANIFEST = {
   'PUT /api/users/[id]/grants': { module: 'iam', permission: 'iam.grant.manage' },
   'DELETE /api/users/[id]/grants': { module: 'iam', permission: 'iam.grant.manage' },
   'GET /api/roles': { module: 'iam', permission: 'iam.role.read' },
+  'GET /api/audit': { module: 'iam', permission: 'iam.audit.read' },
   'PUT /api/roles/[id]/permissions': { module: 'iam', permission: 'iam.role.manage' },
 
   // --- Karyawan (Fase 2) --------------------------------------------------------

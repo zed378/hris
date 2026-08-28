@@ -475,6 +475,41 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     — dan tanpa pembedaan itu pertanyaan "apakah gaji bulan lalu sudah
     benar-benar keluar" tidak punya jawaban di dalam sistem. Yang bertanya
     adalah karyawan yang uangnya belum masuk.
+34. **Pemilik tenant yang baru mendaftar tidak dapat menambahkan satu orang pun**
+    — tiga menu di bawah "Pengaturan" tampil sejak seed pertama dan seluruhnya
+    menuju halaman yang tidak pernah ada: Pengguna, Peran, Jejak Audit.
+    Endpoint-nya lengkap sejak Fase 1; yang tidak ada hanya layarnya. Ini kelas
+    yang sama dengan `/attendance/shifts`, dan akibatnya lebih besar:
+
+    - **Pengguna** — pemilik mendaftar sendiri, mendapat akun pemilik, lalu
+      berhenti. Tidak ada cara mengundang HR-nya, memberi manajer hak menyetujui
+      cuti, atau mencabut akses orang yang keluar. Seluruh cerita IAM — peran,
+      hak per-pengguna, `DENY` yang menang atas segalanya — hanya dapat
+      dijalankan lewat `curl`. **Ini memblokir Gerbang A secara langsung**: tiga
+      pilot yang melakukan onboarding mandiri tidak dapat melakukannya bila
+      perusahaan mereka hanya boleh punya satu akun.
+    - **Peran** — peran hanya dapat memakai izin yang kebetulan diberikan seed.
+      Perusahaan yang manajernya juga mengurus payroll, atau yang tidak ingin
+      HR-nya membuka samaran NIK, tidak punya jalan sama sekali.
+    - **Jejak Audit** — jejaknya ditulis sejak Fase 1 pada setiap jalur yang
+      mengubah data, tabelnya append-only, dan hak UPDATE/DELETE-nya dicabut
+      bahkan bagi pemilik tabel. **Tidak ada satu pun cara membacanya** — tidak
+      ada endpoint maupun halaman. Jejak audit yang tidak dapat dibaca bukan
+      setengah fitur; ia nol fitur, karena seluruh gunanya adalah menjawab
+      "siapa mengubah ini, kapan, dari nilai berapa" kepada orang yang tidak
+      punya akses `psql`.
+
+    Diverifikasi terhadap server sungguhan: 5 peran dengan katalog **49 izin**;
+    undangan menghasilkan pengguna berstatus `INVITED` beserta event outbox
+    (kata sandinya tidak pernah ditentukan siapa pun selain dirinya); jejak audit
+    terbaca dengan paginasi kursor dan nama pelaku yang benar; staf yang mencoba
+    membacanya ditolak **403** (P9).
+
+    Katalog izin dikirim bersama daftar peran dalam satu respons, bukan terpisah:
+    jendela di antara dua permintaan adalah layar yang menampilkan peran tanpa
+    satu pun izin, dan itu terbaca sebagai "peran ini tidak punya hak apa pun".
+    Paginasi audit berbasis **kursor**, bukan offset — pada tabel yang setiap
+    tindakan menambahinya, offset melewatkan baris terus-menerus.
 
 ---
 
