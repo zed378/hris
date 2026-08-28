@@ -90,6 +90,7 @@ export const ROUTE_MANIFEST = {
   // apa pun paketnya.
   'GET /api/users': { module: 'iam', permission: 'iam.user.read' },
   'POST /api/users': { module: 'iam', permission: 'iam.user.create' },
+  'POST /api/users/from-employees': { module: 'iam', permission: 'iam.user.create' },
   'PUT /api/users/[id]/grants': { module: 'iam', permission: 'iam.grant.manage' },
   'DELETE /api/users/[id]/grants': { module: 'iam', permission: 'iam.grant.manage' },
   'GET /api/roles': { module: 'iam', permission: 'iam.role.read' },

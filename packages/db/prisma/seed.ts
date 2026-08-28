@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_LEAVE_TYPES, DEFAULT_PAYROLL_COMPONENTS } from '@hrms/contracts';
 import { dirname, resolve } from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -502,66 +503,14 @@ async function seedAttendance(tenantId: string): Promise<void> {
  * seorang ibu kehilangan seluruh cuti tahunannya karena melahirkan.
  */
 async function seedLeaveTypes(tenantId: string): Promise<void> {
-  const types = [
-    {
-      code: 'TAHUNAN',
-      name: 'Cuti Tahunan',
-      defaultQuotaDays: 12,
-      minServiceMonths: 12,
-      maxCarryOverDays: 6,
-      colorHex: '#3b82f6',
-    },
-    {
-      code: 'SAKIT',
-      name: 'Cuti Sakit',
-      defaultQuotaDays: 0,
-      minServiceMonths: 0,
-      accrualMethod: 'UNLIMITED' as const,
-      deductFromBalance: false,
-      requiresAttachment: true,
-      colorHex: '#ef4444',
-    },
-    {
-      code: 'MELAHIRKAN',
-      name: 'Cuti Melahirkan',
-      defaultQuotaDays: 0,
-      minServiceMonths: 0,
-      accrualMethod: 'NONE' as const,
-      deductFromBalance: false,
-      requiresAttachment: true,
-      affectsPayroll: true,
-      colorHex: '#ec4899',
-    },
-    {
-      code: 'MENIKAH',
-      name: 'Cuti Menikah',
-      defaultQuotaDays: 3,
-      minServiceMonths: 0,
-      accrualMethod: 'NONE' as const,
-      deductFromBalance: false,
-      colorHex: '#a855f7',
-    },
-    {
-      code: 'DUKA',
-      name: 'Cuti Kematian Keluarga Inti',
-      defaultQuotaDays: 2,
-      minServiceMonths: 0,
-      accrualMethod: 'NONE' as const,
-      deductFromBalance: false,
-      colorHex: '#64748b',
-    },
-    {
-      code: 'TANPA_GAJI',
-      name: 'Cuti Tanpa Gaji',
-      defaultQuotaDays: 0,
-      minServiceMonths: 0,
-      isPaid: false,
-      accrualMethod: 'NONE' as const,
-      deductFromBalance: false,
-      affectsPayroll: true,
-      colorHex: '#f59e0b',
-    },
-  ];
+  // Diambil dari `@hrms/contracts`, bukan ditulis ulang di sini.
+  //
+  // Daftar ini pernah hanya ada di seed, sehingga tenant sungguhan yang
+  // mendaftar mandiri lahir TANPA satu pun jenis cuti — modulnya aktif, menunya
+  // tampil, dan dropdown-nya kosong. Kini `provisionTenant` memakai daftar yang
+  // sama, dan menyalinnya ke sini akan membuat keduanya berbeda pada perubahan
+  // pertama yang lupa disalin.
+  const types = DEFAULT_LEAVE_TYPES;
 
   for (const type of types) {
     await db.leaveType.upsert({
@@ -586,63 +535,7 @@ async function seedLeaveTypes(tenantId: string): Promise<void> {
  * kehadiran harian, lembur per jam, dan potongan alfa.
  */
 async function seedPayrollComponents(tenantId: string): Promise<void> {
-  const components = [
-    {
-      code: 'GAJI_POKOK',
-      name: 'Gaji Pokok',
-      type: 'EARNING' as const,
-      calcMethod: 'FIXED' as const,
-      amount: 0,
-      taxable: true,
-      bpjsBase: true,
-      sortOrder: 10,
-    },
-    {
-      code: 'TUNJANGAN_TETAP',
-      name: 'Tunjangan Tetap',
-      type: 'EARNING' as const,
-      calcMethod: 'FIXED' as const,
-      amount: 0,
-      taxable: true,
-      bpjsBase: true,
-      sortOrder: 20,
-    },
-    {
-      code: 'TUNJANGAN_HADIR',
-      name: 'Tunjangan Kehadiran',
-      type: 'EARNING' as const,
-      calcMethod: 'PER_DAY' as const,
-      amount: 0,
-      taxable: true,
-      bpjsBase: false,
-      sortOrder: 30,
-    },
-    {
-      code: 'LEMBUR',
-      name: 'Upah Lembur',
-      type: 'EARNING' as const,
-      calcMethod: 'PER_HOUR' as const,
-      amount: 0,
-      taxable: true,
-      bpjsBase: false,
-      sortOrder: 40,
-    },
-    {
-      // Prorata alfa: gaji pokok dibagi hari kerja, dikali hari alfa.
-      //
-      // Ditulis sebagai formula alih-alih kode supaya tenant dapat mengubahnya
-      // tanpa deploy — sebagian perusahaan memotong dari gaji pokok saja,
-      // sebagian dari pokok ditambah tunjangan tetap.
-      code: 'POTONGAN_ALFA',
-      name: 'Potongan Ketidakhadiran',
-      type: 'DEDUCTION' as const,
-      calcMethod: 'FORMULA' as const,
-      expression: 'if(HARI_KERJA > 0, GAJI_POKOK / HARI_KERJA * HARI_ALFA, 0)',
-      taxable: false,
-      bpjsBase: false,
-      sortOrder: 100,
-    },
-  ];
+  const components = DEFAULT_PAYROLL_COMPONENTS;
 
   for (const component of components) {
     await db.payrollComponent.upsert({

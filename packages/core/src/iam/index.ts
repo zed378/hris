@@ -14,3 +14,8 @@ export {
   IamError,
   type ActorContext,
 } from './administration.ts';
+export {
+  inviteEmployeesAsUsers,
+  type BulkInviteInput,
+  type BulkInviteResult,
+} from './bulk-invite.ts';

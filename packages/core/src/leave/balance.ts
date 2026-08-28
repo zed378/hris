@@ -114,6 +114,8 @@ export async function readBalances(
   tenantId: string,
   employeeId: string,
   periodYear: number,
+  /** Tanggal penilaian akrual untuk jenis yang belum punya baris. */
+  asOf: Date = new Date(),
 ): Promise<BalanceView[]> {
   const rows = await tx.$queryRaw<BalanceRow[]>`
     SELECT b.id, b.employee_id, b.leave_type_id, t.code, t.name, b.period_year,
@@ -126,7 +128,74 @@ export async function readBalances(
       AND b.period_year = ${periodYear}
     ORDER BY t.code
   `;
-  return rows.map(toView);
+
+  const existing = rows.map(toView);
+  const withRow = new Set(existing.map((balance) => balance.leaveTypeId));
+
+  /**
+   * Jenis cuti yang belum punya baris ikut ditampilkan, dengan jatah yang
+   * SEHARUSNYA sudah diperoleh.
+   *
+   * Ditemukan lewat penelusuran alur pilot. Baris saldo dibuat saat dibutuhkan
+   * (`ensureBalance`), dan yang membutuhkannya adalah pengajuan cuti — bukan
+   * pembacaan. Akibatnya karyawan yang belum pernah mengajukan cuti membuka
+   * layar "Cuti Saya" dan melihat **daftar kosong.**
+   *
+   * Kosong tidak terbaca sebagai "belum ada mutasi". Ia terbaca sebagai "saya
+   * tidak punya hak cuti" — dan orang yang menyimpulkan itu tidak akan
+   * mengajukan cuti, lalu jatahnya hangus di akhir tahun tanpa pernah dipakai.
+   *
+   * Baris TIDAK dibuat di sini, dan itu disengaja: ini jalur baca, dan GET yang
+   * menulis akan gagal pada replika baca sekaligus membuat membuka halaman
+   * menjadi tindakan yang mengubah data. Angkanya dihitung dari fungsi yang sama
+   * yang dipakai `ensureBalance` saat kelak benar-benar menyimpannya, sehingga
+   * yang dilihat sekarang persis yang akan tersimpan nanti.
+   */
+  const employee = await tx.employee.findFirst({
+    where: { id: employeeId, tenantId },
+    select: { joinDate: true },
+  });
+  if (!employee) return existing;
+
+  const types = await tx.leaveType.findMany({
+    where: { tenantId, isActive: true, deductFromBalance: true },
+    orderBy: { code: 'asc' },
+    select: { id: true, code: true, name: true, defaultQuotaDays: true, accrualMethod: true },
+  });
+
+  const belum: BalanceView[] = [];
+  for (const type of types) {
+    if (withRow.has(type.id)) continue;
+
+    const entitled = entitlementAsOf({
+      method: type.accrualMethod as AccrualMethod,
+      quotaDays: type.defaultQuotaDays,
+      joinDate: employee.joinDate,
+      periodYear,
+      asOf,
+    });
+
+    belum.push({
+      // Belum punya baris, jadi belum punya id. String kosong dipilih alih-alih
+      // id palsu: pemanggil yang memakainya untuk memutasi saldo akan gagal
+      // seketika, bukan menulis ke baris milik orang lain.
+      id: '',
+      employeeId,
+      leaveTypeId: type.id,
+      leaveTypeCode: type.code,
+      leaveTypeName: type.name,
+      periodYear,
+      entitledDays: Number(entitled),
+      carriedOverDays: 0,
+      adjustmentDays: 0,
+      usedDays: 0,
+      pendingDays: 0,
+      expiredDays: 0,
+      availableDays: Number(entitled),
+    });
+  }
+
+  return [...existing, ...belum].sort((a, b) => a.leaveTypeCode.localeCompare(b.leaveTypeCode));
 }
 
 /**

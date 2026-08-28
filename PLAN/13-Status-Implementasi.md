@@ -521,6 +521,58 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     termasuk pemilik tenant, dengan pesan yang menyalahkan perannya alih-alih
     kodenya. Keduanya diverifikasi lewat mutasi.
 
+### Tiga temuan dari penelusuran alur pilot
+
+Ketiganya ditemukan dengan menjalankan yang sebenarnya dilakukan pelanggan —
+daftar, undang, konfigurasi, impor, jadwal, presensi, cuti, payroll, ekspor —
+terhadap server sungguhan, dan **tidak satu pun oleh uji.** Ketiganya memblokir
+Gerbang A, dan ketiganya gagal tanpa galat.
+
+35. **Tenant baru lahir tanpa satu pun jenis cuti dan komponen gaji.**
+    `provisionTenant` membuat tenant, modul, peran, dan pemilik. Jenis cuti dan
+    komponen gaji hanya ada pada tenant demo, lewat seed yang tidak pernah
+    berjalan untuk pelanggan sungguhan. Akibatnya: modul cuti aktif dengan
+    dropdown **kosong** — tidak ada seorang pun yang dapat mengajukan cuti — dan
+    modul payroll yang **setiap slipnya bernilai nol rupiah**, dihitung dengan
+    benar dari ketiadaan. Kini keduanya dibuat di dalam transaksi provisioning
+    yang sama, dari konstanta di `@hrms/contracts` yang **dipakai bersama seed**
+    sehingga tidak dapat berbeda. Nilai gaji sengaja 0: angkanya keputusan
+    perusahaan, dan menebaknya berarti seseorang menjalankan payroll pertamanya
+    di atas angka yang tidak pernah ia setujui. Jatah cuti sebaliknya membawa
+    angka, karena angkanya berasal dari UU Ketenagakerjaan Pasal 79 dan 93.
+36. **Karyawan yang diimpor tidak punya akun, dan tidak ada cara massal
+    membuatkannya.** Pemetaan pengguna → karyawan adalah referensi lunak lewat
+    email (PLAN/01 §4.2), dan rancangan itu benar. Yang tidak ada adalah
+    jembatannya: HR mengimpor 100 karyawan dan **tidak satu pun dari mereka dapat
+    masuk**, mengetuk presensi, mengajukan cuti, atau melihat slip gajinya.
+    Satu-satunya jalan adalah mengundang mereka satu per satu lewat formulir yang
+    meminta email dan nama yang **sudah ada** di baris karyawannya — 100 kali,
+    setelah berhasil mengimpor. Kini `POST /api/users/from-employees`. Yang sudah
+    punya akun dilewati, bukan menggagalkan; yang **tidak punya email disebut
+    nama dan nomornya**, karena "12 karyawan tanpa email" tidak dapat
+    ditindaklanjuti sedangkan namanya dapat.
+37. **Karyawan yang belum pernah mengajukan cuti melihat layar saldo KOSONG.**
+    Baris saldo dibuat saat dibutuhkan, dan yang membutuhkannya adalah pengajuan
+    — bukan pembacaan. Kosong tidak terbaca sebagai "belum ada mutasi"; ia
+    terbaca sebagai **"saya tidak punya hak cuti"**, dan orang yang menyimpulkan
+    itu tidak akan mengajukan cuti, lalu jatahnya hangus di akhir tahun tanpa
+    pernah dipakai. `readBalances` kini menampilkan jenis yang belum punya baris
+    beserta jatah yang seharusnya sudah diperoleh — dihitung dari fungsi yang
+    sama yang dipakai `ensureBalance` saat kelak menyimpannya, sehingga yang
+    dilihat sekarang persis yang akan tersimpan nanti. Barisnya **tidak dibuat**
+    di jalur baca: GET yang menulis gagal pada replika baca sekaligus membuat
+    membuka halaman menjadi tindakan yang mengubah data.
+
+**Rantai yang kini terbukti utuh**, dijalankan terhadap server sungguhan dari
+tenant yang baru didaftarkan: daftar → undang HR → masukkan hari libur → buat
+shift → impor 4 baris (3 sah, 1 ditolak karena tanggal masuk kosong) →
+bangkitkan 93 baris jadwal pola pabrik enam hari → koreksi presensi manual →
+undangan massal 3 karyawan → karyawan menerima undangan dan **memasang kata
+sandinya sendiri** (token bekas ditolak 400) → masuk → akunnya terhubung ke data
+karyawan lewat email → mengajukan cuti 3 hari kerja → atasan menyetujui → saldo
+karyawan berubah dari 12 menjadi 9 → payroll dijalankan (202, worker) → tiga
+ekspor `.xlsx` terunduh → 11 jenis aksi tercatat di jejak audit.
+
 ---
 
 ## 5. Yang masih terbuka

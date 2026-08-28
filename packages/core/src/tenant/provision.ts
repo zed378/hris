@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { withTenant, catalog, writeAudit, publishEvent, Prisma } from '@hrms/db';
-import { EventTopic } from '@hrms/contracts';
+import { DEFAULT_LEAVE_TYPES, DEFAULT_PAYROLL_COMPONENTS, EventTopic } from '@hrms/contracts';
 
 /**
  * Provisioning tenant baru.
@@ -187,6 +187,32 @@ export async function provisionTenant(
       });
       await tx.accessVersion.create({
         data: { tenantId: tenant.id, userId: owner.id, version: 1 },
+      });
+
+      /**
+       * Konfigurasi bawaan modul cuti dan payroll.
+       *
+       * Tanpa ini, tenant baru mendapati modul cuti aktif dengan daftar jenis
+       * cuti KOSONG — tidak ada seorang pun yang dapat mengajukan cuti, dan yang
+       * terlihat hanya dropdown tanpa pilihan — serta modul payroll yang setiap
+       * slipnya bernilai nol rupiah karena tidak ada satu pun komponen.
+       * Keduanya gagal tanpa galat, dan keduanya memblokir onboarding mandiri
+       * pada hari pertama.
+       *
+       * Dibuat di dalam transaksi provisioning yang sama: tenant yang lahir
+       * setengah terkonfigurasi adalah tenant yang tidak dapat dipakai, dan
+       * memperbaikinya kemudian menuntut seseorang mengetahui bahwa ia perlu
+       * diperbaiki.
+       */
+      await tx.leaveType.createMany({
+        data: DEFAULT_LEAVE_TYPES.map((type) => ({ tenantId: tenant.id, ...type })),
+      });
+
+      await tx.payrollComponent.createMany({
+        data: DEFAULT_PAYROLL_COMPONENTS.map((component) => ({
+          tenantId: tenant.id,
+          ...component,
+        })),
       });
 
       await writeAudit(tx, tenant.id, {

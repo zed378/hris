@@ -70,6 +70,7 @@ export default function UsersPage() {
   const [invite, setInvite] = useState({ email: '', fullName: '', roleCode: '' });
   const [busy, setBusy] = useState(false);
 
+  const [massalBusy, setMassalBusy] = useState(false);
   const [grantFor, setGrantFor] = useState<UserRow | null>(null);
   const [grant, setGrant] = useState({
     permissionCode: '',
@@ -121,6 +122,57 @@ export default function UsersPage() {
     }
     setBusy(false);
   }, [api, invite, load]);
+
+  /**
+   * Mengundang seluruh karyawan yang belum punya akun.
+   *
+   * Tanpa ini, HR yang baru mengimpor 100 karyawan harus mengisi formulir di
+   * atas seratus kali — dengan email dan nama yang sudah ada di baris
+   * karyawannya. Sampai ia selesai, tidak satu pun dari seratus orang itu dapat
+   * masuk, mengetuk presensi, atau melihat slip gajinya.
+   */
+  const undangMassal = useCallback(async () => {
+    setMassalBusy(true);
+    setMessage(null);
+
+    const response = await api('/api/users/from-employees', {
+      method: 'POST',
+      body: JSON.stringify({ roleCode: 'EMPLOYEE' }),
+    });
+
+    if (response.ok) {
+      const json = (await response.json()) as {
+        invited: number;
+        alreadyHasAccount: number;
+        withoutEmail: Array<{ employeeNumber: string; fullName: string }>;
+      };
+
+      const bagian = [`${json.invited} karyawan diundang.`];
+      if (json.alreadyHasAccount > 0) bagian.push(`${json.alreadyHasAccount} sudah punya akun.`);
+      if (json.withoutEmail.length > 0) {
+        // Disebut namanya, bukan hanya jumlahnya. "12 karyawan tanpa email"
+        // tidak dapat ditindaklanjuti; nama dan nomornya dapat.
+        const contoh = json.withoutEmail
+          .slice(0, 5)
+          .map((e) => `${e.employeeNumber} ${e.fullName}`)
+          .join(', ');
+        bagian.push(
+          `${json.withoutEmail.length} belum punya email dan tidak dapat diundang: ${contoh}` +
+            (json.withoutEmail.length > 5 ? ', …' : '') +
+            '. Lengkapi kolom emailnya lebih dulu.',
+        );
+      }
+
+      setMessage({ tone: json.withoutEmail.length > 0 ? 'error' : 'ok', text: bagian.join(' ') });
+      void load();
+    } else {
+      const json = (await response.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setMessage({ tone: 'error', text: json?.error?.message ?? 'Undangan massal gagal.' });
+    }
+    setMassalBusy(false);
+  }, [api, load]);
 
   const simpanGrant = useCallback(async () => {
     if (!grantFor) return;
@@ -208,7 +260,21 @@ export default function UsersPage() {
               Kirim undangan
             </button>
           </div>
-          <p className="mt-2 text-xs text-slate-500">
+          <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+            <button
+              onClick={() => void undangMassal()}
+              disabled={massalBusy}
+              className="rounded-md border border-brand-600 px-3 py-1.5 text-sm font-medium text-brand-700 transition hover:bg-brand-50 disabled:opacity-50 dark:text-brand-300 dark:hover:bg-slate-800"
+            >
+              {massalBusy ? 'Mengundang…' : 'Undang semua karyawan yang belum punya akun'}
+            </button>
+            <p className="mt-1 text-xs text-slate-500">
+              Memakai email dan nama dari data karyawan. Yang sudah punya akun
+              dilewati; yang belum punya email disebutkan agar dapat dilengkapi.
+            </p>
+          </div>
+
+          <p className="mt-3 text-xs text-slate-500">
             Pengguna dibuat berstatus <strong>INVITED</strong> dan belum dapat
             masuk sampai ia menetapkan kata sandinya sendiri lewat tautan
             undangan. Kata sandinya tidak pernah ditentukan siapa pun selain
