@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
+import { downloadFile, type DownloadOutcome } from '@/lib/download.ts';
 
 /**
  * Rekap kehadiran dan koreksi manual (dokumen 10 §6).
@@ -74,6 +75,17 @@ function durasi(minutes: number): string {
 export default function RecordsPage() {
   const { api } = useSession();
 
+  const [unduhan, setUnduhan] = useState<DownloadOutcome | null>(null);
+  const [unduhBusy, setUnduhBusy] = useState(false);
+
+  const unduh = useCallback(
+    async (path: string, nama: string) => {
+      setUnduhBusy(true);
+      setUnduhan(await downloadFile(api, path, nama));
+      setUnduhBusy(false);
+    },
+    [api],
+  );
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [days, setDays] = useState<DayRow[]>([]);
@@ -169,13 +181,53 @@ export default function RecordsPage() {
 
   return (
     <AppShell>
-      <header className="mb-5">
-        <h1 className="text-xl font-semibold">Rekap Kehadiran</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Angka di sini diturunkan dari ketukan presensi dan dapat dihitung ulang.
-          Hari yang sudah terkunci penutupan periode tidak lagi berubah.
-        </p>
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Rekap Kehadiran</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Angka di sini diturunkan dari ketukan presensi dan dapat dihitung ulang.
+            Hari yang sudah terkunci penutupan periode tidak lagi berubah.
+          </p>
+        </div>
+
+        {/* Rentang yang sedang terlihat ikut terbawa, sehingga yang terunduh
+             persis yang tampil. Ekspor yang selalu mengambil semuanya adalah
+             seluruh riwayat kehadiran setiap orang — berkas yang tidak
+             dibutuhkan siapa pun dan tidak seharusnya beredar. */}
+        <button
+          onClick={() =>
+            void unduh(
+              `/api/attendance/records/export?from=${from}&to=${to}`,
+              `presensi-${from}-sd-${to}.xlsx`,
+            )
+          }
+          disabled={unduhBusy}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+        >
+          {unduhBusy ? 'Menyiapkan…' : 'Ekspor .xlsx'}
+        </button>
       </header>
+
+      {/*
+        Hasil unduhan dilaporkan, termasuk ketika berkasnya TERPOTONG. Berkas
+        yang terpotong diam-diam terlihat persis seperti berkas yang lengkap, dan
+        yang membacanya menyimpulkan sisanya memang tidak ada.
+      */}
+      {unduhan && (
+        <p
+          className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+            unduhan.ok
+              ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+              : 'bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'
+          }`}
+        >
+          {unduhan.ok
+            ? unduhan.truncated
+              ? `${unduhan.fileName} terunduh, tetapi TERPOTONG pada ${unduhan.rows} baris. Persempit penyaringnya.`
+              : `${unduhan.fileName} terunduh${unduhan.rows ? ` — ${unduhan.rows} baris` : ''}.`
+            : unduhan.error}
+        </p>
+      )}
 
       <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-medium">Koreksi manual</h2>

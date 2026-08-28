@@ -14,7 +14,8 @@
     "./storage": "./src/storage/index.ts",
     "./leave": "./src/leave/index.ts",
     "./payroll": "./src/payroll/index.ts",
-    "./dashboard": "./src/dashboard/index.ts"
+    "./dashboard": "./src/dashboard/index.ts",
+    "./reporting": "./src/reporting/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

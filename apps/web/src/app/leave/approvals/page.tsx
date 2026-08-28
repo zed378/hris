@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
+import { downloadFile, type DownloadOutcome } from '@/lib/download.ts';
 
 /**
  * Kotak masuk persetujuan cuti (PLAN/12 F4).
@@ -40,6 +41,17 @@ interface Balance {
 export default function ApprovalsPage() {
   const { api } = useSession();
 
+  const [unduhan, setUnduhan] = useState<DownloadOutcome | null>(null);
+  const [unduhBusy, setUnduhBusy] = useState(false);
+
+  const unduh = useCallback(
+    async (path: string, nama: string) => {
+      setUnduhBusy(true);
+      setUnduhan(await downloadFile(api, path, nama));
+      setUnduhBusy(false);
+    },
+    [api],
+  );
   const [requests, setRequests] = useState<Request[]>([]);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [balances, setBalances] = useState<Map<string, Balance[]>>(new Map());
@@ -123,13 +135,50 @@ export default function ApprovalsPage() {
 
   return (
     <AppShell>
-      <header className="mb-5">
-        <h1 className="text-xl font-semibold">Persetujuan Cuti</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Pengajuan yang menunggu keputusan Anda. Saldo pengaju ditampilkan supaya
-          keputusannya tidak perlu ditebak.
-        </p>
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Persetujuan Cuti</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Pengajuan yang menunggu keputusan Anda. Saldo pengaju ditampilkan supaya
+            keputusannya tidak perlu ditebak.
+          </p>
+        </div>
+
+        {/* Yang diekspor seluruh pengajuan tahun berjalan, bukan hanya yang
+             menunggu keputusan: berkas ini dipakai untuk rapat bulanan, dan
+             pengajuan yang sudah diputus justru yang paling dibahas. */}
+        <button
+          onClick={() => {
+            const tahun = new Date().getUTCFullYear();
+            void unduh(`/api/leave/requests/export?year=${tahun}`, `cuti-${tahun}.xlsx`);
+          }}
+          disabled={unduhBusy}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+        >
+          {unduhBusy ? 'Menyiapkan…' : 'Ekspor .xlsx'}
+        </button>
       </header>
+
+      {/*
+        Hasil unduhan dilaporkan, termasuk ketika berkasnya TERPOTONG. Berkas
+        yang terpotong diam-diam terlihat persis seperti berkas yang lengkap, dan
+        yang membacanya menyimpulkan sisanya memang tidak ada.
+      */}
+      {unduhan && (
+        <p
+          className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+            unduhan.ok
+              ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+              : 'bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'
+          }`}
+        >
+          {unduhan.ok
+            ? unduhan.truncated
+              ? `${unduhan.fileName} terunduh, tetapi TERPOTONG pada ${unduhan.rows} baris. Persempit penyaringnya.`
+              : `${unduhan.fileName} terunduh${unduhan.rows ? ` — ${unduhan.rows} baris` : ''}.`
+            : unduhan.error}
+        </p>
+      )}
 
       {message && (
         <p

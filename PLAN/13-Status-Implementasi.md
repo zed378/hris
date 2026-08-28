@@ -718,8 +718,36 @@ Yang tidak terkunci Gerbang C tetapi belum dibangun:
   portabilitas — sudah berjalan dan terbukti.
 - **Notifikasi berjenjang** email → Web Push → WhatsApp. Email sudah ada;
   Web Push dan WhatsApp belum.
-- **Laporan siap pakai + ekspor `.xlsx` di seluruh modul** — baru modul karyawan
-  yang punya ekspor.
+- ~~**Ekspor `.xlsx` di seluruh modul**~~ — **selesai.** Presensi, cuti, dan
+  payroll kini punya ekspornya masing-masing, menyusul modul karyawan. Ini bukan
+  kekurangan kecil pada pasar yang dituju: di Indonesia setiap laporan berakhir
+  di Excel — rekap presensi untuk disandingkan dengan mesin absensi lama, rekap
+  cuti untuk rapat bulanan, rekap gaji untuk keuangan dan untuk unggahan
+  transfer massal bank. HR yang tidak dapat mengunduhnya menyalinnya dari layar
+  dengan tangan, dan salinan tangan adalah tempat angka berubah tanpa ada yang
+  tahu.
+
+  Tiga aturan berlaku untuk keempatnya, dan ketiganya diverifikasi:
+
+  - **Diaudit.** Baris auditnya mencatat siapa, kapan, penyaring apa, berapa
+    baris, dan — untuk rekap gaji — apakah samarannya dibuka. Terbukti pada
+    jejak: `{"runId": …, "rowCount": 3, "unmasked": true, …}`.
+  - **Tidak melewati masking.** Diuji dengan nomor rekening sungguhan, bukan
+    dengan kolom kosong yang kebetulan lolos: tanpa `employee.pii.unmask`
+    berkasnya memuat `*********0123`; dengan izin itu, nomor lengkapnya — yang
+    memang dibutuhkan berkas transfer bank.
+  - **Berbatas, dan mengaku terpotong.** `x-export-rows` dan
+    `x-export-truncated` pada setiap respons, dan layar menyebut pemotongannya
+    apa adanya. Berkas yang terpotong diam-diam terlihat persis seperti berkas
+    yang lengkap.
+
+  Rentang tanggal **wajib** disebut pada ekspor presensi — tidak ada bawaan
+  "semua". Rekap presensi tanpa batas tanggal adalah seluruh riwayat kehadiran
+  setiap orang di perusahaan: berkas yang tidak dibutuhkan siapa pun dan tidak
+  seharusnya beredar.
+- **Laporan siap pakai** (grafik, ringkasan periodik) belum ada. Yang ada ekspor
+  data mentah, dan itu berbeda: ekspor menjawab "berikan datanya", laporan
+  menjawab "apa yang terjadi bulan ini".
 - **Pengerasan F6 sudah selesai**: kuota per tenant (600/menit, dengan
   penolakan yang tercatat), `statement_timeout`/`lock_timeout`/
   `idle_in_transaction_session_timeout` per peran, deteksi drift skema harian

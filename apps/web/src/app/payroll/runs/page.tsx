@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
+import { downloadFile, type DownloadOutcome } from '@/lib/download.ts';
 
 /**
  * Proses penggajian (PLAN/12 F5).
@@ -64,6 +65,17 @@ const rupiah = (value: number): string =>
 
 export default function PayrollRunsPage() {
   const { api, can } = useSession();
+  const [unduhan, setUnduhan] = useState<DownloadOutcome | null>(null);
+  const [unduhBusy, setUnduhBusy] = useState(false);
+
+  const unduh = useCallback(
+    async (path: string, nama: string) => {
+      setUnduhBusy(true);
+      setUnduhan(await downloadFile(api, path, nama));
+      setUnduhBusy(false);
+    },
+    [api],
+  );
   const canApprove = can('payroll.run.approve');
 
   const now = new Date();
@@ -196,6 +208,26 @@ export default function PayrollRunsPage() {
         itu selesai, hasil di sini belum dapat dipakai sebagai dasar pembayaran.
       </p>
 
+      {/*
+        Hasil unduhan dilaporkan, termasuk ketika berkasnya TERPOTONG. Berkas
+        yang terpotong diam-diam terlihat persis seperti berkas yang lengkap.
+      */}
+      {unduhan && (
+        <p
+          className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+            unduhan.ok
+              ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+              : 'bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'
+          }`}
+        >
+          {unduhan.ok
+            ? unduhan.truncated
+              ? `${unduhan.fileName} terunduh, tetapi TERPOTONG pada ${unduhan.rows} baris.`
+              : `${unduhan.fileName} terunduh${unduhan.rows ? ` — ${unduhan.rows} baris` : ''}.`
+            : unduhan.error}
+        </p>
+      )}
+
       <section className="mb-5 flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <label className="text-sm">
           <span className="mb-1 block text-slate-500 dark:text-slate-400">Bulan</span>
@@ -325,6 +357,25 @@ export default function PayrollRunsPage() {
                   tidak punya jawaban di dalam sistem — dan yang bertanya adalah
                   karyawan yang uangnya belum masuk.
                 */}
+                {/* Bahan unggahan transfer massal bank. Tersedia sejak run
+                    dihitung — bagian keuangan sering memeriksa angkanya sebelum
+                    persetujuan, dan menahannya sampai APPROVED berarti mereka
+                    menyalinnya dari layar dengan tangan. */}
+                {['CALCULATED', 'APPROVED', 'PAID'].includes(run.status) && (
+                  <button
+                    onClick={() =>
+                      void unduh(
+                        `/api/payroll/runs/export?runId=${run.id}`,
+                        `gaji-${run.runNumber.replace(/\//g, '-')}.xlsx`,
+                      )
+                    }
+                    disabled={unduhBusy}
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                  >
+                    {unduhBusy ? 'Menyiapkan…' : 'Ekspor .xlsx'}
+                  </button>
+                )}
+
                 {run.status === 'APPROVED' && canApprove && (
                   <button
                     onClick={() =>

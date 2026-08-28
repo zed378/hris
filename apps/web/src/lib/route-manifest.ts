@@ -204,6 +204,7 @@ export const ROUTE_MANIFEST = {
   'POST /api/payroll/salary': { module: 'payroll', permission: 'payroll.salary.manage' },
 
   'GET /api/payroll/runs': { module: 'payroll', permission: 'payroll.run.execute' },
+  'GET /api/payroll/runs/export': { module: 'payroll', permission: 'payroll.run.execute' },
   'POST /api/payroll/runs': { module: 'payroll', permission: 'payroll.run.execute' },
   'GET /api/payroll/runs/[id]': { module: 'payroll', permission: 'payroll.run.execute' },
   // Persetujuan diperiksa di dalam handler dengan izin terpisah: orang yang
@@ -220,6 +221,7 @@ export const ROUTE_MANIFEST = {
   // Cakupan daftar ditentukan izin di dalam handler, bukan oleh parameter:
   // klien yang meminta `all` tanpa izin menerima daftarnya sendiri, bukan galat.
   'GET /api/leave/requests': { module: 'leave', permission: 'leave.request.read.own' },
+  'GET /api/leave/requests/export': { module: 'leave', permission: 'leave.request.read.all' },
   'POST /api/leave/requests': { module: 'leave', permission: 'leave.request.create.own' },
   'POST /api/leave/requests/[id]/decision': {
     module: 'leave',
@@ -247,6 +249,10 @@ export const ROUTE_MANIFEST = {
     permission: 'attendance.record.correct',
   },
   'GET /api/attendance/records': { module: 'attendance', permission: 'attendance.record.read.all' },
+  'GET /api/attendance/records/export': {
+    module: 'attendance',
+    permission: 'attendance.record.read.all',
+  },
   'POST /api/attendance/records': { module: 'attendance', permission: 'attendance.record.correct' },
   'GET /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.record.read.own' },
   'POST /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.shift.manage' },
