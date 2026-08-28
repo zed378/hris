@@ -166,6 +166,14 @@ export const ROUTE_MANIFEST = {
   // Izin di manifes karenanya izin dasar yang dimiliki semua orang.
   'GET /api/dashboard': { module: 'core', permission: 'core.dashboard.view.own' },
 
+  // --- Kesehatan -------------------------------------------------------------
+  //
+  // Keduanya TIDAK memakai defineRoute — lihat berkas rutenya. Didaftarkan di
+  // sini semata supaya pemeriksaan cakupan manifes tidak melaporkannya sebagai
+  // rute yang tidak terdaftar (P7).
+  'GET /api/health': { module: 'core', permission: null, public: true },
+  'GET /api/ready': { module: 'core', permission: null, public: true },
+
   // --- Langganan -------------------------------------------------------------
   //
   // Modulnya `core`, bukan modul yang sedang diatur. Endpoint yang mengatur

@@ -89,8 +89,21 @@ COPY --from=builder --chown=nextjs:nodejs /repo ./
 USER nextjs
 EXPOSE 3000
 
+# Liveness, bukan readiness.
+#
+# Sebelumnya probe ini memanggil `/`, yang merender halaman klien dan
+# mengembalikan 200 meski basis datanya mati — kontainer melaporkan sehat
+# sementara aplikasinya tidak dapat melayani apa pun.
+#
+# `/api/health` tidak menyentuh basis data dengan sengaja. Docker memakai
+# HEALTHCHECK untuk memutuskan restart, dan probe yang memeriksa basis data akan
+# merestart seluruh instance ketika basis datanya sedang tertekan — memperpanjang
+# pemadaman alih-alih memperbaikinya.
+#
+# `/api/ready` yang memeriksa basis data dipakai load balancer atau orkestrator
+# untuk memutuskan pengaliran lalu lintas, bukan di sini.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 WORKDIR /repo/apps/web
 CMD ["node", "node_modules/next/dist/bin/next", "start"]

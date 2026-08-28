@@ -37,9 +37,28 @@ function urlPathOf(file: string): string {
   return `/${rel}`;
 }
 
+/**
+ * Menemukan metode HTTP yang diekspor sebuah berkas route.
+ *
+ * Mengenali `export const GET =` DAN `export function GET(` — termasuk versi
+ * `async`-nya. Versi pertama hanya mengenali bentuk `const`, dan itu lubang
+ * pada penjaganya sendiri: sebuah route yang ditulis
+ *
+ *     export function GET() { … }
+ *
+ * adalah handler Next.js yang sah sepenuhnya, tetapi tidak terlihat oleh
+ * pemeriksaan cakupan manifes di bawah. Ia akan melewati P7 tanpa terdaftar,
+ * melewati pemeriksaan pembungkus tanpa memakai defineRoute, dan bekerja
+ * sempurna saat diuji manual — tanpa memeriksa izin apa pun.
+ *
+ * Ditemukan saat menambahkan endpoint kesehatan yang kebetulan ditulis dengan
+ * bentuk `function`.
+ */
 function exportedMethods(source: string): string[] {
-  return HTTP_METHODS.filter((m) =>
-    new RegExp(`export\\s+const\\s+${m}\\s*=`).test(source),
+  return HTTP_METHODS.filter(
+    (m) =>
+      new RegExp(`export\\s+const\\s+${m}\\s*=`).test(source) ||
+      new RegExp(`export\\s+(async\\s+)?function\\s+${m}\\s*\\(`).test(source),
   );
 }
 
@@ -121,8 +140,21 @@ describe('ROUTE_RULES', () => {
   it('jalur publik yang dapat ditebak dibatasi laju', () => {
     // Login tanpa batas laju membuat kunci akun per pengguna berbalik menjadi
     // senjata: seluruh karyawan satu perusahaan dapat dikunci dari luar.
+    // Endpoint kesehatan dikecualikan, dan alasannya bukan kelonggaran:
+    // orkestrator memanggilnya setiap sepuluh sampai tiga puluh detik dari
+    // alamat yang sama. Membatasi lajunya akan membuat kontainer yang sehat
+    // dilaporkan gagal, lalu direstart — kegagalan yang diciptakan sendiri oleh
+    // penjagaan yang salah tempat.
+    const HEALTH_ROUTES = ['GET /api/health', 'GET /api/ready'];
+
     const unlimited = Object.entries(ROUTE_RULES)
-      .filter(([id, rule]) => rule.public === true && !rule.rateLimit && !id.includes('logout'))
+      .filter(
+        ([id, rule]) =>
+          rule.public === true &&
+          !rule.rateLimit &&
+          !id.includes('logout') &&
+          !HEALTH_ROUTES.includes(id),
+      )
       .map(([id]) => id);
     expect(unlimited).toEqual([]);
   });
