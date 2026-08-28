@@ -511,6 +511,16 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     Paginasi audit berbasis **kursor**, bukan offset — pada tabel yang setiap
     tindakan menambahinya, offset melewatkan baris terus-menerus.
 
+    **Penjaga permanen dipasang untuk kelasnya, bukan hanya untuk kasusnya.**
+    `apps/web/test/menu-coverage.test.ts` membaca jalur menu dari berkas seed dan
+    memeriksanya terhadap sistem berkas — menu dirakit dari basis data, sehingga
+    TypeScript tidak dapat melihat hubungannya dengan `page.tsx`, dan empat entri
+    pernah tampil berbulan-bulan menuju 404. Uji yang sama memeriksa bahwa setiap
+    kode izin yang disebut menu maupun `ROUTE_MANIFEST` benar-benar ada di
+    katalog: satu huruf yang salah di sana menolak **semua** orang dengan 403,
+    termasuk pemilik tenant, dengan pesan yang menyalahkan perannya alih-alih
+    kodenya. Keduanya diverifikasi lewat mutasi.
+
 ---
 
 ## 5. Yang masih terbuka
