@@ -29,10 +29,14 @@ export type Consumer =
 function notify(topic: NotifiableTopic): Consumer {
   return {
     kind: 'handle',
-    async run({ tenantId, payload }) {
+    async run({ tenantId, payload, correlationId }) {
       const result = await deliverNotification(tenantId, topic, payload);
       if (result.status !== 'skipped') {
-        log.info({ scope: 'notification', topic, ...result });
+        // `correlationId` diteruskan dari amplop outbox — inilah sambungan yang
+        // membuat jejak satu permintaan utuh melintasi batas antrean. Tanpa ini,
+        // log worker adalah pulau yang tidak dapat dihubungkan ke permintaan
+        // mana pun.
+        log.info({ scope: 'notification', topic, correlationId: correlationId ?? undefined, ...result });
       }
     },
   };
@@ -52,13 +56,20 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
    */
   [EventTopic.PUNCH_FLAGGED]: {
     kind: 'handle',
-    async run({ tenantId, payload }) {
+    async run({ tenantId, payload, correlationId }) {
       const { punchId, trustScore, flags } = payload as {
         punchId?: string;
         trustScore?: number;
         flags?: string[];
       };
-      log.info({ scope: 'punch-flagged', tenantId, punchId, trustScore, flags });
+      log.info({
+        scope: 'punch-flagged',
+        correlationId: correlationId ?? undefined,
+        tenantId,
+        punchId,
+        trustScore,
+        flags,
+      });
     },
   },
 

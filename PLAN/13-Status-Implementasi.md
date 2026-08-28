@@ -24,7 +24,7 @@ Terakhir diperbarui: 28 Agustus 2026.
 | F4 | Cuti | Selesai |
 | F5 | Payroll | **Kerangka selesai; perhitungan pajak & BPJS terkunci Gerbang C** |
 | F6 | Komersialisasi | **Semua selesai kecuali penagihan (butuh akun payment gateway)** |
-| F7 | Observabilitas, kesiapan produksi | Sebagian — probe kesehatan & cadangan selesai |
+| F7 | Observabilitas, kesiapan produksi | Sebagian — probe kesehatan, cadangan, dan log terstruktur selesai |
 
 Gerbang A (tiga pilot mengimpor mandiri) dan Gerbang B (satu tenant membayar)
 **belum diuji** — keduanya menuntut pengguna nyata, bukan kode.
@@ -185,6 +185,8 @@ berjalan, bukan hanya lolos uji unit.
 | Readiness pulih sendiri | Setelah PostgreSQL dinyalakan: `ready` 200 dalam 40 ms |
 | **Pemulihan diukur pada ukuran nyata** | 160 MB / 261.000 ketukan: cadangan 2 detik, pemulihan 5 detik, 261.000 baris identik, drift 0 |
 | Pemulihan berkas penyimpanan diuji | Hash SHA-256 identik, `storage_key` resolve ke path yang benar |
+| **Log tidak membocorkan PII maupun token** | Galat yang membawa NIK, rekening, kata sandi, dan Bearer token: nol yang lolos; scope, correlationId, tenantId, dan kode galat tetap terbaca |
+| Log terstruktur berjalan di proses nyata | Worker mengeluarkan JSON ber-`ts`/`level`/`scope` |
 
 ---
 
@@ -294,6 +296,20 @@ Tiga batasnya perlu diketahui:
   berkas kecil berperilaku berbeda dari `tar` atas satu berkas besar.
 - **Diuji pada basis data ratusan kilobita.** Waktu pemulihan pada ukuran
   produksi belum diukur.
+
+### Observabilitas
+
+- **Log terstruktur** lewat `@hrms/observability`: level dari `LOG_LEVEL`,
+  stempel waktu di dalam JSON, `correlationId`, dan **redaksi kunci sensitif**.
+  43 titik `console.*` dimigrasikan; alat CLI sengaja tetap teks biasa karena
+  dibaca orang di terminal, bukan dikumpulkan mesin.
+- **Tipe `LogFields` mewajibkan `scope`.** Tiga titik log yang selama ini tanpa
+  scope ketahuan saat kompilasi, bukan saat seseorang mencari di agregator.
+- **Belum ada metrik.** Tidak ada endpoint Prometheus maupun penghitung
+  permintaan; yang ada hanya log. Ditambahkan bila ada yang benar-benar
+  mengumpulkannya.
+- **Belum ada tracing.** `correlationId` mengalir di dalam satu proses, tetapi
+  tidak diteruskan ke worker lewat outbox.
 
 ### Utang teknis
 

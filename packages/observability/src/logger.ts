@@ -24,6 +24,8 @@
  * dijaga mati-matian untuk melindunginya.
  */
 
+import { currentContext } from './context.ts';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const LEVEL_ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
@@ -124,9 +126,20 @@ export interface LogFields {
 function emit(level: LogLevel, fields: LogFields): void {
   if (LEVEL_ORDER[level] < threshold) return;
 
+  /**
+   * Konteks permintaan disisipkan otomatis, dan medan eksplisit MENANG.
+   *
+   * Urutannya disengaja: pemanggil yang menyebut `correlationId` sendiri —
+   * misalnya konsumen worker yang meneruskannya dari amplop outbox — sedang
+   * mencatat korelasi permintaan ASAL, bukan korelasi proses yang sedang
+   * berjalan. Menimpanya dengan konteks lokal akan memutus jejak persis pada
+   * batas yang hendak disambung.
+   */
+  const context = currentContext();
   const record = {
     ts: new Date().toISOString(),
     level,
+    ...(context ? { correlationId: context.correlationId, tenantId: context.tenantId } : {}),
     ...(redact(fields) as Record<string, unknown>),
   };
 

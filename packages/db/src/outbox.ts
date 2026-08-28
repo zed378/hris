@@ -1,4 +1,5 @@
 import type { EventTopic } from '@hrms/contracts';
+import { currentCorrelationId } from '@hrms/observability';
 import type { TenantClient } from './tenant-context.ts';
 
 export interface OutboxEvent {
@@ -42,7 +43,19 @@ export async function publishEvent(
       tenantId,
       topic: event.topic,
       payload: event.payload as never,
-      correlationId: event.correlationId ?? null,
+      /**
+       * Diambil dari konteks permintaan bila pemanggil tidak menyebutnya.
+       *
+       * Kolom ini sudah ada sejak awal, tetapi dari dua belas pemanggilan
+       * `publishEvent` hanya sebagian yang mengisinya — bukan karena lalai,
+       * melainkan karena fungsi domain yang memanggilnya memang tidak menerima
+       * `ctx`. Akibatnya jejak satu permintaan terputus tepat di batas antrean:
+       * log permintaan punya id korelasi, log worker yang memprosesnya tidak.
+       *
+       * Nilai eksplisit tetap menang, supaya penerbit yang sengaja meneruskan
+       * korelasi dari tempat lain tidak ditimpa.
+       */
+      correlationId: event.correlationId ?? currentCorrelationId() ?? null,
     },
   });
 }

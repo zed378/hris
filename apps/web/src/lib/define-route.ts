@@ -1,4 +1,4 @@
-import { log } from '@hrms/observability';
+import { log, runWithContext } from '@hrms/observability';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { withTenant, type TenantClient } from '@hrms/db';
@@ -121,15 +121,46 @@ function build(
     );
   }
 
+  // Nilai yang sudah dipastikan ada, ditangkap sebagai const supaya penyempitan
+  // tipenya bertahan di dalam fungsi bersarang di bawah. Tanpa ini, TypeScript
+  // kembali menganggapnya mungkin `undefined` — dan `rule!` di setiap
+  // penggunaannya akan menyembunyikan kesalahan yang sesungguhnya bila kelak
+  // pemeriksaan di atas dihapus orang.
+  const routeRule = rule;
+
   return async function route(req: Request, nextCtx?: NextRouteContext): Promise<Response> {
     const ctx = contextFrom(req);
     const params = (await nextCtx?.params) ?? {};
 
-    if (rule.rateLimit) {
+    /**
+     * Seluruh penanganan berjalan di dalam konteks permintaan.
+     *
+     * Satu pembungkus di batas ini menggantikan penerusan `correlationId`
+     * sebagai parameter ke puluhan fungsi domain yang tidak ada urusannya
+     * dengan pencatatan — dan yang akan lupa diisi pada fungsi berikutnya yang
+     * ditulis orang.
+     *
+     * Yang mengalir lewat konteks hanya untuk PENCATATAN. Tenant sebagai dasar
+     * isolasi tetap diteruskan eksplisit ke `withTenant`, karena otorisasi yang
+     * membaca keadaan implisit dapat bocor lintas permintaan ketika satu
+     * `await` lupa ditunggu.
+     */
+    return runWithContext({ correlationId: ctx.correlationId, routeId }, () =>
+      handleRequest(req, ctx, params),
+    );
+  };
+
+  async function handleRequest(
+    req: Request,
+    ctx: ReturnType<typeof contextFrom>,
+    params: Record<string, string>,
+  ): Promise<Response> {
+
+    if (routeRule.rateLimit) {
       const allowed = consumeRateLimit(
         `${routeId}:${ctx.ip ?? 'unknown'}`,
-        rule.rateLimit.max,
-        rule.rateLimit.windowSeconds,
+        routeRule.rateLimit.max,
+        routeRule.rateLimit.windowSeconds,
       );
       if (!allowed) {
         return fail(
@@ -220,16 +251,16 @@ function build(
       return await withTenant(claims.tid, async (tx) => {
         const access = await resolveEffectiveAccess(tx, claims.tid, claims.sub);
 
-        if (!access.modules.includes(rule.module)) {
+        if (!access.modules.includes(routeRule.module)) {
           return fail(
             402,
             ErrorCode.MODULE_NOT_SUBSCRIBED,
-            `Paket langganan Anda belum mencakup modul "${rule.module}"`,
+            `Paket langganan Anda belum mencakup modul "${routeRule.module}"`,
             ctx.correlationId,
           );
         }
 
-        if (rule.permission !== null && !access.permissions.includes(rule.permission)) {
+        if (routeRule.permission !== null && !access.permissions.includes(routeRule.permission)) {
           return fail(
             403,
             ErrorCode.PERMISSION_DENIED,
@@ -292,7 +323,7 @@ function build(
         ctx.correlationId,
       );
     }
-  };
+  }
 }
 
 export { fail as apiError };
