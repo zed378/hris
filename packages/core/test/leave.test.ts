@@ -57,3 +57,47 @@ describe('perhitungan hari kerja', () => {
     expect(countWorkingDays(d('2026-12-30'), d('2027-01-04'), libur)).toBe(3);
   });
 });
+
+describe('hari kerja mengikuti jadwal, bukan anggapan akhir pekan', () => {
+  const kosong = new Set<string>();
+
+  /** Jadwal pabrik enam hari: Minggu libur, Sabtu masuk. */
+  function enamHari(dates: string[]): Map<string, boolean> {
+    return new Map(dates.map((iso) => [iso, new Date(`${iso}T00:00:00Z`).getUTCDay() === 0]));
+  }
+
+  it('menghitung Sabtu sebagai hari kerja bila dijadwalkan masuk', () => {
+    // 2027-01-04 Senin … 2027-01-09 Sabtu. Anggapan Senin–Jumat memberi 5;
+    // pabrik enam hari kehilangan satu hari kerja setiap pengajuan seminggu,
+    // dan angkanya tetap masuk akal sehingga tidak ada yang menyadarinya.
+    const jadwal = enamHari([
+      '2027-01-04', '2027-01-05', '2027-01-06',
+      '2027-01-07', '2027-01-08', '2027-01-09',
+    ]);
+    expect(countWorkingDays(d('2027-01-04'), d('2027-01-09'), kosong)).toBe(5);
+    expect(countWorkingDays(d('2027-01-04'), d('2027-01-09'), kosong, jadwal)).toBe(6);
+  });
+
+  it('tidak menghitung Senin yang dijadwalkan libur', () => {
+    // Ritel yang tutup hari Senin.
+    const jadwal = new Map([['2027-01-04', true]]);
+    expect(countWorkingDays(d('2027-01-04'), d('2027-01-08'), kosong, jadwal)).toBe(4);
+  });
+
+  it('hari libur nasional tetap menang atas jadwal masuk', () => {
+    // 17 Agustus 2027 jatuh hari Selasa. Dijadwalkan masuk, tetapi libur
+    // nasional — dan cuti tidak boleh memotong saldo untuk hari yang memang
+    // sudah libur bagi semua orang.
+    const jadwal = new Map([['2027-08-17', false]]);
+    const libur = new Set(['2027-08-17']);
+    expect(countWorkingDays(d('2027-08-17'), d('2027-08-17'), libur, jadwal)).toBe(0);
+  });
+
+  it('tanggal tanpa baris jadwal jatuh ke anggapan Senin–Jumat', () => {
+    // Tenant yang belum menjadwalkan apa pun tidak berubah perilakunya.
+    const sebagian = new Map([['2027-01-09', false]]); // Sabtu, dijadwalkan masuk
+    // Senin–Minggu: 5 hari kerja + Sabtu yang dijadwalkan = 6. Minggu tetap libur
+    // karena tidak ada barisnya.
+    expect(countWorkingDays(d('2027-01-04'), d('2027-01-10'), kosong, sebagian)).toBe(6);
+  });
+});

@@ -249,6 +249,14 @@ export const ROUTE_MANIFEST = {
   'POST /api/attendance/records': { module: 'attendance', permission: 'attendance.record.correct' },
   'GET /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.record.read.own' },
   'POST /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.shift.manage' },
+  'GET /api/attendance/schedules': {
+    module: 'attendance',
+    permission: 'attendance.record.read.own',
+  },
+  'POST /api/attendance/schedules': {
+    module: 'attendance',
+    permission: 'attendance.shift.manage',
+  },
   'GET /api/attendance/shifts': { module: 'attendance', permission: 'attendance.record.read.own' },
   'POST /api/attendance/shifts': { module: 'attendance', permission: 'attendance.shift.manage' },
 

@@ -32,4 +32,5 @@ export {
   type DecisionInput,
   type RequestView,
   type LeaveOnDate,
+  type DayOffMap,
 } from './requests.ts';

@@ -24,11 +24,39 @@ import {
  * basis data, setelah dua manajer terlanjur menyetujui.
  */
 
-/** Berapa hari kerja dalam rentang, mengecualikan akhir pekan dan hari libur. */
+/**
+ * Hari libur mingguan seorang karyawan, dibaca dari jadwalnya.
+ *
+ * Kunci berupa tanggal ISO (`YYYY-MM-DD`); nilai `true` berarti hari itu
+ * DIJADWALKAN LIBUR bagi orang ini. Tanggal yang tidak ada kuncinya jatuh ke
+ * anggapan Senin–Jumat.
+ */
+export type DayOffMap = ReadonlyMap<string, boolean>;
+
+/**
+ * Berapa hari kerja dalam rentang, mengecualikan libur mingguan dan hari libur.
+ *
+ * Sabtu dan Minggu hanyalah **anggapan terakhir**, bukan aturan. Anggapan itu
+ * salah untuk sebagian besar tenant yang dituju produk ini: pabrik enam hari
+ * kerja, ritel yang libur hari Senin, satpam tiga shift yang liburnya berputar.
+ * Pada pabrik enam hari, mengajukan cuti Senin–Sabtu terpotong lima hari saldo
+ * padahal enam hari kerja ditinggalkan — perusahaan kehilangan satu hari kerja
+ * setiap kali, dan tidak ada yang menampakkannya karena angkanya tetap masuk
+ * akal.
+ *
+ * Yang benar ada di `attendance.schedules`: satu baris per karyawan per tanggal,
+ * dengan `is_day_off` yang sudah dipakai modul presensi untuk memutuskan status
+ * `DAY_OFF`. Cuti kini membaca sumber yang sama, sehingga presensi dan cuti
+ * tidak dapat berbeda pendapat tentang hari mana yang hari kerja.
+ *
+ * Tanggal tanpa baris jadwal jatuh ke Senin–Jumat. Tenant yang belum
+ * menjadwalkan apa pun karena itu tidak berubah perilakunya.
+ */
 export function countWorkingDays(
   start: Date,
   end: Date,
   holidays: ReadonlySet<string>,
+  dayOffs: DayOffMap = new Map(),
 ): number {
   let days = 0;
   const cursor = new Date(
@@ -37,13 +65,17 @@ export function countWorkingDays(
   const last = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
 
   while (cursor.getTime() <= last) {
-    const weekday = cursor.getUTCDay();
     const iso = cursor.toISOString().slice(0, 10);
+    const scheduled = dayOffs.get(iso);
+    const weekday = cursor.getUTCDay();
 
-    // Sabtu dan Minggu dilewati. Tenant dengan hari kerja berbeda — pabrik enam
-    // hari, ritel yang libur Senin — ditangani lewat `Schedule` pada modul
-    // presensi, dan itu perbaikan yang menunggu tenant nyata dengan pola itu.
-    if (weekday !== 0 && weekday !== 6 && !holidays.has(iso)) days += 1;
+    // Jadwal menang atas anggapan akhir pekan — ke DUA arah. Sabtu yang
+    // dijadwalkan masuk terhitung hari kerja; Senin yang dijadwalkan libur
+    // tidak. Membuat jadwal hanya dapat mengurangi hari kerja akan salah untuk
+    // pabrik enam hari, yang justru menambahnya.
+    const isWorkDay = scheduled === undefined ? weekday !== 0 && weekday !== 6 : !scheduled;
+
+    if (isWorkDay && !holidays.has(iso)) days += 1;
 
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
@@ -178,7 +210,22 @@ export async function submitRequest(
   });
   const holidaySet = new Set(holidays.map((h) => h.date.toISOString().slice(0, 10)));
 
-  const workingDays = countWorkingDays(input.startDate, input.endDate, holidaySet);
+  // Jadwal karyawan ini pada rentang yang diajukan. Hanya baris yang benar-benar
+  // ada yang diambil — ketiadaan baris berarti "pakai anggapan Senin–Jumat",
+  // bukan "hari libur".
+  const schedules = await tx.schedule.findMany({
+    where: {
+      tenantId,
+      employeeId: input.employeeId,
+      workDate: { gte: input.startDate, lte: input.endDate },
+    },
+    select: { workDate: true, isDayOff: true },
+  });
+  const dayOffs = new Map(
+    schedules.map((s) => [s.workDate.toISOString().slice(0, 10), s.isDayOff] as const),
+  );
+
+  const workingDays = countWorkingDays(input.startDate, input.endDate, holidaySet, dayOffs);
   if (workingDays === 0) {
     throw new LeaveError(
       'Rentang yang dipilih tidak memuat satu pun hari kerja — seluruhnya akhir pekan atau hari libur.',

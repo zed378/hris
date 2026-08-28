@@ -402,8 +402,36 @@ Tiga batasnya perlu diketahui:
   ulang tahun adalah perubahan skema, dan menunggu tenant nyata yang memakainya.
 - **Lampiran cuti sebagai berkas** — `attachmentKey` saat ini teks bebas, belum
   terhubung ke penyimpanan dokumen yang sudah ada di modul karyawan.
-- **Hari kerja selain Senin–Jumat** — pabrik enam hari dan ritel yang libur
-  Senin dihitung salah oleh `countWorkingDays`.
+- ~~**Hari kerja selain Senin–Jumat**~~ — **selesai.** `countWorkingDays` kini
+  membaca `attendance.schedules`, sumber yang sama dengan yang dipakai modul
+  presensi untuk memutuskan status `DAY_OFF` — sehingga presensi dan cuti tidak
+  dapat berbeda pendapat tentang hari mana yang hari kerja. Jadwal menang atas
+  anggapan akhir pekan ke **dua arah**: Sabtu yang dijadwalkan masuk terhitung
+  hari kerja, Senin yang dijadwalkan libur tidak. Tanggal tanpa baris jadwal
+  jatuh ke Senin–Jumat, jadi tenant yang belum menjadwalkan apa pun tidak
+  berubah perilakunya. Pada pabrik enam hari, pengajuan Senin–Sabtu sebelumnya
+  memotong lima hari saldo untuk enam hari kerja yang ditinggalkan — perusahaan
+  kehilangan satu hari setiap kali, dan angkanya tetap masuk akal sehingga tidak
+  ada yang menyadarinya.
+- ~~**Belum ada layar maupun endpoint penjadwalan**~~ — **selesai.** Menu
+  "Shift & Jadwal" sudah ada di basis data sejak seed pertama dan tampil bagi
+  setiap HR yang membuka sidebar — menuju halaman yang tidak pernah ada.
+  Kini `/attendance/shifts` beserta `GET`/`POST /api/attendance/schedules`
+  mengisi tabel yang sudah dibaca dua modul. Pembangkitannya dari pola mingguan,
+  dengan tiga penjagaan yang masing-masing menutup kegagalan diam:
+  **tidak menimpa** baris yang sudah ada kecuali diminta (penyesuaian tangan —
+  tukar shift, libur pengganti — tidak lenyap diam-diam); **tidak menjadwalkan
+  di luar masa kerja** (karyawan yang resign bulan Maret tetapi punya jadwal
+  sampai Desember tercatat ALFA setiap hari, dan angka kehadiran seluruh
+  perusahaan ikut rusak); **tidak menandai libur nasional sebagai libur
+  mingguan** (presensi memeriksa `holidays` lebih dulu, dan menukarnya menjadi
+  `DAY_OFF` membuat lembur hari libur tidak terlihat). Rentang dibatasi 366 hari
+  sekali bangkit. Diverifikasi terhadap server sungguhan: pola pabrik enam hari
+  atas 3 karyawan × Maret 2027 menghasilkan 93 baris; pembangkitan kedua
+  menghasilkan 0 dibuat / 93 dilewati; rentang 732 hari ditolak 400 dengan pesan
+  yang menyebutkan cara membaginya; staf yang mencoba membangkitkan ditolak 403
+  (P9). Cuti yang dihitung atas jadwal itu memberi 24 hari kerja pada rentang
+  yang anggapan Senin–Jumat menghitungnya 20.
 
 ### Payroll — yang belum ada
 

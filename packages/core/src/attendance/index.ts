@@ -65,3 +65,11 @@ export {
   type ConsentDecision,
   type PunchPermissions,
 } from './consent.ts';
+export {
+  generateSchedules,
+  ScheduleError,
+  MAX_RANGE_DAYS,
+  type Weekday,
+  type GenerateInput,
+  type GenerateResult,
+} from './schedule.ts';
