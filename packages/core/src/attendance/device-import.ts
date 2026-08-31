@@ -11,24 +11,24 @@ import {
 } from './device-format.ts';
 
 /**
- * Impor ketukan dari mesin absensi (dokumen 10 §5, risiko R8).
+ * Importing punches from an attendance machine (document 10 §5, risk R8).
  *
- * Alur yang dilayani: mesin fingerprint di kantor mengekspor berkas, HR
- * mengunggahnya, dan ketukannya masuk ke sistem yang sama dengan presensi
- * ponsel. Bukan jalur pinggiran — bagi tenant dengan lokasi kerja tetap, inilah
- * jalur utamanya, dan presensi ponsel yang menjadi pelengkap (PLAN/10 §1).
+ * The flow it serves: the fingerprint machine in the office exports a file, HR
+ * uploads it, and its punches enter the same system as phone punches. Not a
+ * side path — for a tenant with fixed work sites this is the main path, and
+ * phone punching is the complement (PLAN/10 §1).
  *
- * Dua sifat yang menanggung beban paling besar:
+ * Two properties carry the most weight:
  *
- * **Idempoten.** Mesin absensi diekspor ulang terus-menerus, dan rentangnya
- * hampir selalu tumpang tindih dengan ekspor sebelumnya — HR mengunduh "bulan
- * ini" setiap minggu. Kunci dedupe dibangun dari isi ketukannya, sehingga
- * mengimpor berkas yang sama sepuluh kali menghasilkan baris yang sama persis.
+ * **Idempotent.** An attendance machine is exported over and over, and its range
+ * almost always overlaps the previous export — HR downloads "this month" every
+ * week. The dedupe key is built from the punch's own contents, so importing the
+ * same file ten times produces exactly the same rows.
  *
- * **Pratinjau lebih dulu.** Berkas mesin absensi memakai PIN, bukan nama. PIN
- * yang tidak terdaftar tidak terlihat salah — ia hanya tidak menghasilkan apa
- * pun. Tanpa pratinjau, HR mengimpor 3.000 baris dan tidak pernah tahu bahwa 400
- * di antaranya milik karyawan yang PIN-nya belum dipetakan.
+ * **Preview first.** An attendance machine file uses PINs, not names. An
+ * unregistered PIN does not look wrong — it simply produces nothing. Without a
+ * preview, HR imports 3,000 rows and never learns that 400 of them belong to
+ * employees whose PIN has not been mapped.
  */
 
 export class DeviceImportError extends Error {
@@ -41,12 +41,12 @@ export class DeviceImportError extends Error {
   }
 }
 
-/** Sebulan penuh untuk 500 karyawan dengan empat ketukan per hari ≈ 60.000. */
+/** A full month for 500 employees at four punches a day ≈ 60,000. */
 const MAX_ROWS = 60_000;
 
 export interface DeviceImportIssue {
   rowNumber: number;
-  /** Isi baris apa adanya, dipotong, supaya HR mengenali barisnya di berkas. */
+  /** The row's contents as they are, truncated, so HR can find it in the file. */
   raw: string;
   reason: string;
 }
@@ -55,34 +55,35 @@ export interface DeviceImportResult {
   fileName: string;
   committed: boolean;
   totalRows: number;
-  /** Baris yang lolos validasi dan karyawannya ditemukan. */
+  /** Rows that passed validation and whose employee was found. */
   validRows: number;
-  /** Baris yang sudah pernah diimpor sebelumnya. */
+  /** Rows that had already been imported before. */
   duplicateRows: number;
-  /** Baris yang benar-benar tersimpan pada pemanggilan ini. */
+  /** Rows genuinely stored on this call. */
   insertedRows: number;
-  /** Nomor karyawan pada berkas yang tidak ada di data karyawan. */
+  /** Employee numbers in the file that are absent from the employee data. */
   unknownEmployees: string[];
   issues: DeviceImportIssue[];
   headers: string[];
-  /** Rentang tanggal yang tercakup berkas, dalam zona tenant. */
+  /** The date range the file covers, in the tenant's timezone. */
   range: { from: string; to: string } | null;
 }
 
-/** Berapa banyak contoh galat yang dikembalikan. Bukan seluruhnya. */
+/** How many error samples are returned. Not all of them. */
 const MAX_ISSUES = 50;
 
 /**
- * Membaca berkas menjadi larik baris.
+ * Reads the file into an array of rows.
  *
- * CSV diurai sendiri alih-alih memakai pustaka. Berkas mesin absensi memakai
- * koma, titik koma, atau tab tergantung setelan regional Windows tempat
- * perangkat lunaknya berjalan — dan pemisahnya tidak pernah disebutkan di mana
- * pun. Mendeteksinya dari baris judul lebih andal daripada meminta HR menebak.
+ * The CSV is parsed here rather than with a library. An attendance machine file
+ * uses commas, semicolons, or tabs depending on the regional settings of the
+ * Windows machine its software runs on — and its separator is never stated
+ * anywhere. Detecting it from the header row is more reliable than asking HR to
+ * guess.
  */
 function readDelimited(text: string): string[][] {
-  // BOM ditulis sebagai escape, bukan karakternya sendiri: karakter tak terlihat
-  // di dalam kode adalah hal yang tidak dapat ditinjau siapa pun.
+  // The BOM is written as an escape rather than the character itself: an
+  // invisible character inside code is something nobody can review.
   const withoutBom = text.replace(/^\uFEFF/, '');
   const firstLine = withoutBom.split(/\r?\n/, 1)[0] ?? '';
 
@@ -100,7 +101,7 @@ function readDelimited(text: string): string[][] {
 
     if (quoted) {
       if (char === '"') {
-        // Tanda kutip ganda di dalam kutipan berarti satu tanda kutip harfiah.
+        // A double quote inside a quoted field means one literal quote.
         if (withoutBom[i + 1] === '"') {
           field += '"';
           i += 1;
@@ -133,7 +134,7 @@ function readDelimited(text: string): string[][] {
     rows.push(row);
   }
 
-  // Baris kosong di akhir berkas adalah hal biasa dan bukan galat.
+  // Blank lines at the end of a file are ordinary and not an error.
   return rows.filter((line) => line.some((cell) => cell.trim() !== ''));
 }
 
@@ -224,8 +225,8 @@ export async function importDevicePunches(
 
   const typed = inferPunchTypes(parsed);
 
-  // Pemetaan PIN → karyawan dilakukan sekali untuk seluruh berkas. Satu query
-  // per baris akan berarti puluhan ribu query untuk satu unggahan.
+  // The PIN → employee mapping is done once for the whole file. One query per row
+  // would mean tens of thousands of queries for one upload.
   const numbers = [...new Set(typed.map((punch) => punch.employeeNumber))];
   const employees = await tx.employee.findMany({
     where: { tenantId, employeeNumber: { in: numbers } },
@@ -284,10 +285,9 @@ export async function importDevicePunches(
           duplicateRows += 1;
           continue;
         }
-        // Satu baris yang gagal tidak boleh membatalkan seluruh berkas. Ia
-        // dilaporkan pada barisnya sendiri, dan sisanya tetap masuk — HR yang
-        // mengimpor 3.000 ketukan tidak dapat berbuat apa-apa dengan kegagalan
-        // yang hanya berkata "impor gagal".
+        // One failing row must not cancel the whole file. It is reported on its
+        // own row and the rest still go in — HR importing 3,000 punches can do
+        // nothing with a failure that only says "import failed".
         issues.push({
           rowNumber: punch.rowNumber,
           raw: punch.employeeNumber,
@@ -296,8 +296,8 @@ export async function importDevicePunches(
       }
     }
   } else {
-    // Pratinjau menghitung berapa yang sudah ada tanpa menulis apa pun, supaya
-    // angka "akan ditambahkan" yang dilihat HR adalah angka yang sebenarnya.
+    // A preview counts how many already exist without writing anything, so the
+    // "will be added" figure HR sees is the real one.
     const keys = resolvable.map(dedupeKeyFor);
     const existing = await tx.punchLog.findMany({
       where: { tenantId, dedupeKey: { in: keys } },

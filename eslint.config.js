@@ -3,23 +3,23 @@ import tseslint from 'typescript-eslint';
 import boundaries from 'eslint-plugin-boundaries';
 
 /**
- * Batas modul sebagai gerbang CI (PLAN/12 §3.1 aturan 1).
+ * Module boundaries as a CI gate (PLAN/12 §3.1 rule 1).
  *
- * Ini berkas terpenting dalam repositori untuk umur panjang sistem, dan alasannya
- * tidak terlihat dari isinya.
+ * This is the most important file in the repository for the system's longevity,
+ * and its reason is not visible from its contents.
  *
- * Rencana ini memilih monolit modular dengan janji bahwa memecahnya menjadi
- * service kelak memakan 4–6 minggu per service, bukan 4–6 bulan. Janji itu hanya
- * benar bila setiap modul benar-benar berkomunikasi lewat API publiknya. Tanpa
- * penegakan mesin, batas itu akan luntur — bukan karena ada yang sengaja
- * melanggarnya, melainkan karena mengimpor satu fungsi dari kedalaman modul lain
- * selalu terasa seperti jalan pintas yang wajar pada hari itu.
+ * This plan chose a modular monolith on the promise that splitting it into
+ * services later takes 4–6 weeks per service rather than 4–6 months. That
+ * promise only holds while every module genuinely communicates through its
+ * public API. Without machine enforcement the boundary erodes — not because
+ * anyone deliberately breaks it, but because importing one function from deep
+ * inside another module always feels like a reasonable shortcut on the day.
  *
- * Ketika batasnya sudah luntur, tidak ada satu commit pun yang dapat ditunjuk
- * sebagai penyebabnya, dan §9 diam-diam berubah dari rencana menjadi harapan.
+ * Once the boundary has eroded, there is no single commit to point at as the
+ * cause, and §9 quietly turns from a plan into a hope.
  *
- * Aturan intinya satu kalimat: **isi sebuah modul hanya boleh menyentuh isi
- * modulnya sendiri; ke modul lain hanya lewat `index.ts`.**
+ * Its core rule is one sentence: **a module's internals may only touch their own
+ * module's internals; other modules only through `index.ts`.**
  */
 export default tseslint.config(
   {
@@ -39,15 +39,15 @@ export default tseslint.config(
     plugins: { boundaries },
     settings: {
       'boundaries/include': ['packages/**/*.ts', 'apps/**/*.ts', 'apps/**/*.tsx'],
-      // `mode: 'file'` memikul beban di sini dan tidak boleh dihapus meski
-      // plugin memperingatkannya sebagai deprecated — peringatan itu menyasar
-      // mode 'full' dan 'folder'. Tanpa 'file', pola `*/index.ts` dicocokkan
-      // sebagai folder, `index.ts` berhenti dikenali sebagai pintu depan, dan
-      // seluruh kebijakan runtuh menjadi "semua impor lintas modul dilarang" —
-      // gagal keras, untungnya, bukan diam-diam mengizinkan.
+      // `mode: 'file'` carries the weight here and must not be removed even
+      // though the plugin warns it is deprecated — that warning targets the
+      // 'full' and 'folder' modes. Without 'file', the `*/index.ts` pattern is
+      // matched as a folder, `index.ts` stops being recognised as a front door,
+      // and the whole policy collapses into "every cross-module import is
+      // forbidden" — failing loudly, fortunately, rather than quietly allowing.
       'boundaries/elements': [
-        // Urutan penting: `index.ts` cocok dengan kedua pola di bawah, dan
-        // definisi pertama yang menang. Pintu depan harus dikenali lebih dulu.
+        // Order matters: `index.ts` matches both patterns below, and the first
+        // definition wins. The front door has to be recognised first.
         {
           type: 'core-module-api',
           mode: 'file',
@@ -72,8 +72,8 @@ export default tseslint.config(
         {
           default: 'disallow',
           policies: [
-            // Aplikasi memakai modul lewat pintu depannya. Impor ke jalur dalam
-            // seperti '@hrms/core/auth/login.ts' ditolak di sini.
+            // Applications use a module through its front door. An import of an
+            // internal path such as '@hrms/core/auth/login.ts' is refused here.
             {
               from: [{ element: { type: 'app' } }],
               allow: [
@@ -85,9 +85,9 @@ export default tseslint.config(
               ],
             },
 
-            // Isi modul: bebas di dalam modulnya sendiri, hanya pintu depan ke
-            // modul lain. Inilah aturan yang membuat pemisahan kelak sekadar
-            // mengganti pemanggilan fungsi menjadi HTTP.
+            // Module internals: free within their own module, front door only to
+            // other modules. This is the rule that makes a future split merely a
+            // matter of turning a function call into HTTP.
             {
               from: [{ element: { type: 'core-module-internal' } }],
               allow: [
@@ -106,8 +106,8 @@ export default tseslint.config(
               ],
             },
 
-            // Pintu depan sebuah modul merangkum isinya sendiri, dan boleh
-            // meneruskan ke pintu depan modul lain.
+            // A module's front door summarises its own internals, and may forward
+            // to another module's front door.
             {
               from: [{ element: { type: 'core-module-api' } }],
               allow: [
@@ -126,13 +126,13 @@ export default tseslint.config(
               ],
             },
 
-            // Lapisan bawah tidak pernah tahu tentang lapisan di atasnya.
+            // A lower layer never knows about the layers above it.
             //
-            // `contracts` adalah pengecualian yang disengaja: ia daun sejati —
-            // hanya boleh mengimpor dirinya sendiri — sehingga `db` yang
-            // bergantung padanya tetap menjaga grafnya asiklik. Yang didapat
-            // dari itu adalah katalog topik event dapat menjadi TIPE parameter
-            // `publishEvent`, bukan sekadar konvensi penamaan yang diharapkan
+            // `contracts` is a deliberate exception: it is a true leaf — it may
+            // only import itself — so `db` depending on it keeps the graph
+            // acyclic. What that buys is the event topic catalogue being usable
+            // as the TYPE of `publishEvent`'s parameter, rather than a naming
+            // convention everyone is expected to follow.
             // dipatuhi.
             {
               from: [{ element: { type: 'db' } }],
@@ -142,10 +142,9 @@ export default tseslint.config(
               from: [{ element: { type: 'contracts' } }],
               allow: [{ to: { element: { type: 'contracts' } } }],
             },
-            // Observability adalah daun paling bawah: setiap lapisan boleh
-            // mencatat log, dan ia tidak boleh bergantung pada satu pun di
-            // antaranya. Ketergantungan ke arah sebaliknya akan membuat logger
-            // ikut gagal ketika lapisan yang hendak dicatatnya gagal.
+            // Observability is the lowest leaf: every layer may log, and it must
+            // not depend on any of them. A dependency the other way would make
+            // the logger fail along with the layer it is meant to be logging.
             {
               from: [{ element: { type: 'observability' } }],
               allow: [{ to: { element: { type: 'observability' } } }],
@@ -154,9 +153,9 @@ export default tseslint.config(
         },
       ],
 
-      // Modul domain tidak boleh mengimpor Prisma langsung — seluruh akses basis
-      // data lewat @hrms/db, karena di situlah konteks tenant dipasang. Jalur
-      // yang melewatinya adalah jalur tanpa RLS.
+      // A domain module must not import Prisma directly — all database access
+      // goes through @hrms/db, because that is where the tenant context is set. A
+      // path that bypasses it is a path without RLS.
       'no-restricted-imports': [
         'error',
         {
@@ -178,14 +177,13 @@ export default tseslint.config(
     },
   },
 
-  // @hrms/db adalah satu-satunya tempat yang boleh menyentuh Prisma. Ia memang
-  // pembungkusnya.
+  // @hrms/db is the only place allowed to touch Prisma. It is its wrapper.
   {
     files: ['packages/db/**/*.ts'],
     rules: { 'no-restricted-imports': 'off' },
   },
 
-  // Seed, uji, dan skrip ops berjalan di luar siklus request.
+  // Seeds, tests, and ops scripts run outside the request cycle.
   {
     files: [
       'packages/db/prisma/**/*.ts',

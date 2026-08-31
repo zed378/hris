@@ -1,27 +1,27 @@
 /**
- * Log terstruktur (PLAN/12 F7 — observabilitas).
+ * Structured logging (PLAN/12 P7 — observability).
  *
- * Konvensi `{ scope: '…' }` sudah dipakai di seluruh basis kode sebelum berkas
- * ini ada. Yang ditambahkan di sini bukan konvensinya, melainkan empat hal yang
- * hilang darinya:
+ * The `{ scope: '…' }` convention was already used across the codebase before
+ * this file existed. What is added here is not the convention but the four
+ * things missing from it:
  *
- *   1. **Level**, sehingga log produksi dapat dikurangi tanpa mengubah kode.
- *   2. **Stempel waktu di dalam JSON.** Docker memang menambahkannya di luar,
- *      tetapi log yang dikirim ke agregator kehilangan lapisan itu — dan log
- *      tanpa waktu tidak dapat diurutkan terhadap log dari proses lain.
- *   3. **Correlation id**, supaya satu permintaan dapat ditelusuri melintasi
- *      lapisan.
- *   4. **Redaksi**, dan inilah yang paling menanggung beban.
+ *   1. **A level**, so production logging can be reduced without a code change.
+ *   2. **A timestamp inside the JSON.** Docker adds one outside, but a log
+ *      shipped to an aggregator loses that layer — and a log with no time
+ *      cannot be ordered against logs from another process.
+ *   3. **A correlation id**, so one request can be traced across layers.
+ *   4. **Redaction**, and that is what carries the most weight.
+   *   4. **Redaction**, and that is what carries the most weight.
+ * On redaction. An error object logged as it is often carries the request body
+ * that caused it — and in this system a request body can hold a national ID, a
+ * bank account number, a password, or an access token. Logs are shipped to an
+ * aggregator, kept for months, and readable by more people than the database
+ * itself.
  *
- * Tentang redaksi. Objek galat yang di-log apa adanya kerap membawa isi
- * permintaan yang menyebabkannya — dan pada sistem ini isi permintaan dapat
- * berupa NIK, nomor rekening, kata sandi, atau token akses. Log dikirim ke
- * agregator, disimpan berbulan-bulan, dan dapat dibaca lebih banyak orang
- * daripada basis datanya sendiri.
  *
- * Kebocoran lewat log tidak menghasilkan galat apa pun. Ia hanya menumpuk,
- * diam, sampai seseorang menyadari bahwa berkas log memuat data yang RLS
- * dijaga mati-matian untuk melindunginya.
+ * A leak through the logs produces no error at all. It simply accumulates,
+ * silently, until someone notices that the log files hold the data RLS is
+ * guarded so carefully to protect.
  */
 
 import { currentContext } from './context.ts';
@@ -31,24 +31,24 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 const LEVEL_ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
 /**
- * Ambang level, dari `LOG_LEVEL`.
+ * The level threshold, from `LOG_LEVEL`.
  *
- * Dibaca sekali saat modul dimuat, bukan setiap panggilan: log berada di jalur
- * panas, dan membaca variabel lingkungan puluhan ribu kali per menit adalah
- * biaya yang tidak dibayar apa pun.
+ * Read once when the module loads rather than on every call: logging is on the
+ * hot path, and reading an environment variable tens of thousands of times a
+ * minute is a cost nothing pays for.
  */
 const threshold = LEVEL_ORDER[(process.env['LOG_LEVEL'] as LogLevel) ?? 'info'] ?? 20;
 
 /**
- * Kunci yang isinya TIDAK PERNAH boleh masuk log.
+ * Keys whose contents must NEVER reach a log.
  *
- * Dicocokkan pada nama kunci, bukan nilainya — pencocokan berbasis nilai akan
- * meleset pada data yang bentuknya tidak terduga, dan meleset di sini berarti
- * data pribadi tersimpan di agregator log.
+ * Matched on the key name, not its value — value-based matching misses data of
+ * an unexpected shape, and a miss here means personal data stored in a log
+ * aggregator.
  *
- * Daftarnya sengaja longgar: `password` menangkap `passwordHash` dan
- * `ownerPassword` sekaligus. Kelebihan redaksi hanya menyulitkan debugging;
- * kekurangan redaksi menyulitkan pemberitahuan pelanggaran data.
+ * The list is deliberately loose: `password` catches `passwordHash` and
+ * `ownerPassword` at once. Over-redacting only makes debugging harder;
+ * under-redacting makes a breach notification harder.
  */
 const SENSITIVE = [
   'password',
@@ -71,9 +71,9 @@ const SENSITIVE = [
 
 const REDACTED = '[disunting]';
 
-/** Batas kedalaman. Objek melingkar dan struktur dalam tidak boleh membekukan proses. */
+/** The depth limit. A circular object or a deep structure must not freeze the process. */
 const MAX_DEPTH = 6;
-/** Batas panjang string. Muatan besar di log menghabiskan kuota agregator. */
+/** The string length limit. A large payload in a log burns the aggregator quota. */
 const MAX_STRING = 2_000;
 
 function isSensitiveKey(key: string): boolean {
@@ -92,8 +92,8 @@ export function redact(value: unknown, depth = 0): unknown {
   if (value instanceof Date) return value.toISOString();
 
   if (Array.isArray(value)) {
-    // Larik panjang dipotong: seribu baris impor yang gagal tidak perlu seluruhnya
-    // masuk log untuk dapat didiagnosis.
+    // A long array is truncated: a thousand failing import rows need not all be
+    // in the log to be diagnosable.
     const head = value.slice(0, 20).map((item) => redact(item, depth + 1));
     return value.length > 20 ? [...head, `…dan ${value.length - 20} lainnya`] : head;
   }
@@ -102,8 +102,8 @@ export function redact(value: unknown, depth = 0): unknown {
     return {
       name: value.name,
       message: value.message,
-      // Stack disertakan hanya pada level debug. Ia panjang, dan pada galat
-      // yang sudah dikenali ia tidak menambah apa pun.
+      // The stack is included only at debug level. It is long, and on an error
+      // that is already understood it adds nothing.
       ...(threshold <= LEVEL_ORDER.debug ? { stack: value.stack } : {}),
       ...(('code' in value) ? { code: (value as { code?: unknown }).code } : {}),
     };
@@ -127,13 +127,13 @@ function emit(level: LogLevel, fields: LogFields): void {
   if (LEVEL_ORDER[level] < threshold) return;
 
   /**
-   * Konteks permintaan disisipkan otomatis, dan medan eksplisit MENANG.
+   * The request context is inserted automatically, and explicit fields WIN.
    *
-   * Urutannya disengaja: pemanggil yang menyebut `correlationId` sendiri —
-   * misalnya konsumen worker yang meneruskannya dari amplop outbox — sedang
-   * mencatat korelasi permintaan ASAL, bukan korelasi proses yang sedang
-   * berjalan. Menimpanya dengan konteks lokal akan memutus jejak persis pada
-   * batas yang hendak disambung.
+   * The order is deliberate: a caller naming `correlationId` themselves — a
+   * worker consumer forwarding it from the outbox envelope, for instance — is
+   * recording the ORIGINATING request's correlation, not the correlation of the
+   * process currently running. Overwriting it with the local context would break
+   * the trail at exactly the boundary it is meant to join.
    */
   const context = currentContext();
   const record = {
@@ -143,9 +143,9 @@ function emit(level: LogLevel, fields: LogFields): void {
     ...(redact(fields) as Record<string, unknown>),
   };
 
-  // `error` dan `warn` ke stderr, sisanya ke stdout. Pemisahan itu yang membuat
-  // `docker logs` dan sebagian besar agregator dapat memisahkan sinyal dari
-  // kebisingan tanpa mengurai isinya.
+  // `error` and `warn` go to stderr, the rest to stdout. That separation is what
+  // lets `docker logs` and most aggregators separate signal from noise without
+  // parsing the contents.
   const line = JSON.stringify(record);
   if (level === 'error' || level === 'warn') console.error(line);
   else console.log(line);
@@ -158,7 +158,7 @@ export const log = {
   error: (fields: LogFields): void => emit('error', fields),
 };
 
-/** Level yang sedang berlaku. Untuk endpoint diagnostik dan pengujian. */
+/** The level currently in force. For a diagnostic endpoint and for testing. */
 export function currentLevel(): LogLevel {
   return (Object.entries(LEVEL_ORDER).find(([, v]) => v === threshold)?.[0] ?? 'info') as LogLevel;
 }
