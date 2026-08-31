@@ -1,37 +1,37 @@
 import { Prisma } from '@hrms/db';
 
 /**
- * Parser ekspresi formula gaji (PLAN/12 F5).
+ * The salary formula expression parser (PLAN/12 P5).
  *
- * Aturan yang tidak dapat dikompromikan: **tanpa `eval()`, tanpa `new Function()`.**
+ * The rule that cannot be compromised: **no `eval()`, no `new Function()`.**
  *
- * Formula gaji ditulis oleh admin HR tenant lewat antarmuka web. Menjalankannya
- * dengan `eval` berarti setiap admin tenant memegang eksekusi kode arbitrer di
- * server yang juga memegang data gaji seluruh tenant lain — dan RLS tidak
- * melindungi apa pun terhadap kode yang berjalan di dalam proses aplikasi.
+ * Salary formulas are written by a tenant's HR admin through a web interface.
+ * Running them with `eval` means every tenant admin holds arbitrary code
+ * execution on a server that also holds every other tenant's salary data — and
+ * RLS protects nothing against code running inside the application process.
  *
- * Yang dibangun karenanya adalah penerjemah kecil: tokenizer, parser turun
- * rekursif, dan evaluator atas pohon sintaks. Sekitar tiga ratus baris, dan
- * ketiganya hanya mengenal aritmetika serta daftar fungsi yang ditulis di sini.
+ * What is built instead is a small interpreter: a tokenizer, a recursive-descent
+ * parser, and an evaluator over the syntax tree. About three hundred lines, and
+ * all three know only arithmetic and the function list written here.
  *
- * Tiga keputusan yang menanggung beban paling besar:
+ * Three decisions carry the most weight:
  *
- *   1. **Decimal, bukan float.** `0.1 + 0.2` dalam IEEE-754 adalah
- *      0.30000000000000004. Pada gaji, selisih itu menjadi rupiah yang tidak
- *      dapat dijelaskan, dan DoD Fase 5 menuntut kecocokan sampai satuan rupiah.
- *   2. **Variabel yang tidak dikenal adalah GALAT, bukan nol.** Formula
- *      `TUNJANGAN_TRANSPOR * 22` yang salah ketik menjadi `TUNJANGAN_TRANSPOT`
- *      akan menghasilkan nol tanpa satu pun keluhan — dan nol itu terlihat
- *      seperti keputusan, bukan seperti kesalahan.
- *   3. **Pembagian nol adalah galat.** `Infinity` yang mengalir ke slip gaji
- *      lebih buruk daripada run yang berhenti dan mengatakan formulanya salah.
+ *   1. **Decimal, not float.** `0.1 + 0.2` in IEEE-754 is 0.30000000000000004.
+ *      In salaries that difference becomes rupiah nobody can explain, and the
+ *      Phase 5 DoD demands a match down to the rupiah.
+ *   2. **An unknown variable is an ERROR, not zero.** A formula
+ *      `TUNJANGAN_TRANSPOR * 22` mistyped as `TUNJANGAN_TRANSPOT` would yield
+ *      zero without one complaint — and that zero looks like a decision rather
+ *      than a mistake.
+ *   3. **Division by zero is an error.** An `Infinity` flowing into a payslip is
+ *      worse than a run that stops and says the formula is wrong.
  */
 
 export class FormulaError extends Error {
   constructor(
     message: string,
     readonly kind: 'syntax' | 'unknown_identifier' | 'unknown_function' | 'arity' | 'math',
-    /** Posisi karakter dalam ekspresi, untuk menunjuk letak kesalahannya. */
+    /** The character position in the expression, so the mistake can be pointed at. */
     readonly position?: number,
   ) {
     super(message);
@@ -39,9 +39,9 @@ export class FormulaError extends Error {
   }
 }
 
-/** Batas panjang ekspresi. Formula gaji terpanjang yang wajar jauh di bawah ini. */
+/** The expression length limit. The longest reasonable salary formula is far below it. */
 const MAX_LENGTH = 1_000;
-/** Batas kedalaman tanda kurung, penjaga terhadap ekspresi yang menghabiskan stack. */
+/** The bracket depth limit, a guard against expressions that exhaust the stack. */
 const MAX_DEPTH = 32;
 
 // -----------------------------------------------------------------------------
@@ -82,9 +82,9 @@ function tokenize(source: string): Token[] {
       while (j < source.length && /[0-9.]/.test(source[j]!)) j += 1;
       const text = source.slice(i, j);
 
-      // Dua titik dalam satu angka hampir selalu berarti pemisah ribuan yang
-      // salah ketik — `1.000.000` alih-alih `1000000`. Menerimanya sebagai
-      // `NaN` akan menyebarkan NaN sampai ke slip gaji.
+      // Two dots in one number almost always means a mistyped thousands
+      // separator — `1.000.000` instead of `1000000`. Accepting it as `NaN`
+      // would propagate NaN all the way to the payslip.
       if ((text.match(/\./g) ?? []).length > 1) {
         throw new FormulaError(
           `Angka "${text}" tidak sah. Jangan pakai titik sebagai pemisah ribuan.`,
@@ -123,7 +123,7 @@ function tokenize(source: string): Token[] {
     }
 
     if (OPERATORS.has(char)) {
-      // Operator dua karakter: <=, >=, ==, !=, &&, ||
+      // Two-character operators: <=, >=, ==, !=, &&, ||
       const pair = source.slice(i, i + 2);
       if (['<=', '>=', '==', '!=', '&&', '||'].includes(pair)) {
         tokens.push({ type: 'operator', value: pair, position: i });
@@ -143,7 +143,7 @@ function tokenize(source: string): Token[] {
 }
 
 // -----------------------------------------------------------------------------
-// Pohon sintaks
+// The syntax tree
 // -----------------------------------------------------------------------------
 
 type Node =
@@ -154,11 +154,11 @@ type Node =
   | { kind: 'call'; name: string; args: Node[]; position: number };
 
 /**
- * Presedensi operator.
+ * Operator precedence.
  *
- * Angka lebih besar mengikat lebih erat. Perkalian di atas penjumlahan, dan
- * pembandingan di bawah keduanya — sehingga `A + B > C` berarti `(A + B) > C`,
- * yang memang bacaan wajar orang yang menulisnya.
+ * A higher number binds tighter. Multiplication above addition, and comparison
+ * below both — so `A + B > C` means `(A + B) > C`, which is how whoever wrote
+ * it would read it.
  */
 const PRECEDENCE: Record<string, number> = {
   '||': 1,
@@ -195,7 +195,7 @@ function parse(tokens: Token[]): Node {
     }
 
     if (token.type === 'operator' && token.value === '+') {
-      // Plus uner tidak berpengaruh, tetapi orang menulisnya.
+      // Unary plus does nothing, but people write it.
       return parsePrimary();
     }
 
@@ -267,8 +267,8 @@ function parse(tokens: Token[]): Node {
       if (precedence === undefined || precedence < minPrecedence) break;
 
       next();
-      // Seluruh operator di sini asosiatif kiri, sehingga sisi kanan diurai
-      // dengan presedensi satu tingkat lebih tinggi.
+      // Every operator here is left-associative, so the right-hand side is parsed
+      // at one precedence level higher.
       const right = parseExpression(precedence + 1);
       left = { kind: 'binary', operator: token.value, left, right, position: token.position };
     }
@@ -290,7 +290,7 @@ function parse(tokens: Token[]): Node {
 }
 
 // -----------------------------------------------------------------------------
-// Fungsi yang diizinkan
+// The permitted functions
 // -----------------------------------------------------------------------------
 
 interface FunctionSpec {
@@ -302,11 +302,11 @@ const ZERO = new Prisma.Decimal(0);
 const ONE = new Prisma.Decimal(1);
 
 /**
- * Daftar putih fungsi.
+ * The function allowlist.
  *
- * Sengaja pendek. Setiap fungsi di sini harus dapat dijelaskan kepada admin HR
- * dalam satu kalimat, karena merekalah yang menulis formulanya — dan fungsi
- * yang tidak dapat dijelaskan akan dipakai salah.
+ * Deliberately short. Every function here has to be explainable to an HR admin
+ * in one sentence, because they are the ones writing the formulas — and a
+ * function that cannot be explained will be used wrongly.
  */
 const FUNCTIONS: Record<string, FunctionSpec> = {
   min: {
@@ -317,7 +317,7 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
     arity: 'variadic',
     apply: (args) => args.reduce((a, b) => (a.greaterThan(b) ? a : b)),
   },
-  /** Pembulatan setengah ke atas — konvensi yang dipakai perhitungan gaji. */
+  /** Round half up — the convention salary calculation uses. */
   round: {
     arity: 2,
     apply: ([value, places]) =>
@@ -338,31 +338,31 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
 };
 
 /**
- * `if(kondisi, jika_benar, jika_salah)` — ditangani TERPISAH, dan malas.
+ * `if(condition, if_true, if_false)` — handled SEPARATELY, and lazily.
  *
- * Tidak berada di `FUNCTIONS` karena fungsi di sana menerima argumen yang sudah
- * dihitung, sedangkan seluruh guna `if` justru terletak pada cabang yang TIDAK
- * dihitung.
+ * It is not in `FUNCTIONS` because a function there receives arguments that are
+ * already evaluated, while the entire point of `if` is the branch that is NOT
+ * evaluated.
  *
- * Versi pertama mengevaluasi keduanya, dengan alasan bahwa formula gaji tidak
- * punya efek samping sehingga tidak ada yang rusak. Alasan itu salah, dan
- * kesalahannya ditemukan uji ujung-ke-ujung pada formula bawaan sendiri:
+ * The first version evaluated both, on the grounds that a salary formula has no
+ * side effects so nothing could break. That reasoning was wrong, and its error
+ * was found by an end-to-end test on the built-in formula itself:
  *
  *     if(HARI_KERJA > 0, GAJI_POKOK / HARI_KERJA * HARI_ALFA, 0)
  *
- * Formula itu ditulis persis untuk menjaga terhadap pembagian nol pada karyawan
- * yang belum punya rekap presensi. Dengan evaluasi penuh, penjaganya tidak
- * pernah bekerja — cabang pertama tetap dihitung, `HARI_KERJA` bernilai nol,
- * dan seluruh run gagal. Pembagian nol adalah GALAT, bukan efek samping, dan
- * itulah yang terlewat dari pertimbangan semula.
+ * That formula was written precisely to guard against division by zero for an
+ * employee with no attendance recap yet. With full evaluation the guard never
+ * worked — the first branch was computed anyway, `HARI_KERJA` was zero, and the
+ * whole run failed. Division by zero is an ERROR, not a side effect, and that
+ * is what the original reasoning missed.
  *
- * Menjaga terhadap pembagi nol adalah alasan paling umum orang menulis `if`
- * dalam formula gaji. Sebuah `if` yang tidak dapat melakukannya bukan `if`.
+ * Guarding against a zero divisor is the most common reason anyone writes `if`
+ * in a salary formula. An `if` that cannot do it is not an `if`.
  */
 const IF_ARITY = 3;
 
 // -----------------------------------------------------------------------------
-// Evaluator
+// The evaluator
 // -----------------------------------------------------------------------------
 
 export type FormulaScope = Readonly<Record<string, Prisma.Decimal | number>>;
@@ -378,21 +378,21 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
 
     case 'variable': {
       /**
-       * `Object.hasOwn`, bukan `scope[name] === undefined`.
+       * `Object.hasOwn`, not `scope[name] === undefined`.
        *
-       * Perbedaannya bukan gaya. Setiap objek JavaScript mewarisi anggota dari
-       * `Object.prototype` — `__proto__`, `constructor`, `toString`, `valueOf`,
-       * `hasOwnProperty`. Pemeriksaan `undefined` meloloskan seluruhnya, karena
-       * nilainya memang bukan `undefined`: ia objek atau fungsi bawaan.
+       * The difference is not style. Every JavaScript object inherits members
+       * from `Object.prototype` — `__proto__`, `constructor`, `toString`,
+       * `valueOf`, `hasOwnProperty`. An `undefined` check lets all of them
+       * through, because their value genuinely is not `undefined`: it is a
+       * built-in object or function.
        *
-       * Formula `__proto__ * 2` karenanya melewati penjaga variabel-tidak-dikenal
-       * dan baru gagal di dalam pustaka Decimal, dengan pesan yang tidak
-       * menjelaskan apa pun kepada admin HR yang menulisnya. Yang lebih penting:
-       * penjaganya terbukti dapat dilewati, dan penjaga yang dapat dilewati
-       * untuk satu nama tidak dapat dipercaya untuk nama lain.
-       */
+       * The formula `__proto__ * 2` therefore passed the unknown-variable guard
+       * and only failed inside the Decimal library, with a message explaining
+       * nothing to the HR admin who wrote it. More importantly: the guard was
+       * proven bypassable, and a guard bypassable for one name cannot be trusted
+       * for another.
       if (!Object.hasOwn(scope, node.name)) {
-        // GALAT, bukan nol. Lihat alasannya di kepala berkas ini.
+        // An ERROR, not zero. The reason is at the head of this file.
         const known = Object.keys(scope).sort().join(', ');
         throw new FormulaError(
           `Variabel "${node.name}" tidak dikenal. Yang tersedia: ${known || '(tidak ada)'}.`,
@@ -462,7 +462,7 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
     }
 
     case 'call': {
-      // `if` dievaluasi malas: kondisinya dulu, lalu HANYA cabang yang terpilih.
+      // `if` is evaluated lazily: the condition first, then ONLY the chosen branch.
       if (node.name === 'if') {
         if (node.args.length !== IF_ARITY) {
           throw new FormulaError(
@@ -506,28 +506,28 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
 }
 
 /**
- * Menghitung formula terhadap sekumpulan variabel.
+ * Evaluates a formula against a set of variables.
  *
- * Diurai setiap kali dipanggil. Optimasi cache pohon sintaks sengaja belum
- * dilakukan: satu run payroll seribu karyawan dengan sepuluh komponen berarti
- * sepuluh ribu penguraian atas ekspresi sepanjang beberapa puluh karakter, dan
- * itu tidak terukur dibanding satu query basis data. Menambahkan cache sebelum
- * ada bukti ia diperlukan hanya menambah tempat data basi dapat bersembunyi.
+ * Parsed on every call. Caching the syntax tree is deliberately not done yet: a
+ * thousand-employee payroll run with ten components means ten thousand parses of
+ * expressions a few dozen characters long, and that is unmeasurable next to one
+ * database query. Adding a cache before there is evidence it is needed only adds
+ * a place for stale data to hide.
  */
 export function evaluateFormula(expression: string, scope: FormulaScope): Prisma.Decimal {
   return evaluate(parse(tokenize(expression)), scope);
 }
 
 /**
- * Memeriksa formula tanpa menghitungnya.
+ * Validates a formula without evaluating it.
  *
- * Dipanggil saat admin HR menyimpan komponen gaji, bukan saat payroll berjalan.
- * Formula yang salah harus ditolak di layar konfigurasi — menemukannya saat run
- * berarti menemukannya pada tanggal 25, ketika seribu slip harus keluar besok.
+ * Called when an HR admin saves a salary component, not when payroll runs. A bad
+ * formula has to be refused on the configuration screen — finding it during a
+ * run means finding it on the 25th, when a thousand payslips are due tomorrow.
  */
 export interface FormulaCheck {
   ok: boolean;
-  /** Variabel yang dirujuk formula. Dipakai layar konfigurasi untuk memandu. */
+  /** The variables the formula references. Used by the configuration screen to guide. */
   variables: string[];
   functions: string[];
   error: { message: string; position?: number | undefined } | null;
@@ -604,5 +604,5 @@ export function checkFormula(expression: string, availableVariables: string[]): 
   return { ok: true, variables: [...variables], functions: [...functions], error: null };
 }
 
-/** Fungsi yang tersedia, untuk ditampilkan di layar konfigurasi formula. */
+/** The available functions, for display on the formula configuration screen. */
 export const AVAILABLE_FUNCTIONS = [...Object.keys(FUNCTIONS), 'if'].sort();

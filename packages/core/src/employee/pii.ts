@@ -1,23 +1,23 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 /**
- * Enkripsi dan penyamaran data pribadi.
+ * Personal data encryption and masking.
  *
- * Tiga kolom diperlakukan khusus: NIK KTP, NPWP, dan nomor rekening. Ketiganya
- * bersama nama dan tanggal lahir sudah cukup untuk mengajukan pinjaman atas nama
- * seseorang. Basis data yang bocor tidak boleh menyerahkannya begitu saja
- * (UU PDP No. 27/2022).
+ * Three columns are treated specially: the national ID, the tax ID, and the bank
+ * account number. Those three plus a name and a date of birth are enough to take
+ * out a loan in someone's name. A leaked database must not hand them over
+ * (Personal Data Protection Act No. 27/2022).
  *
- * Dua lapisan yang berbeda tujuan, dan keduanya diperlukan:
+ * Two layers with different purposes, and both are needed:
  *
- *   Enkripsi  melindungi dari dump basis data, cadangan yang salah tempat, dan
- *             replika baca yang bocor. Kuncinya tidak ada di basis data.
- *   Masking   melindungi dari mata yang tidak berhak melihat — HR magang yang
- *             membuka daftar karyawan tidak perlu melihat NIK lengkap siapa pun.
+ *   Encryption protects against a database dump, a misplaced backup, and a
+ *             leaked read replica. Its key is not in the database.
+ *   Masking    protects against eyes with no right to look — an HR intern
+ *             opening the employee list need not see anyone's full national ID.
  *
- * Yang satu tidak menggantikan yang lain: enkripsi tidak menolong bila aplikasi
- * mendekripsi lalu menampilkannya kepada semua orang, dan masking tidak menolong
- * bila basis datanya sendiri dapat dibaca.
+ * Neither replaces the other: encryption does not help when the application
+ * decrypts and shows the value to everyone, and masking does not help when the
+ * database itself can be read.
  */
 
 const ALGORITHM = 'aes-256-gcm';
@@ -38,14 +38,14 @@ function keyFrom(name: string): Buffer {
 }
 
 /**
- * Enkripsi AES-256-GCM.
+ * AES-256-GCM encryption.
  *
- * GCM, bukan CBC: ia terautentikasi, sehingga ciphertext yang diubah gagal saat
- * dekripsi alih-alih menghasilkan plaintext sampah yang lolos ke laporan gaji.
+ * GCM rather than CBC: it is authenticated, so altered ciphertext fails to
+ * decrypt instead of yielding garbage plaintext that reaches a payroll report.
  *
- * Hasilnya berformat `v1.<iv>.<tag>.<ciphertext>`, seluruhnya base64url. Prefiks
- * versi ada sejak awal karena rotasi kunci selalu datang belakangan, dan tanpa
- * penanda versi, rotasi berarti menebak format setiap baris lama.
+ * The result is formatted `v1.<iv>.<tag>.<ciphertext>`, all base64url. The
+ * version prefix is there from the start because key rotation always arrives
+ * later, and without a version marker rotation means guessing each old row's format.
  */
 export function encryptPii(plain: string): string {
   const iv = randomBytes(IV_LENGTH);
@@ -81,19 +81,19 @@ export function decryptPii(encoded: string): string {
 }
 
 /**
- * Indeks buta: HMAC dari nilai yang dinormalkan.
+ * The blind index: an HMAC of the normalised value.
  *
- * Enkripsi yang benar bersifat acak — NIK yang sama menghasilkan ciphertext
- * berbeda setiap kali. Sifat itu yang membuatnya aman, sekaligus membuat
- * `UNIQUE(national_id)` dan "cari NIK ini" mustahil.
+ * Correct encryption is randomised — the same national ID produces different
+ * ciphertext every time. That property is what makes it safe, and also what
+ * makes `UNIQUE(national_id)` and "find this national ID" impossible.
  *
- * Indeks buta memecahkannya: nilai deterministik yang dapat diindeks dan
- * dibandingkan, tetapi tidak dapat dibalik. Kuncinya sengaja BERBEDA dari kunci
- * enkripsi — bila keduanya sama, satu kebocoran kunci merusak dua pertahanan.
+ * A blind index solves that: a deterministic value that can be indexed and
+ * compared but not reversed. Its key is deliberately DIFFERENT from the
+ * encryption key — if they were the same, one leaked key would break two defences.
  *
- * Batasnya perlu diakui: karena deterministik, penyerang yang memegang basis
- * data dapat menguji apakah NIK tertentu ada di dalamnya, asalkan ia juga
- * memegang kunci indeks. Ia tetap tidak dapat menghitung daftar NIK.
+ * Its limit has to be acknowledged: being deterministic, an attacker holding the
+ * database can test whether a particular national ID is in it, provided they also
+ * hold the index key. They still cannot enumerate the national IDs.
  */
 export function blindIndex(value: string): string {
   return createHmac('sha256', keyFrom('PII_INDEX_KEY'))
@@ -101,7 +101,7 @@ export function blindIndex(value: string): string {
     .digest('base64url');
 }
 
-/** Membuang pemisah agar "3201.1234.5678.9012" dan "3201123456789012" setara. */
+/** Strips separators so "3201.1234.5678.9012" and "3201123456789012" match. */
 export function normalizeIdentifier(value: string): string {
   return value.replace(/[\s.\-/]/g, '').toUpperCase();
 }
@@ -113,20 +113,20 @@ export function safeEquals(a: string, b: string): boolean {
 }
 
 // -----------------------------------------------------------------------------
-// Penyamaran
+// Masking
 //
-// Menyisakan cukup karakter untuk memastikan "ya, ini orang yang saya maksud",
-// tetapi tidak cukup untuk menyalinnya ke formulir mana pun.
+// It leaves enough characters to confirm "yes, this is the person I meant", but
+// not enough to copy onto any form.
 // -----------------------------------------------------------------------------
 
-/** NIK: 16 digit → `3201********9012`. */
+/** National ID: 16 digits → `3201********9012`. */
 export function maskNationalId(value: string): string {
   const digits = normalizeIdentifier(value);
   if (digits.length < 8) return '*'.repeat(digits.length);
   return `${digits.slice(0, 4)}${'*'.repeat(digits.length - 8)}${digits.slice(-4)}`;
 }
 
-/** NPWP: menyisakan tiga digit terakhir. */
+/** Tax ID: leaves the last three digits. */
 export function maskTaxId(value: string): string {
   const digits = normalizeIdentifier(value);
   if (digits.length < 4) return '*'.repeat(digits.length);
@@ -134,10 +134,10 @@ export function maskTaxId(value: string): string {
 }
 
 /**
- * Rekening: menyisakan empat digit terakhir.
+ * Bank account: leaves the last four digits.
  *
- * Empat digit adalah yang lazim dicetak bank pada struk, sehingga cukup untuk
- * mencocokkan tanpa memberi tambahan apa pun kepada yang melihatnya.
+ * Four digits is what a bank normally prints on a receipt, so it is enough to
+ * match against without giving whoever sees it anything more.
  */
 export function maskBankAccount(value: string): string {
   const digits = normalizeIdentifier(value);
@@ -151,7 +151,7 @@ export interface PiiFields {
   bankAccount: string | null;
 }
 
-/** Bentuk tersimpan: ciphertext berpasangan dengan versi tersamarnya. */
+/** The stored shape: ciphertext paired with its masked version. */
 export interface StoredPii {
   nationalIdEncrypted: string | null;
   nationalIdMasked: string | null;
@@ -162,19 +162,19 @@ export interface StoredPii {
 }
 
 /**
- * Menyiapkan PII untuk ditampilkan, sesuai izin pembaca.
+ * Prepares PII for display, according to the reader's permission.
  *
- * `canUnmask` berasal dari permission `employee.pii.unmask` yang sudah diperiksa
- * gateway.
+ * `canUnmask` comes from the `employee.pii.unmask` permission the gateway has
+ * already checked.
  *
- * Perhatikan bahwa **dekripsi hanya terjadi ketika izinnya ada**. Jalur tanpa
- * izin membaca kolom tersamar yang sudah tersimpan dan tidak menyentuh kunci
- * enkripsi sama sekali.
+ * Note that **decryption only happens when the permission is present**. The path
+ * without the permission reads the stored masked column and does not touch the
+ * encryption key at all.
  *
- * Versi pertama fungsi ini mendekripsi lebih dulu lalu menyamarkan hasilnya —
- * terlihat setara, tetapi berarti NIK lengkap setiap karyawan pernah berada di
- * memori proses pada setiap pembukaan daftar karyawan. Dari sana ia ikut masuk
- * ke log galat, dump heap, atau jejak APM pertama yang menangkapnya.
+ * The first version of this function decrypted first and then masked the result —
+ * apparently equivalent, but it meant every employee's full national ID was in
+ * process memory every time the employee list was opened. From there it joins
+ * the first error log, heap dump, or APM trace that catches it.
  */
 export function revealPii(stored: StoredPii, canUnmask: boolean): PiiFields {
   if (!canUnmask) {
@@ -192,13 +192,13 @@ export function revealPii(stored: StoredPii, canUnmask: boolean): PiiFields {
   };
 }
 
-/** Menyiapkan satu nilai PII untuk disimpan: ciphertext, indeks buta, dan mask. */
+/** Prepares one PII value for storage: ciphertext, blind index, and mask. */
 /**
- * Karakter yang dipakai menyamarkan PII di seluruh sistem.
+ * The characters used to mask PII across the system.
  *
- * `*` berasal dari ekspor Excel; `•` dari tampilan layar. Keduanya harus ada di
- * sini — versi pertama penjaga ini hanya memeriksa `*`, sehingga nilai yang
- * disalin dari GRID (yang memakai `•`) lolos dan tersimpan sebagai NIK.
+ * `*` comes from the Excel export; `•` from the on-screen display. Both have to
+ * be here — the first version of this guard only checked `*`, so a value copied
+ * from the GRID (which uses `•`) got through and was stored as a national ID.
  */
 const MASK_CHARACTERS = /[*•·]/;
 
@@ -227,7 +227,7 @@ export class MaskedValueError extends Error {
   }
 }
 
-/** True bila nilainya adalah hasil penyamaran, bukan nilai sebenarnya. */
+/** True when the value is the result of masking rather than the real value. */
 export function looksMasked(value: string): boolean {
   return MASK_CHARACTERS.test(value);
 }
@@ -241,39 +241,39 @@ export function preparePii(
   if (!trimmed) return { encrypted: null, index: null, masked: null };
 
   /**
-   * Nilai tersamar ditolak DI SINI, bukan di formulir yang mengirimnya.
+   * A masked value is refused HERE, not in the form that sent it.
    *
-   * Prinsip P9: layar menyembunyikan, server menolak. Grid karyawan memang
-   * mengunci kolom PII ketika penggunanya tidak berizin membuka samaran — tetapi
-   * penjagaan itu hanya berlaku pada satu layar, sementara jalur tulis yang
-   * sama dipakai impor Excel, pembaruan massal, dan API langsung.
+   * Principle P9: the screen hides, the server refuses. The employee grid does
+   * lock its PII columns when the user has no permission to unmask — but that
+   * guard applies to one screen, while the same write path is used by Excel
+   * import, bulk updates, and the API directly.
    *
-   * Kerusakannya senyap dan permanen: NIK asli tertimpa menjadi deretan tanda
-   * bintang, terenkripsi rapi, dan baru ketahuan saat payroll pertama
-   * membutuhkan nomor rekening yang sudah tidak ada lagi.
+   * The damage is silent and permanent: a real national ID overwritten by a row
+   * of asterisks, neatly encrypted, and only noticed when the first payroll run
+   * needs a bank account number that no longer exists.
    */
   if (looksMasked(trimmed)) throw new MaskedValueError(field);
 
   /**
-   * Nilai yang tidak mungkin menjadi nomor identitas ditolak juga.
+   * A value that cannot possibly be an identity number is refused too.
    *
-   * Impor Excel sudah memvalidasi bentuk NIK dan NPWP, tetapi jalur tulis
-   * lainnya — API langsung, pembaruan massal dari grid — tidak. Satu field yang
-   * ketat di satu pintu dan longgar di pintu lain bukan validasi; ia hanya
-   * memindahkan masalahnya ke pintu yang lebih jarang dilihat.
+   * Excel import already validates the shape of a national ID and a tax ID, but
+   * the other write paths — the API directly, a bulk update from the grid — do
+   * not. One field that is strict at one door and loose at another is not
+   * validation; it only moves the problem to the door that is watched less.
    *
-   * Dua syarat, dan keduanya diperlukan:
+   * Two conditions, and both are needed:
    *
-   *   1. Hanya angka dan huruf setelah pemisah dibuang. Ini menangkap salin
-   *      tempel yang rusak encoding-nya dan karakter samaran yang terlewat.
-   *   2. Memuat sekurangnya satu angka. Tanpa syarat ini, "tidak ada" menjadi
-   *      "TIDAKADA" dan lolos — dan teks semacam itulah yang benar-benar
-   *      diketik orang ketika kolomnya tidak ia miliki datanya.
+   *   1. Only digits and letters once separators are stripped. This catches a
+   *      paste with broken encoding and a masking character that slipped past.
+   *   2. It contains at least one digit. Without this, "tidak ada" becomes
+   *      "TIDAKADA" and passes — and text like that is genuinely what people
+   *      type when they do not have the data for a column.
    *
-   * Aturan panjang sengaja TIDAK dipasang: format nomor rekening berbeda
-   * antarbank, dan menolak nasabah yang sah lebih merugikan daripada menerima
-   * nomor yang tampak tidak biasa. Sebagian bank juga memakai awalan huruf,
-   * sehingga "hanya angka" pun terlalu ketat.
+   * A length rule is deliberately NOT applied: bank account formats differ
+   * between banks, and refusing a legitimate customer costs more than accepting
+   * a number that looks unusual. Some banks also use letter prefixes, so even
+   * "digits only" would be too strict.
    */
   const normalizedForCheck = normalizeIdentifier(trimmed);
   if (!/^[0-9A-Z]+$/.test(normalizedForCheck) || !/[0-9]/.test(normalizedForCheck)) {
