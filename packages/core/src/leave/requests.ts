@@ -396,6 +396,56 @@ export async function decideRequest(
   });
   if (!request) throw new LeaveError('Pengajuan tidak ditemukan', 'not_found');
 
+  /**
+   * Siapa yang boleh memutuskan.
+   *
+   * Dua kegagalan kontrol ditutup di sini, dan keduanya ditemukan dengan
+   * mencobanya, bukan dengan membaca kode.
+   *
+   * **`currentApproverId` ditulis tetapi tidak pernah dibaca.** Pengaju memilih
+   * penyetujunya, sistem mencatatnya, lalu mengabaikannya sepenuhnya: siapa pun
+   * pemegang `leave.request.approve` dapat memutuskan pengajuan siapa pun. Kolom
+   * itu hanya menghias kotak masuk.
+   *
+   * **Pengaju dapat menyetujui cutinya sendiri.** Seorang manajer yang memegang
+   * izin persetujuan — dan manajer memang memegangnya — dapat mengajukan cuti
+   * lalu menyetujuinya sendiri dalam dua klik. Tidak ada satu pun pemeriksaan di
+   * antaranya, dan hasilnya tidak dapat dibedakan dari persetujuan yang sah.
+   *
+   * Aturannya sekarang dua kalimat:
+   *
+   *   1. Persetujuan diri sendiri DITOLAK, tanpa pengecualian. Tidak ada jalan
+   *      keluar bersyarat: jalan keluar bersyarat adalah lubang yang menunggu
+   *      keadaannya terpenuhi.
+   *   2. Yang bukan penyetuju yang ditunjuk tetap boleh memutuskan — HR harus
+   *      dapat menggantikan manajer yang sedang cuti atau sudah keluar, dan
+   *      sistem yang menuntut penyetuju yang tepat akan membekukan pengajuan
+   *      setiap kali seseorang berhenti bekerja. Tetapi penggantian itu
+   *      DICATAT, dan itulah nilainya: yang tidak dapat dicegah harus dapat
+   *      dilihat.
+   */
+  const actor = await tx.user.findFirst({
+    where: { id: actorUserId, tenantId },
+    select: { email: true },
+  });
+  const actorEmployee = actor
+    ? await tx.employee.findFirst({
+        where: { tenantId, email: actor.email },
+        select: { id: true },
+      })
+    : null;
+
+  if (actorEmployee && actorEmployee.id === request.employeeId) {
+    throw new LeaveError(
+      'Anda tidak dapat memutuskan pengajuan cuti Anda sendiri. ' +
+        'Tunjuk penyetuju lain saat mengajukan, atau minta HR yang memutuskan.',
+      'forbidden',
+    );
+  }
+
+  const menggantikan =
+    request.currentApproverId !== null && request.currentApproverId !== actorUserId;
+
   const periodYear = request.startDate.getUTCFullYear();
   const balance = request.leaveType.deductFromBalance
     ? await lockBalance(tx, tenantId, request.employeeId, request.leaveTypeId, periodYear)
@@ -473,7 +523,13 @@ export async function decideRequest(
     where: { requestId: request.id, decision: null },
     data: {
       decision: decision.approve ? 'APPROVED' : 'REJECTED',
-      comment: decision.comment,
+      // Penggantian ditandai di dalam komentarnya, bukan di kolom terpisah.
+      // Komentar inilah yang dibaca orang saat menelusuri kembali sebuah
+      // keputusan; penanda di kolom lain adalah penanda yang tidak akan
+      // terlihat oleh yang membacanya.
+      comment: menggantikan
+        ? `[diputuskan bukan oleh penyetuju yang ditunjuk] ${decision.comment}`
+        : decision.comment,
       decidedAt: now,
     },
   });
@@ -483,8 +539,16 @@ export async function decideRequest(
     entityType: 'leave_request',
     entityId: request.id,
     actorUserId,
-    before: { status: 'PENDING' },
-    after: { status: updated.status, comment: decision.comment },
+    before: { status: 'PENDING', designatedApproverId: request.currentApproverId },
+    after: {
+      status: updated.status,
+      comment: decision.comment,
+      // Yang tidak dapat dicegah harus dapat dilihat. HR yang menggantikan
+      // manajer yang sedang cuti adalah hal yang wajar; HR yang menggantikan
+      // manajer pada setiap pengajuan adalah pola yang perlu ditanyakan, dan
+      // pertanyaan itu hanya dapat diajukan bila datanya ada.
+      overrodeDesignatedApprover: menggantikan,
+    },
   });
 
   await publishEvent(tx, tenantId, {

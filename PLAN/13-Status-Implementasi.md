@@ -667,7 +667,16 @@ Tiga batasnya perlu diketahui:
 
 ### Cuti — yang belum ada
 
-- **Persetujuan berjenjang** — §2.4 di atas.
+- **Persetujuan berjenjang** — §2.4 di atas. Tetap satu langkah, tetapi **dua
+  kegagalan kontrol pada langkah tunggal itu sudah ditutup** (nomor 38 dan 39 di
+  atas): pengaju tidak lagi dapat menyetujui cutinya sendiri, dan penggantian
+  penyetuju yang ditunjuk kini tercatat.
+- **`Employment.managerId` tidak pernah dibaca** — kolomnya ada, dapat disetel
+  lewat endpoint penempatan, dan tidak ada satu pun jalur yang memakainya. Selama
+  itu, penyetuju harus **dipilih sendiri oleh pengaju** dari daftar pemegang izin.
+  Penjenjangan otomatis (manajer → HR) menunggu kolom itu benar-benar terisi;
+  merutekan ke atasan yang tidak pernah ditetapkan siapa pun akan membekukan
+  setiap pengajuan.
 - ~~**Akrual bulanan**~~ — **selesai.** Nomor 21 di atas.
   `MONTHLY_ACCRUAL` menabung 1/12 kuota pada setiap ulang-bulan tanggal masuk;
   `ANNIVERSARY` melahirkan kuota penuh pada ulang tahun masa kerja dan nol
@@ -718,6 +727,28 @@ Tiga batasnya perlu diketahui:
   | Skrip shell bernama `.pdf` | ditolak dari **angka ajaibnya**, bukan namanya |
   | Yatim < 24 jam | dipertahankan |
   | Yatim > 24 jam | dibuang; yang terpakai tidak ikut |
+
+### Dua kegagalan kontrol pada persetujuan cuti
+
+Ditemukan dengan mencobanya, bukan dengan membaca kode.
+
+38. **`currentApproverId` ditulis tetapi tidak pernah dibaca.** Pengaju memilih
+    penyetujunya, sistem mencatatnya, lalu mengabaikannya sepenuhnya — siapa pun
+    pemegang `leave.request.approve` dapat memutuskan pengajuan siapa pun. Kolom
+    itu hanya menghias kotak masuk. Kini penggantian **tetap diizinkan** — HR
+    harus dapat menggantikan manajer yang sedang cuti atau sudah keluar, dan
+    sistem yang menuntut penyetuju yang tepat akan membekukan pengajuan setiap
+    kali seseorang berhenti bekerja — tetapi **dicatat**, pada komentar baris
+    persetujuannya dan pada jejak auditnya. Yang tidak dapat dicegah harus dapat
+    dilihat: HR yang menggantikan manajer sesekali itu wajar, HR yang
+    menggantikannya pada setiap pengajuan adalah pola yang perlu ditanyakan.
+39. **Pengaju dapat menyetujui cutinya sendiri.** Seorang manajer memegang izin
+    persetujuan — memang seharusnya — sehingga ia dapat mengajukan cuti lalu
+    menyetujuinya sendiri dalam dua klik, dan hasilnya tidak dapat dibedakan dari
+    persetujuan yang sah. Kini ditolak **tanpa pengecualian**: jalan keluar
+    bersyarat adalah lubang yang menunggu keadaannya terpenuhi. Batas yang
+    diterima: perusahaan yang hanya punya satu pengguna tidak dapat memakai alur
+    cuti sama sekali, dan harus memakai penyesuaian saldo oleh HR.
 - ~~**Hari kerja selain Senin–Jumat**~~ — **selesai.** `countWorkingDays` kini
   membaca `attendance.schedules`, sumber yang sama dengan yang dipakai modul
   presensi untuk memutuskan status `DAY_OFF` — sehingga presensi dan cuti tidak
