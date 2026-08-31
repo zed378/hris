@@ -1328,6 +1328,36 @@ What is not locked behind Gate C but is still unbuilt:
   through `public.schema_drift_report()`, and a
   [five-incident runbook](../ops/RUNBOOK.md).
 
+### Tests that skip rather than fail, and why
+
+Recorded so a skip never passes for coverage. Each states what it needs and how
+it behaves when that is missing.
+
+| Suite | Needs | Unavailable | Misconfigured |
+|---|---|---|---|
+| `packages/cache/test/rate-limit.test.ts` | Redis | **skips**, with a message | `REDIS_URL` set but unreachable → **fails** |
+| `packages/cache/test/access-cache.test.ts` | Redis | **skips** | as above |
+| `apps/worker/test/broker.test.ts` | NATS | **skips**, naming the docker command | — |
+
+The distinction in the third column is the point. Skipping in *both* cases would
+let a broken Redis in CI look exactly like a developer who never started one, and
+the suite would go green having tested nothing.
+
+Everything else — including every test touching the database — runs against a
+real PostgreSQL with real RLS. There are **no mocked data layers** anywhere in
+the suite.
+
+### Not covered by any automated test
+
+- **Load and latency.** The remote authorization call adds a round trip per
+  authenticated request, mitigated by the permission cache, and neither has been
+  measured under load.
+- **The proxy configuration** in `ops/proxy`. Its syntax is checked with
+  `nginx -t`; the routing rules it encodes are not exercised by CI.
+- **A real container build.** `ops/Dockerfile.auth` has not been built in CI.
+- **Anything gated** — payroll tax rules, billing, WhatsApp, Lighthouse, real
+  devices. Unchanged, and listed under the gates below.
+
 ### Phase 3 DoD items not yet verified
 
 All of them demand a tool or a device not yet used, not code not yet written:

@@ -361,7 +361,7 @@ next one to be started.
 | 5 | ~~**Split database roles**~~ — **done**, see §10.5 | `hrms_auth` with its own grant matrix, asserted by CI. | Yes |
 | 6 | ~~**Extract the auth container**~~ — **built**, see §10.6 | Own image, own deploy, own database role. Opt-in via `AUTH_SERVICE_URL`. | Yes, in practice — see §10.6 |
 | 7 | ~~**Broker**~~ — **built, and off**, see §10.7 | The pump publishes through an interface; NATS JetStream is opt-in, pg-boss remains the default. | Yes, the outbox is unchanged |
-| 8 | **Split frontend from backend** | See §11. | Hard |
+| 8 | **Split frontend from backend** — precondition **met and now enforced**, see §10.8 | The remaining work is a build and deployment change, not a refactor. | Hard |
 
 ### 10.1 Stage 1 as built
 
@@ -662,6 +662,44 @@ fake:
   subject and deletes each message on acknowledgement — forbidding the very
   fan-out that §9.1 gives as the reason to want a broker. Now `limits`.
 
+### 10.8 Stage 8 — the precondition was already met, and is now enforced
+
+§11 named a precondition and asserted it was unmet. Measured across
+`apps/web/src`:
+
+| | |
+|---|---|
+| `.tsx` files | 42 |
+| importing `@hrms/core`, `@hrms/db`, or `@hrms/cache` for a value | **0** |
+| importing a route handler | **0** |
+| importing `ROUTE_MANIFEST` | **0** |
+| server components | 3 — a layout, an admin layout, and a 404 |
+
+Those three import React, a provider, and a stylesheet. Every page is a client
+component fetching through `api()`. The frontend is already API-only.
+
+It got there by habit rather than by a rule, which means nothing was stopping the
+next page from breaking it — and **one page reading the database directly turns
+stage 8 from a deployment change back into a refactor**.
+`apps/web/test/frontend-boundary.test.ts` is that rule.
+
+**The guard was inert when first written**, and was caught by adding a deliberate
+violation and watching the suite stay green. Its patterns were built with
+`new RegExp` and template literals; the escapes did not survive being written to
+disk, so the pattern became `froms+` and matched nothing at all. It is line-based
+now, with no escapes to lose. A guard that cannot fail is indistinguishable from
+a guard that passes, and the only way to tell them apart is to break something on
+purpose.
+
+**What actually remains for stage 8**, now that the refactor does not:
+
+- Two builds from one Next application — pages and route handlers currently ship
+  together.
+- The client fetches relative URLs (`/api/...`). A separately-deployed frontend
+  needs those to resolve to the backend origin, which is a configuration decision
+  with a CORS and cookie consequence attached — the same trade §7 settles for the
+  auth split, and it should be settled the same way.
+
 ---
 
 Stages 1–5 are worth doing **whether or not the split happens**. Stage 2 fixes a
@@ -688,10 +726,17 @@ a CI gate today:
 
 **On stage 8 specifically.** Splitting frontend from backend requires that no
 page component reaches into a route handler's module and that all server-side
-data fetching goes through the public API. That is not true today and is not
-merely a refactor: the session context, the manifest, and the build are shared.
-It should not be attempted until stages 1–6 are stable, and it needs its own
-document.
+data fetching goes through the public API.
+
+This section previously said "that is not true today". **It was measured, and it
+was already true** — see §10.8. The correction matters, because the sentence was
+the stated reason the stage was blocked, and it was blocking on a condition that
+had already been satisfied by habit. What genuinely remains is a build and
+deployment change: pages and route handlers are one Next application, and the
+client fetches relative URLs that would need to point at a backend origin.
+
+That is still not a small change, and it still deserves its own document. It is
+no longer a refactor.
 
 ---
 
