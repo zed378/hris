@@ -64,14 +64,14 @@ const actionSchema = z.discriminatedUnion('action', [
 ]);
 
 /**
- * Tiga operasi pada satu run: hitung, setujui, batalkan.
+ * Three operations on one run: calculate, approve, cancel.
  *
- * `calculate` melewati slip yang sudah ada, sehingga run yang terputus di
- * tengah dapat dilanjutkan tanpa menghasilkan slip ganda — DoD Fase 5.
+ * `calculate` skips payslips that already exist, so a run interrupted halfway
+ * can continue without producing duplicate payslips — the Phase 5 DoD.
  *
- * `approve` menuntut izin terpisah dari izin menjalankan run. Orang yang
- * menghitung dan orang yang menyetujui sebaiknya berbeda; sistem tidak
- * memaksakannya, tetapi memisahkan izinnya membuat pemisahan itu mungkin.
+ * `approve` demands a permission separate from the one to run a calculation. The
+ * person who calculates and the person who approves should be different; the
+ * system does not force it, but separating the permissions makes it possible.
  */
 export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) => {
   const runId = ctx.params['id'];
@@ -87,19 +87,19 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
   try {
     if (parsed.data.action === 'calculate') {
       /**
-       * Perhitungan diserahkan ke worker, tidak dijalankan di sini.
+       * The calculation is handed to the worker rather than run here.
        *
-       * Bukan demi kerapian. Transaksi interaktif Prisma dibatasi lima detik
-       * dan peran `hrms_app` dibatasi `statement_timeout` lima belas detik;
-       * run seribu karyawan melewati keduanya. Yang terjadi bukan permintaan
-       * yang lambat — transaksinya dibatalkan, SELURUH slip yang sudah dihitung
-       * hilang, dan percobaan berikutnya mengulang dari nol lalu gagal di detik
-       * yang sama. Run itu tidak akan pernah selesai.
+       * Not for tidiness. A Prisma interactive transaction is capped at five
+       * seconds and the `hrms_app` role is capped by a fifteen-second
+       * `statement_timeout`; a thousand-employee run passes both. What happens
+       * is not a slow request — its transaction is rolled back, EVERY payslip
+       * already computed is lost, and the next attempt starts from zero and
+       * fails at the same second. That run would never finish.
        *
-       * Statusnya ditandai CALCULATING di sini, dalam transaksi yang sama
-       * dengan penerbitan event. Menandainya di worker akan meninggalkan
-       * jendela ketika HR sudah menekan tombol tetapi layar masih menampilkan
-       * DRAFT — dan yang dilakukan orang pada jendela itu adalah menekan tombol
+       * Its status is marked CALCULATING here, in the same transaction that
+       * publishes the event. Marking it in the worker would leave a window where
+       * HR has pressed the button but the screen still shows DRAFT — and what
+       * people do in that window is press the button again.
        * lagi.
        */
       const run = await ctx.tx.payrollRun.findFirst({
@@ -130,8 +130,8 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
         payload: { tenantId: ctx.tenantId, runId, actorUserId: ctx.userId },
       });
 
-      // 202, bukan 200. Perhitungannya belum terjadi, dan mengembalikan 200
-      // dengan angka nol akan terbaca sebagai "seribu karyawan, nol rupiah".
+      // 202, not 200. The calculation has not happened yet, and returning 200
+      // with zeroes would read as "a thousand employees, nought rupiah".
       return NextResponse.json(
         {
           runId,
@@ -176,23 +176,22 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
 
     if (parsed.data.action === 'markPaid') {
       /**
-       * Menandai gaji sudah benar-benar dibayarkan.
+       * Marks the salaries as genuinely paid out.
        *
-       * Status `PAID` dan kolom `paid_at` ada sejak modul payroll dibangun, dan
-       * dua jalur baca memeriksanya — dasbor dan daftar slip keduanya
-       * memperlakukan `APPROVED` dan `PAID` sebagai "sudah dirilis". Tetapi
-       * **tidak ada satu pun jalur yang menghasilkannya**, pola yang sama dengan
-       * `LEAVE`, `MANUAL`, `DISCARDED`, dan status tenant.
+       * The `PAID` status and the `paid_at` column have existed since the payroll
+       * module was built, and two read paths check them — the dashboard and the
+       * payslip list both treat `APPROVED` and `PAID` as "released". But **no path
+       * produced them**, the same pattern as `LEAVE`, `MANUAL`, `DISCARDED`, and
+       * the tenant statuses.
        *
-       * Yang hilang bukan kosakata. Persetujuan dan pembayaran adalah dua
-       * peristiwa berbeda yang sering terpisah berhari-hari: run disetujui
-       * tanggal 25, transfer bank dieksekusi tanggal 28. Tanpa pembedaan itu,
-       * pertanyaan "apakah gaji bulan lalu sudah benar-benar keluar" tidak punya
-       * jawaban di dalam sistem — dan pertanyaan itu datang dari karyawan yang
-       * uangnya belum masuk.
+       * What was missing is more than vocabulary. Approval and payment are two
+       * distinct events often days apart: a run approved on the 25th, the bank
+       * transfer executed on the 28th. Without that distinction, the question
+       * "did last month's salary actually go out" has no answer inside the system
+       * — and that question comes from the employee whose money has not arrived.
        *
-       * Izinnya sama dengan menyetujui: yang berhak melepas run adalah yang
-       * berhak menyatakan uangnya sudah keluar.
+       * Its permission is the same as approving: whoever may release a run is
+       * whoever may state that the money has gone.
        */
       if (!ctx.access.permissions.includes(APPROVE)) {
         return apiError(
@@ -234,9 +233,9 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
       return NextResponse.json(paid);
     }
 
-    // Pembatalan. Slipnya TIDAK dihapus — run yang dibatalkan tetap dapat
-    // diperiksa, dan indeks unik parsial mengecualikan status CANCELLED
-    // sehingga periode itu terbuka kembali untuk run baru.
+    // Cancellation. Its payslips are NOT deleted — a cancelled run can still be
+    // inspected, and the partial unique index excludes the CANCELLED status so
+    // that period reopens for a new run.
     const cancelled = await ctx.tx.payrollRun.update({
       where: { id: runId },
       data: { status: 'CANCELLED', lastError: `Dibatalkan: ${parsed.data.reason}` },

@@ -9,31 +9,30 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Hari libur nasional dan cuti bersama (dokumen 10 §6).
+ * National holidays and joint leave (document 10 §6).
  *
- * Tabelnya ada sejak modul presensi dibangun dan dibaca dua modul — presensi
- * memakainya untuk status `HOLIDAY`, cuti untuk mengecualikannya dari
- * pemotongan saldo — tetapi **tidak ada satu pun jalur yang mengisinya** selain
- * seed, dan seed hanya memuat lima tanggal tahun 2026 yang ditulis tangan.
+ * The table has existed since the attendance module was built and is read by two
+ * modules — attendance for the `HOLIDAY` status, leave to exclude it from
+ * balance deductions — but **no path filled it** other than the seed, and the
+ * seed holds only five hand-written dates in 2026.
  *
- * Akibatnya berlipat, dan seluruhnya senyap:
+ * The consequences compound, and all of them are silent:
  *
- *   - Tahun 2027 tidak punya satu pun hari libur. Idul Fitri, Nyepi, Waisak,
- *     Natal — tidak ada.
- *   - Cuti yang diajukan melintasi Idul Fitri **memotong saldo** untuk hari
- *     kantor tutup.
- *   - Bila HR menghitung ulang presensi sebulan penuh sebelum payroll, setiap
- *     hari libur tercatat ALFA, dan `hariAlfa` itulah yang dipakai formula gaji
- *     untuk memotong upah.
+ *   - 2027 has no holidays at all. Eid, Nyepi, Vesak, Christmas — none of them.
+ *   - Leave requested across Eid **deducts balance** for days the office is
+ *     closed.
+ *   - If HR recomputes a full month of attendance before payroll, every holiday
+ *     is recorded ABSENT, and that absence count is what the salary formula uses
+ *     to dock wages.
+ * Not one of the three produces an error. What appears is a leave balance that
+ * shrinks for no reason and a payslip smaller than it should be — for someone
+ * with no way of proving it.
  *
- * Tidak ada satu pun dari ketiganya yang menghasilkan galat. Yang muncul adalah
- * saldo cuti yang berkurang tanpa sebab dan slip gaji yang lebih kecil dari
- * seharusnya — pada orang yang tidak punya cara membuktikannya.
  *
- * Tanggal libur nasional Indonesia ditetapkan SKB 3 Menteri setiap tahun dan
- * sebagian bergantung pada penanggalan Hijriah, sehingga **tidak dapat dihitung
- * di muka** oleh kode mana pun. Ia harus dapat dimasukkan tenant. Itulah yang
- * disediakan endpoint ini.
+ * Indonesian national holiday dates are set by a joint ministerial decree each
+ * year and some follow the Hijri calendar, so they **cannot be computed in
+ * advance** by any code. They have to be enterable by the tenant. That is what
+ * this endpoint provides.
  */
 
 export const GET = defineRoute('GET /api/attendance/holidays', async (req, ctx) => {
@@ -74,13 +73,13 @@ const createSchema = z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         name: z.string().trim().min(2).max(120),
         /**
-         * Cuti bersama MEMOTONG hak cuti tahunan; libur nasional tidak.
+         * Joint leave DEDUCTS from the annual leave allowance; a national holiday
+         * does not.
          *
-         * Pembedaan ini bukan tata nama. SKB 3 Menteri menetapkan cuti bersama
-         * sebagai pengurang jatah cuti tahunan 12 hari, sehingga menandainya
-         * salah berarti perusahaan memberikan empat hari libur berbayar
-         * tambahan per karyawan per tahun — atau memotong jatah yang seharusnya
-         * utuh.
+         * This distinction is not nomenclature. The joint ministerial decree makes
+         * joint leave a deduction from the 12-day annual allowance, so marking it
+         * wrongly means the company gives four extra paid days off per employee
+         * per year — or deducts an allowance that should have stayed whole.
          */
         isJointLeave: z.boolean().default(false),
       }),
@@ -107,10 +106,10 @@ export const POST = defineRoute('POST /api/attendance/holidays', async (req, ctx
   for (const entry of parsed.data.entries) {
     const date = new Date(`${entry.date}T00:00:00.000Z`);
 
-    // Upsert, bukan create. Menempelkan daftar SKB yang diperbarui di tengah
-    // tahun adalah hal yang benar-benar dilakukan HR — pemerintah memang
-    // merevisi tanggal cuti bersama — dan menolaknya dengan 409 memaksa mereka
-    // menghapus satu per satu lebih dulu.
+    // An upsert, not a create. Pasting an updated decree list mid-year is
+    // something HR genuinely does — the government does revise joint leave dates
+    // — and refusing it with a 409 would force them to delete the dates one at a
+    // time first.
     const existing = await ctx.tx.holiday.findFirst({
       where: { tenantId: ctx.tenantId, date },
       select: { id: true, isJointLeave: true },
@@ -122,11 +121,11 @@ export const POST = defineRoute('POST /api/attendance/holidays', async (req, ctx
         data: { name: entry.name, isJointLeave: entry.isJointLeave },
       });
 
-      // Turun dari cuti bersama menjadi libur biasa: potongan jatahnya
-      // dikembalikan. Tanpa ini, koreksi HR hanya berlaku ke satu arah — salah
-      // menandai satu tanggal memotong jatah seratus karyawan, dan
-      // membatalkannya tidak mengembalikan apa pun. Pemerintah memang merevisi
-      // tanggal cuti bersama di tengah tahun.
+      // Downgraded from joint leave to an ordinary holiday: its allowance
+      // deduction is returned. Without this, an HR correction only works in one
+      // direction — mistakenly flagging one date deducts a hundred employees'
+      // allowance, and undoing it returns nothing. The government does revise
+      // joint leave dates mid-year.
       if (existing.isJointLeave && !entry.isJointLeave) {
         reverted += (await revertJointLeave(ctx.tx, ctx.tenantId, existing.id, ctx.userId)).days;
       }
@@ -145,8 +144,8 @@ export const POST = defineRoute('POST /api/attendance/holidays', async (req, ctx
     }
   }
 
-  // Diaudit karena hari libur menentukan siapa tercatat ALFA dan berapa saldo
-  // cuti terpotong. Menghapus satu tanggal libur diam-diam mengubah gaji orang.
+  // Audited because holidays decide who is recorded ABSENT and how much leave
+  // balance is deducted. Quietly deleting one holiday date changes someone's pay.
   await writeAudit(ctx.tx, ctx.tenantId, {
     action: 'attendance.holiday.upserted',
     entityType: 'holiday',
@@ -174,9 +173,9 @@ export const DELETE = defineRoute('DELETE /api/attendance/holidays', async (req,
     return apiError(404, ErrorCode.NOT_FOUND, 'Hari libur tidak ditemukan', ctx.correlationId);
   }
 
-  // Dikembalikan SEBELUM barisnya dihapus. Setelah dihapus, tidak ada lagi yang
-  // menghubungkan potongan di buku besar dengan tanggal yang menyebabkannya,
-  // dan jatah seratus karyawan tertinggal terpotong tanpa asal-usul.
+  // Returned BEFORE its row is deleted. Once deleted, nothing connects the
+  // ledger deduction to the date that caused it, and a hundred employees' balance
+  // is left deducted with no origin.
   const reverted = holiday.isJointLeave
     ? await revertJointLeave(ctx.tx, ctx.tenantId, holiday.id, ctx.userId)
     : { employees: 0, days: 0 };
