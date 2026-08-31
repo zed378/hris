@@ -2,63 +2,62 @@ import { Prisma, writeAudit, type TenantClient } from '@hrms/db';
 import { LeaveError, ensureBalance, writeLedger } from './balance.ts';
 
 /**
- * Cuti bersama: pemotongan jatah cuti tahunan (dokumen 03 §4.2).
+ * Joint leave: deducting from the annual leave allowance (document 03 §4.2).
  *
- * `holidays.is_joint_leave` ada sejak modul presensi dibangun, dengan komentar
- * yang menyatakan maksudnya persis: *"Cuti bersama memotong hak cuti tahunan;
- * libur nasional tidak."* Tidak ada satu pun jalur kode yang pernah membacanya.
+ * `holidays.is_joint_leave` has existed since the attendance module was built,
+ * with a comment stating its purpose exactly: *"Joint leave deducts the annual
+ * leave allowance; a national holiday does not."* No code path ever read it.
  *
- * Akibatnya berpihak pada karyawan, dan karena itu tidak akan pernah
- * dilaporkan: perusahaan dengan empat hari cuti bersama memberikan **empat hari
- * libur berbayar tambahan per karyawan per tahun** di luar jatah 12 hari. Untuk
- * seratus karyawan itu empat ratus hari kerja yang hilang dari perhitungan
- * siapa pun.
+ * The consequence favours employees, and so would never have been reported: a
+ * company with four joint leave days gave **four extra paid days off per
+ * employee per year** beyond the 12-day allowance. For a hundred employees that
+ * is four hundred working days missing from anyone's calculation.
  *
- * Dasarnya SKB 3 Menteri, yang setiap tahun menetapkan cuti bersama sebagai
- * **pengurang** jatah cuti tahunan — berbeda dari libur nasional, yang tidak.
+ * Its basis is the joint ministerial decree, which each year establishes joint
+ * leave as a **deduction** from the annual leave allowance — unlike a national
+ * holiday, which is not.
  *
- * ## Yang harus benar, dan mengapa
+ * ## What has to be right, and why
  *
- * **Idempoten lewat buku besar, bukan lewat penanda.** Setiap pemotongan
- * meninggalkan baris berbuku besar dengan `referenceType: 'holiday'` dan
- * `referenceId` tanggal liburnya. Menjalankan ulang membaca baris itu dan
- * melewatinya. Penanda terpisah — kolom `deducted_at` pada tabel libur — akan
- * benar hanya sampai seseorang menambahkan karyawan baru setelah pemotongan
- * berjalan.
+ * **Idempotent through the ledger, not through a flag.** Every deduction leaves
+ * a ledger row with `referenceType: 'holiday'` and the holiday date as its
+ * `referenceId`. A re-run reads that row and skips it. A separate flag — a
+ * `deducted_at` column on the holiday table — would be right only until someone
+ * added a new employee after the deduction ran.
  *
- * **Tidak pernah membuat saldo minus.** Karyawan yang jatahnya sudah habis
- * tetap ikut libur — kantornya tutup — dan yang dapat dipotong hanyalah sisa
- * yang ada. Kekurangannya dilaporkan, bukan dipaksakan: `chk_no_negative_balance`
- * akan menolaknya, dan penolakan itu akan muncul sebagai kegagalan pada
- * karyawan berikutnya yang mengajukan cuti, bukan pada tindakan yang
- * menyebabkannya.
+ * **Never creates a negative balance.** An employee whose allowance is used up
+ * still takes the day off — their office is closed — and only what remains can
+ * be deducted. The shortfall is reported rather than forced:
+ * `chk_no_negative_balance` would refuse it, and that refusal would surface as a
+ * failure for the next employee requesting leave, not on the action that caused
+ * it.
  */
 
 export interface JointLeaveResult {
-  /** Tanggal cuti bersama yang diproses. */
+  /** The joint leave dates processed. */
   holidays: number;
-  /** Karyawan yang saldonya berkurang. */
+  /** The employees whose balance was reduced. */
   employees: number;
-  /** Total hari yang terpotong. */
+  /** Total days deducted. */
   days: number;
   /**
-   * Karyawan yang saldonya tidak cukup, beserta kekurangannya.
+   * Employees whose balance was insufficient, with their shortfall.
    *
-   * Dilaporkan, bukan didiamkan. Kekurangan berarti seseorang libur tanpa jatah
-   * — keadaan yang perlu diputuskan HR (tidak dibayar, dipinjamkan dari tahun
-   * depan, atau dibiarkan), dan keputusan itu tidak dapat diambil bila tidak
-   * ada yang tahu.
+   * Reported rather than passed over in silence. A shortfall means someone is
+   * off without an allowance — a situation HR has to decide on (unpaid,
+   * borrowed from next year, or let go), and that decision cannot be taken if
+   * nobody knows.
    */
   shortfalls: Array<{ employeeId: string; days: number }>;
 }
 
 /**
- * Memotong jatah cuti tahunan untuk seluruh cuti bersama pada satu tahun.
+ * Deducts the annual leave allowance for every joint leave day in a year.
  *
- * Jenis cuti yang dipotong adalah satu-satunya yang `deductFromBalance` dan
- * ber-akrual berbasis kuota. Bila tenant punya lebih dari satu, yang dipilih
- * adalah yang jatah bawaannya terbesar — jatah tahunan pokok, bukan cuti
- * tambahan yang kebetulan juga memotong saldo.
+ * The leave type deducted is the only one that both has `deductFromBalance` and
+ * a quota-based accrual. If a tenant has more than one, the one with the largest
+ * default allowance is chosen — the main annual allowance, not some additional
+ * leave that happens to deduct from a balance too.
  */
 export async function applyJointLeave(
   tx: TenantClient,
@@ -114,8 +113,8 @@ export async function applyJointLeave(
   const touched = new Set<string>();
 
   for (const holiday of holidays) {
-    // Baris buku besar yang sudah ada untuk tanggal ini. Inilah kunci
-    // idempotensinya — dibaca sekali per tanggal, bukan sekali per karyawan.
+    // The ledger rows that already exist for this date. This is the key to its
+    // idempotency — read once per date, not once per employee.
     const already = await tx.$queryRaw<Array<{ employee_id: string }>>`
       SELECT b.employee_id
       FROM "leave".balance_ledger l
@@ -138,8 +137,8 @@ export async function applyJointLeave(
         actorUserId,
       );
 
-      // Sisa yang ada, paling banyak satu hari. Karyawan yang jatahnya habis
-      // tetap ikut libur; yang dapat dipotong hanyalah yang tersedia.
+      // Whatever remains, at most one day. An employee whose allowance is used
+      // up still takes the day off; only what is available can be deducted.
       const deductible = Math.min(1, Math.max(0, balance.availableDays));
 
       if (deductible < 1) {
@@ -199,16 +198,16 @@ export async function applyJointLeave(
 }
 
 /**
- * Mengembalikan jatah yang dipotong sebuah tanggal cuti bersama.
+ * Returns the allowance a joint leave date deducted.
  *
- * Dipanggil ketika tanggalnya dihapus, atau ketika penandanya diubah menjadi
- * libur nasional biasa. Tanpa ini, koreksi HR hanya berlaku ke satu arah:
- * salah menandai satu tanggal memotong jatah seratus karyawan, dan
- * membatalkannya tidak mengembalikan apa pun. Yang hilang bukan angka di layar
- * — ia hari libur yang tidak lagi dapat diambil seseorang.
+ * Called when the date is deleted, or when its flag is changed to an ordinary
+ * national holiday. Without it, an HR correction only works in one direction:
+ * mistakenly flagging one date deducts a hundred employees' allowance, and
+ * undoing it returns nothing. What is lost is not a number on a screen — it is a
+ * day off somebody can no longer take.
  *
- * Pemerintah memang merevisi tanggal cuti bersama di tengah tahun, jadi ini
- * bukan kasus tepi yang dikarang.
+ * The government does revise joint leave dates mid-year, so this is not an
+ * invented edge case.
  */
 export async function revertJointLeave(
   tx: TenantClient,
@@ -230,7 +229,7 @@ export async function revertJointLeave(
   let days = 0;
 
   for (const entry of entries) {
-    // `days` pada baris CONSUME bernilai negatif; yang dikembalikan adalah
+    // `days` on a CONSUME row is negative; what is returned is its magnitude.
     // besarannya.
     const amount = entry.days.abs();
 
@@ -239,10 +238,10 @@ export async function revertJointLeave(
       data: { usedDays: { decrement: amount }, version: { increment: 1 } },
     });
 
-    // Baris CONSUME aslinya TIDAK dihapus, dan pengembaliannya ditulis sebagai
-    // baris baru. Buku besar yang barisnya dapat hilang bukan buku besar — dan
-    // pertanyaan "mengapa jatah saya sempat berkurang lalu kembali" harus punya
-    // jawaban yang dapat ditunjukkan.
+    // The original CONSUME row is NOT deleted, and the return is written as a new
+    // row. A ledger whose rows can disappear is not a ledger — and the question
+    // "why did my allowance drop and then come back" has to have an answer that
+    // can be shown.
     await writeLedger(tx, tenantId, {
       balanceId: entry.balance_id,
       entryType: 'ADJUST',

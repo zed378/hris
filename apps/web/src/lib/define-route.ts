@@ -15,7 +15,7 @@ export interface RequestContext {
 }
 
 export interface RouteParams {
-  /** Segmen dinamis dari URL, mis. `[id]` pada /api/roles/[id]/permissions. */
+  /** The dynamic URL segments, e.g. `[id]` in /api/roles/[id]/permissions. */
   params: Record<string, string>;
 }
 
@@ -25,7 +25,7 @@ export interface AuthenticatedContext extends RequestContext, RouteParams {
   userId: string;
   email: string;
   access: EffectiveAccess;
-  /** Transaksi dengan konteks tenant sudah terpasang. RLS berlaku penuh. */
+  /** A transaction with the tenant context already set. RLS fully in force. */
   tx: TenantClient;
 }
 
@@ -33,12 +33,12 @@ type PublicHandler = (req: Request, ctx: RequestContext & RouteParams) => Promis
 type AuthedHandler = (req: Request, ctx: AuthenticatedContext) => Promise<Response>;
 
 /**
- * Argumen kedua yang diberikan Next kepada route handler.
+ * The second argument Next gives a route handler.
  *
- * `params` berupa Promise sejak Next 15. Diselesaikan di sini sekali, supaya
- * setiap handler menerima objek biasa dan tidak ada yang lupa menunggunya —
- * `params.id` pada sebuah Promise bernilai `undefined`, bukan galat, sehingga
- * kelalaian itu akan lolos diam-diam sampai ke produksi.
+ * `params` has been a Promise since Next 15. Resolved here once, so every
+ * handler receives a plain object and nobody forgets to await it — `params.id`
+ * on a Promise is `undefined` rather than an error, so that omission would slip
+ * through silently all the way to production.
  */
 type NextRouteContext = { params?: Promise<Record<string, string>> | Record<string, string> };
 
@@ -66,21 +66,21 @@ function contextFrom(req: Request): RequestContext {
 }
 
 /**
- * Membungkus setiap handler API dengan rantai keputusan yang sama.
+ * Wraps every API handler in the same chain of decisions.
  *
- * Urutannya bukan selera — setiap langkah mengandaikan langkah sebelumnya:
+ * Its order is not taste — each step assumes the one before it:
  *
- *   1. Manifest    — route tak terdaftar mengembalikan 404, bukan 500. Endpoint
- *                    yang tak sengaja terekspos tidak pernah dapat dijangkau (P7).
- *   2. Rate limit  — sebelum kerja mahal apa pun (argon2, query).
- *   3. Token       — audience `hrms-tenant`; token superuser gagal di sini (P11).
- *   4. X-Tenant-ID — bila dikirim, WAJIB cocok dengan klaim `tid`. Header tidak
- *                    pernah dipercaya sendirian; ia hanya penegas, bukan sumber.
- *   5. Entitlement — modul tidak dilanggan → 402, meski permission dimiliki (P8).
+ *   1. Manifest    — an unregistered route returns 404, not 500. An endpoint
+ *                    exposed by accident can never be reached (P7).
+ *   2. Rate limit  — before any expensive work (argon2, queries).
+ *   3. Token       — audience `hrms-tenant`; a superuser token fails here (P11).
+ *   4. X-Tenant-ID — when sent, it MUST match the `tid` claim. The header is
+ *                    never trusted alone; it confirms, it is not the source.
+ *   5. Entitlement — an unsubscribed module → 402, even with the permission (P8).
  *   6. Permission  — 403.
  *
- * Langkah 5 mendahului 6 dengan sengaja: pesan "paket Anda belum mencakup modul
- * ini" dapat ditindaklanjuti pelanggan; "akses ditolak" tidak.
+ * Step 5 precedes 6 deliberately: "your plan does not include this module" is
+ * something a customer can act on; "access denied" is not.
  */
 export function defineRoute(
   routeId: RouteId,
@@ -90,12 +90,12 @@ export function defineRoute(
 }
 
 /**
- * Varian untuk jalur tanpa autentikasi.
+ * The variant for paths without authentication.
  *
- * Sifat publik dinyatakan di dua tempat — di manifest dan di sini — dan keduanya
- * dicocokkan saat modul dimuat. Redundansi ini disengaja: satu berkas yang lupa
- * diperbarui akan gagal keras saat startup, bukan diam-diam mengekspos endpoint
- * atau mengunci endpoint yang seharusnya terbuka.
+ * Being public is stated in two places — in the manifest and here — and the two
+ * are cross-checked when the module loads. That redundancy is deliberate: one
+ * file that is forgotten fails loudly at startup rather than silently exposing
+ * an endpoint or locking one that should be open.
  */
 export function definePublicRoute(
   routeId: RouteId,
@@ -121,11 +121,10 @@ function build(
     );
   }
 
-  // Nilai yang sudah dipastikan ada, ditangkap sebagai const supaya penyempitan
-  // tipenya bertahan di dalam fungsi bersarang di bawah. Tanpa ini, TypeScript
-  // kembali menganggapnya mungkin `undefined` — dan `rule!` di setiap
-  // penggunaannya akan menyembunyikan kesalahan yang sesungguhnya bila kelak
-  // pemeriksaan di atas dihapus orang.
+  // A value already proven present, captured as a const so its type narrowing
+  // survives inside the nested function below. Without this, TypeScript would
+  // consider it possibly `undefined` again — and a `rule!` at every use would
+  // hide the real mistake if someone later removed the check above.
   const routeRule = rule;
 
   return async function route(req: Request, nextCtx?: NextRouteContext): Promise<Response> {
@@ -133,17 +132,16 @@ function build(
     const params = (await nextCtx?.params) ?? {};
 
     /**
-     * Seluruh penanganan berjalan di dalam konteks permintaan.
+     * All handling runs inside the request context.
      *
-     * Satu pembungkus di batas ini menggantikan penerusan `correlationId`
-     * sebagai parameter ke puluhan fungsi domain yang tidak ada urusannya
-     * dengan pencatatan — dan yang akan lupa diisi pada fungsi berikutnya yang
-     * ditulis orang.
+     * One wrapper at this boundary replaces passing `correlationId` as a
+     * parameter through dozens of domain functions that have nothing to do with
+     * logging — and that would be forgotten in the next function somebody writes.
      *
-     * Yang mengalir lewat konteks hanya untuk PENCATATAN. Tenant sebagai dasar
-     * isolasi tetap diteruskan eksplisit ke `withTenant`, karena otorisasi yang
-     * membaca keadaan implisit dapat bocor lintas permintaan ketika satu
-     * `await` lupa ditunggu.
+     * What flows through the context is for LOGGING only. The tenant, as the
+     * basis of isolation, is still passed explicitly to `withTenant`, because
+     * authorisation that reads implicit state can leak across requests when one
+     * `await` goes unawaited.
      */
     return runWithContext({ correlationId: ctx.correlationId, routeId }, () =>
       handleRequest(req, ctx, params),
@@ -173,10 +171,10 @@ function build(
     }
 
     if (declaredPublic) {
-      // Jalur publik butuh penjaring galat yang sama seperti jalur terautentikasi.
-      // Tanpa ini, satu lemparan tak terduga keluar sebagai 500 mentah Next —
-      // tanpa correlationId, dan dengan bentuk balasan yang berbeda dari seluruh
-      // API lain. Ditemukan saat uji end-to-end pertama, bukan lewat penalaran.
+      // A public path needs the same error net as an authenticated one. Without
+      // it, one unexpected throw escapes as Next's raw 500 — with no
+      // correlationId, and in a response shape different from every other API.
+      // Found during the first end-to-end test, not by reasoning.
       try {
         return await (handler as PublicHandler)(req, { ...ctx, params });
       } catch (error) {
@@ -203,9 +201,9 @@ function build(
       );
     }
 
-    // Header X-Tenant-ID bersifat opsional, tetapi bila ada ia harus cocok.
-    // Menerima header yang berbeda dari token — walau sekali, di satu jalur —
-    // adalah cara kebocoran lintas-tenant biasanya terjadi (risiko R15).
+    // The X-Tenant-ID header is optional, but where present it has to match.
+    // Accepting a header that differs from the token — even once, on one path —
+    // is how a cross-tenant leak usually happens (risk R15).
     const headerTenant = req.headers.get('x-tenant-id');
     if (headerTenant !== null && headerTenant !== claims.tid) {
       return fail(
@@ -217,17 +215,17 @@ function build(
     }
 
     /**
-     * Kuota menyeluruh per tenant, DI LUAR transaksi.
+     * The overall per-tenant quota, OUTSIDE the transaction.
      *
-     * Diperiksa sebelum `withTenant` dengan sengaja: seluruh gunanya adalah
-     * mencegah satu tenant menghabiskan koneksi basis data, dan memeriksanya
-     * setelah koneksi diambil justru menghabiskan koneksi yang hendak dijaga.
+     * Checked before `withTenant` deliberately: its entire purpose is stopping
+     * one tenant exhausting the database connections, and checking it after a
+     * connection is taken consumes the very connection it is meant to protect.
      */
     const quota = consumeTenantQuota(claims.tid);
     if (!quota.allowed) {
-      // Dicatat, bukan hanya ditolak. Batas yang salah setel harus ketahuan
-      // dari log — bukan dari pelanggan yang menelepon karena aplikasinya
-      // berhenti bekerja pada jam sibuk.
+      // Recorded, not merely refused. A badly set limit has to be visible in the
+      // logs — not from a customer phoning because their application stopped
+      // working at peak hour.
       log.warn({
         scope: 'tenant-quota',
         tenantId: claims.tid,
@@ -282,20 +280,20 @@ function build(
       });
     } catch (error) {
       /**
-       * Pool transaksi habis adalah KELEBIHAN BEBAN, bukan kerusakan.
+       * An exhausted transaction pool is OVERLOAD, not a fault.
        *
-       * Ditemukan lewat uji banjir: 700 permintaan bersamaan menghasilkan 100
-       * penolakan kuota dan 299 galat 500 bertuliskan "Unable to start a
-       * transaction in the given time". Kuota per menit membatasi LAJU, bukan
-       * KONKURENSI — dan yang menghabiskan pool adalah konkurensi.
+       * Found by a flood test: 700 concurrent requests produced 100 quota
+       * refusals and 299 errors at 500 reading "Unable to start a transaction in
+       * the given time". A per-minute quota limits RATE, not CONCURRENCY — and
+       * what exhausts the pool is concurrency.
        *
-       * Membalasnya 500 salah dalam dua hal sekaligus: klien dan proxy tidak
-       * mencoba ulang 500 (mereka mencoba ulang 503 dengan `retry-after`), dan
-       * pemantauan galat mencatatnya sebagai bug padahal sistemnya berfungsi
-       * persis sebagaimana dirancang — ia sedang penuh.
+       * Answering 500 is wrong in two ways at once: clients and proxies do not
+       * retry a 500 (they retry a 503 with a `retry-after`), and error monitoring
+       * records it as a bug when the system is working exactly as designed — it
+       * is full.
        *
-       * Antreannya sendiri sudah ditangani Prisma; yang diperbaiki di sini
-       * hanyalah apa yang dikatakan ketika antrean itu penuh.
+       * The queueing itself is already handled by Prisma; what is fixed here is
+       * only what is said when that queue is full.
        */
       const overloaded =
         error instanceof Error &&
