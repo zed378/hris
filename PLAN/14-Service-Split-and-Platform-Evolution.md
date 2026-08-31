@@ -356,7 +356,7 @@ next one to be started.
 |---|---|---|---|
 | 1 | ~~**Asymmetric tokens**~~ — **done**, see §10.1 | Ed25519 signing, `kid`, JWKS endpoint served by the current monolith. No topology change. | Yes — revert to HS256 |
 | 2 | ~~**Enforce `accessVersion`**~~ — **done**, see §10.2 | The comparison §5 showed was missing. Still one process. | Yes |
-| 3 | **Redis for rate limiting** | Fixes the replica bug in §9.2, before it is exposed by scaling. | Yes |
+| 3 | ~~**Redis for rate limiting**~~ — **done**, see §10.3 | Fixes the replica bug in §9.2, before scaling exposes it. | Yes |
 | 4 | **A hard internal boundary** | The auth module reachable only through an HTTP-shaped interface it already exposes, still in-process. Boundary lint upgraded to forbid direct imports of `iam` internals. | Yes |
 | 5 | **Split database roles** | Distinct PostgreSQL roles and grants for auth-owned vs business schemas, both still used by one process. Proves the grant matrix before the network is involved. | Yes |
 | 6 | **Extract the auth container** | Same code, own image, own deploy. Proxy path-routes `/api/auth/*`. Permission resolution moves to option C with the Redis cache from stage 3. | Hard — this is the commitment point |
@@ -438,6 +438,44 @@ today, because access is still resolved from the database on every request. It
 exists so the mechanism is live and tested *before* stage 6's permission cache
 depends on it — a mechanism first exercised on the day it becomes load-bearing is
 a mechanism nobody has ever seen work.
+
+### 10.3 Stage 3 as built
+
+Rate-limit counters move to Redis when `REDIS_URL` is set, and stay in the
+process `Map` when it is not. Redis is optional and remains so: a single
+container needs nothing extra, which is what `PLAN/12` §3.2 sold as a feature and
+still is.
+
+**The bug this fixes exists today.** In-process counters mean each replica counts
+alone — two replicas permit twice the configured rate, four permit four times —
+with no error, no log, and no way to tell from outside. Horizontal scaling is one
+of the stated reasons for this whole split, so that failure would have arrived
+exactly when the system was busy enough to need the limiter working.
+
+`INCR` and `PEXPIRE` run as one Lua script. As two commands, a process dying
+between them leaves a counter with no expiry, and that key blocks its subject
+forever.
+
+**Fail-open when Redis is configured but unreachable**, falling back to the local
+counter. Failing closed would turn a Redis outage into a total outage — nobody
+able to log in, punch, or approve anything, because a protective mechanism had a
+bad minute. Failing open degrades to the behaviour of the day before this change:
+a weaker limit, not an absent one. Logged once per outage rather than per request.
+
+**A cold-start bypass was found by restarting the real server**, not by reasoning
+about it. `enableOfflineQueue: false` refuses commands issued before the socket
+is ready, so the first request after a deploy was rejected, fell back to the local
+counter, and never touched the shared one — the Redis counter did not move at
+all. A few hundred milliseconds of precisely the failure this stage removes, after
+every deploy, invisible to any test holding a warm connection. `countInWindow`
+now waits for readiness and retries once while the connection is still opening.
+Measured after the fix: the first request after a restart was correctly refused
+with 429, and the shared counter advanced.
+
+`/api/ready` now reports `rateLimit` and `signing`, because both are states an
+instance can serve traffic in and neither is visible otherwise — `in-process`
+across several replicas, or `hybrid` signing long after the migration was
+supposed to end.
 
 ---
 

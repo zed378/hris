@@ -70,7 +70,7 @@ function build(
     const base = baseContext(req);
 
     if (rule.rateLimit) {
-      const ok = consumeRateLimit(
+      const ok = await consumeRateLimit(
         `admin:${routeId}:${base.ip ?? 'unknown'}`,
         rule.rateLimit.max,
         rule.rateLimit.windowSeconds,

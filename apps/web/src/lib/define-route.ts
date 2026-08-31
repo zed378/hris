@@ -155,7 +155,7 @@ function build(
   ): Promise<Response> {
 
     if (routeRule.rateLimit) {
-      const allowed = consumeRateLimit(
+      const allowed = await consumeRateLimit(
         `${routeId}:${ctx.ip ?? 'unknown'}`,
         routeRule.rateLimit.max,
         routeRule.rateLimit.windowSeconds,
@@ -221,7 +221,7 @@ function build(
      * one tenant exhausting the database connections, and checking it after a
      * connection is taken consumes the very connection it is meant to protect.
      */
-    const quota = consumeTenantQuota(claims.tid);
+    const quota = await consumeTenantQuota(claims.tid);
     if (!quota.allowed) {
       // Recorded, not merely refused. A badly set limit has to be visible in the
       // logs — not from a customer phoning because their application stopped

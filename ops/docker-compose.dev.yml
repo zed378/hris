@@ -55,5 +55,30 @@ services:
       timeout: 5s
       retries: 20
 
+  # Redis — hanya untuk pembatas laju bersama (PLAN/14 §9.2).
+  #
+  # Opsional. Tanpa REDIS_URL aplikasi memakai penghitung dalam proses dan
+  # berjalan persis seperti sebelumnya. Ia menjadi WAJIB begitu `web` berjalan
+  # lebih dari satu replika: penghitung dalam proses membuat setiap replika
+  # menghitung sendiri, sehingga batas efektifnya berlipat sebanyak replikanya —
+  # tanpa galat, tanpa log, dan tanpa cara mengetahuinya dari luar.
+  #
+  # Tidak ada volume dengan sengaja. Isinya hanya penghitung berumur pendek;
+  # kehilangan seluruhnya saat restart berarti satu jendela laju terlewat, bukan
+  # data yang hilang. Menyimpannya justru mengundang anggapan bahwa ia boleh
+  # dipakai untuk hal yang tidak boleh hilang.
+  redis:
+    image: redis:8-alpine
+    container_name: hrms-redis
+    restart: unless-stopped
+    command: ['redis-server', '--save', '', '--appendonly', 'no', '--maxmemory', '128mb', '--maxmemory-policy', 'allkeys-lru']
+    ports:
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   hrms-pgdata:

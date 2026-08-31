@@ -737,7 +737,28 @@ are worth knowing:
   moment a permission cache does — which is `PLAN/14` §5 option C, the mechanism
   that makes the auth split affordable. Must be implemented **before** the cache,
   not alongside it.
-- **The rate limiter is per-process and silently multiplies by replica count.**
+- ~~**The rate limiter is per-process and silently multiplies by replica count**~~
+  — **done.** `PLAN/14` stage 3: counters move to Redis when `REDIS_URL` is set,
+  and stay in the process `Map` when it is not, so a single container still needs
+  nothing extra.
+
+  **A cold-start bypass was found by restarting the real server.** The first
+  request after a deploy was rejected by ioredis before its socket was ready,
+  fell back to the local counter, and never touched the shared one — the Redis
+  counter did not move at all. A few hundred milliseconds of exactly the failure
+  the stage removes, after every deploy, invisible to any test holding a warm
+  connection. Now covered by a regression test that throws the connection away
+  first, which is what a fresh process has.
+
+  Fail-open when Redis is configured but unreachable, logged once per outage.
+  Failing closed would make a Redis blip a total outage.
+
+  **Test note:** the shared-counter suite requires a running Redis. With
+  `REDIS_URL` unset it SKIPS and says so; with it set but unreachable it FAILS.
+  Skipping in both cases would let a broken Redis in CI look exactly like a
+  developer who never started one, and the suite would go green having tested
+  nothing.
+- ~~**The rate limiter is per-process and silently multiplies by replica count.**~~
   `apps/web/src/lib/rate-limit.ts` keeps buckets in a local `Map`; the per-tenant
   quota in `define-route.ts` has the same shape. With one container it is correct.
   With two replicas it permits twice the configured rate, with no error and no log

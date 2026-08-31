@@ -1,6 +1,8 @@
 import { log } from '@hrms/observability';
 import { appClient } from '@hrms/db';
 import { definePublicRoute } from '@/lib/define-route.ts';
+import { rateLimitBackend } from '@/lib/rate-limit.ts';
+import { signingMode } from '@hrms/core/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,10 +36,34 @@ export const GET = definePublicRoute('GET /api/ready', async () => {
     // benar, tetapi tidak membedakan "sehat" dari "kosong".
     await appClient().plan.findFirst({ select: { code: true } });
 
-    return new Response(JSON.stringify({ status: 'ready', checkMs: Date.now() - started }), {
-      status: 200,
-      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-    });
+    /**
+     * Two facts about HOW this instance is configured, reported alongside
+     * readiness. Neither can make it unready — both are states it can serve
+     * traffic in — and both are states that are otherwise invisible until they
+     * cause a problem nobody can explain.
+     *
+     *   `rateLimit: 'in-process'` on a deployment with more than one replica
+     *   means the configured limit is silently multiplied by the replica count.
+     *
+     *   `signing: 'hs256'` or `'hybrid'` means the shared secret can still MINT
+     *   tokens. That is expected during the migration to asymmetric keys and
+     *   alarming once it is supposed to be finished (PLAN/14 §6).
+     *
+     * Reported as plain words rather than a health verdict, because the right
+     * answer depends on the topology and this endpoint does not know it.
+     */
+    return new Response(
+      JSON.stringify({
+        status: 'ready',
+        checkMs: Date.now() - started,
+        rateLimit: rateLimitBackend(),
+        signing: await signingMode(),
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+      },
+    );
   } catch (error) {
     log.error({ scope: 'readiness', error });
 

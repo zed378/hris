@@ -165,6 +165,41 @@ services:
   # `hrms_app` cannot touch the `platform` schema, and `hrms_platform` cannot
   # read `auth.users` (P11).
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Redis — shared rate-limit counters (PLAN/14 §9.2)
+  #
+  # Optional in the sense that the application starts and works without it, and
+  # REQUIRED the moment `web` is scaled past one replica. In-process counters
+  # make every replica count alone: two replicas permit twice the configured
+  # rate, four permit four times, and nothing errors and nothing logs. The number
+  # in the configuration is simply not the number in force.
+  #
+  # No volume, deliberately. It holds short-lived counters; losing all of them on
+  # restart costs one rate-limit window, not data. Persisting it would invite the
+  # belief that something which must survive can be kept here.
+  #
+  # Not exposed on the host. Only `web` needs to reach it.
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:8-alpine
+    container_name: hrms-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --save
+      - ''
+      - --appendonly
+      - 'no'
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
   web:
     build:
       context: ..
@@ -176,6 +211,11 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      # `service_started`, not `service_healthy`. Redis being slow to accept
+      # connections must not hold up the application: the limiter degrades to
+      # in-process counting, which is what it did before Redis existed.
+      redis:
+        condition: service_started
     environment:
       NODE_ENV: production
       # The runtime uses the application role, not the owner. This is what keeps
@@ -186,6 +226,9 @@ services:
       DATABASE_URL_PLATFORM: postgresql://hrms_platform:${PLATFORM_DB_PASSWORD:-hrms_platform_password}@postgres:5432/${POSTGRES_DB:-hrms}
       # MUST be changed in production. Two different secrets, so a tenant token
       # and an admin token can never verify against each other.
+      # Unset it and the limiter falls back to in-process counters — correct for
+      # a single replica, and quietly wrong for more than one.
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib dipasang}
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET wajib dipasang}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
