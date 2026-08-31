@@ -39,3 +39,14 @@ export {
   revertJointLeave,
   type JointLeaveResult,
 } from './joint-leave.ts';
+export {
+  uploadAttachment,
+  claimAttachment,
+  attachToRequest,
+  readAttachment,
+  cleanupOrphanAttachments,
+  MAX_ATTACHMENT_BYTES,
+  ORPHAN_MAX_AGE_HOURS,
+  type AttachmentView,
+  type OrphanCleanupResult,
+} from './attachments.ts';

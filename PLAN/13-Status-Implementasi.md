@@ -689,8 +689,35 @@ Tiga batasnya perlu diketahui:
   memperoleh jatah baru sampai Juli berikutnya. Tenant yang memakai metode ini
   **harus** menyetel `maxCarryOverDays` sebesar kuotanya. Periode saldo berbasis
   ulang tahun adalah perubahan skema, dan menunggu tenant nyata yang memakainya.
-- **Lampiran cuti sebagai berkas** — `attachmentKey` saat ini teks bebas, belum
-  terhubung ke penyimpanan dokumen yang sudah ada di modul karyawan.
+- ~~**Lampiran cuti sebagai berkas**~~ — **selesai**, dan yang ditutupnya lebih
+  buruk daripada "belum terhubung ke penyimpanan". `requiresAttachment` menyala
+  untuk Cuti Sakit dan Cuti Melahirkan, dan pemeriksaannya berbunyi
+  `!input.attachmentKey` atas sebuah kolom **teks bebas** — dengan layar yang
+  menampilkan kotak isian bertuliskan "Nomor atau nama berkas surat dokter".
+  Artinya syarat "wajib melampirkan surat dokter" **dipenuhi dengan mengetik kata
+  'ada'**. Untuk cuti sakit, surat dokter itulah satu-satunya hal yang
+  membedakan cuti berbayar dari mangkir; syarat yang menerima sembarang teks
+  bukan syarat, ia kotak isian yang membuat semua pihak mengira ada bukti yang
+  tersimpan.
+
+  Surat dokter adalah **data kesehatan** — kategori data pribadi spesifik
+  menurut UU PDP Pasal 4 ayat (2) — sehingga dua hal berlaku yang tidak berlaku
+  pada berkas lain: hanya pemiliknya dan pemegang `leave.request.read.all` yang
+  dapat membukanya, dan **setiap pembacaan oleh orang lain dicatat**. Yang
+  ditolak menjawab 404, bukan 403: pada data kesehatan, keberadaan berkasnya
+  sendiri sudah merupakan keterangan.
+
+  | Percobaan | Hasil |
+  |---|---|
+  | Tanpa lampiran | ditolak |
+  | Lampiran berupa teks `"ada"` | **ditolak** — inilah celah lamanya |
+  | Kunci karangan yang berbentuk benar | ditolak |
+  | Lampiran milik karyawan lain | ditolak, pesan sama dengan "tidak ditemukan" |
+  | Lampiran sendiri yang sah | diterima |
+  | Lampiran yang sama, dipakai lagi | ditolak |
+  | Skrip shell bernama `.pdf` | ditolak dari **angka ajaibnya**, bukan namanya |
+  | Yatim < 24 jam | dipertahankan |
+  | Yatim > 24 jam | dibuang; yang terpakai tidak ikut |
 - ~~**Hari kerja selain Senin–Jumat**~~ — **selesai.** `countWorkingDays` kini
   membaca `attendance.schedules`, sumber yang sama dengan yang dipakai modul
   presensi untuk memutuskan status `DAY_OFF` — sehingga presensi dan cuti tidak

@@ -232,6 +232,12 @@ export const ROUTE_MANIFEST = {
     module: 'leave',
     permission: 'leave.request.create.own',
   },
+  'POST /api/leave/attachments': { module: 'leave', permission: 'leave.request.create.own' },
+  'GET /api/leave/attachments/[key]': {
+    module: 'leave',
+    // Izin dasar; kepemilikan berkas diperiksa di dalam handler-nya.
+    permission: 'leave.request.read.own',
+  },
   'GET /api/leave/balances': { module: 'leave', permission: 'leave.balance.read.own' },
   'POST /api/leave/balances': { module: 'leave', permission: 'leave.balance.manage' },
 

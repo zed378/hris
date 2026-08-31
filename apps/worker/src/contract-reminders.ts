@@ -1,5 +1,6 @@
 import { log } from '@hrms/observability';
 import { withTenant, workerClient } from '@hrms/db';
+import { cleanupOrphanAttachments } from '@hrms/core/leave';
 import {
   discardStalePreviews,
   scanContractReminders,
@@ -25,6 +26,8 @@ export interface ReminderJobResult {
   reminded: number;
   /** Pratinjau impor yang ditinggalkan dan dibuang. */
   discardedPreviews: number;
+  /** Lampiran cuti yatim yang dibersihkan. */
+  orphanAttachments: number;
   failed: number;
 }
 
@@ -38,6 +41,7 @@ export async function runContractReminders(): Promise<ReminderJobResult> {
     scanned: 0,
     reminded: 0,
     discardedPreviews: 0,
+    orphanAttachments: 0,
     failed: 0,
   };
 
@@ -74,6 +78,16 @@ export async function runContractReminders(): Promise<ReminderJobResult> {
         { client: workerClient() },
       );
       result.discardedPreviews += discarded.jobs;
+
+      // Lampiran cuti yang diunggah lalu pengajuannya tidak jadi dikirim.
+      // Surat dokter adalah data kesehatan; yang tidak terhubung ke pengajuan
+      // mana pun tidak punya alasan bertahan.
+      const yatim = await withTenant(
+        tenantId,
+        (tx) => cleanupOrphanAttachments(tx, tenantId),
+        { client: workerClient() },
+      );
+      result.orphanAttachments += yatim.deleted;
     } catch (error) {
       // Kegagalan satu tenant tidak menghentikan sisanya. Job yang berhenti di
       // tenant pertama yang bermasalah berarti seluruh pelanggan lain kehilangan

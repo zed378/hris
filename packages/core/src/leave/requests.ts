@@ -1,5 +1,6 @@
 import { EventTopic } from '@hrms/contracts';
 import { Prisma, publishEvent, writeAudit, type TenantClient } from '@hrms/db';
+import { attachToRequest, claimAttachment } from './attachments.ts';
 import {
   LeaveError,
   ensureBalance,
@@ -178,11 +179,34 @@ export async function submitRequest(
   });
   if (!type) throw new LeaveError('Jenis cuti tidak ditemukan atau tidak aktif', 'not_found');
 
-  if (type.requiresAttachment && !input.attachmentKey) {
-    throw new LeaveError(
-      `${type.name} wajib menyertakan lampiran, mis. surat dokter.`,
-      'invalid_state',
-    );
+  /**
+   * Lampiran wajib berarti BERKAS yang benar-benar terunggah.
+   *
+   * Sebelum ini pemeriksaannya hanya `!input.attachmentKey` atas sebuah kolom
+   * teks bebas, dan layarnya menampilkan kotak isian bertuliskan "Nomor atau
+   * nama berkas surat dokter". Artinya syarat "wajib melampirkan surat dokter"
+   * dipenuhi dengan mengetik kata "ada".
+   *
+   * Untuk cuti sakit, surat dokter itulah satu-satunya hal yang membedakan cuti
+   * berbayar dari mangkir. Syarat yang menerima sembarang teks bukan syarat; ia
+   * kotak isian yang membuat semua pihak mengira ada bukti yang tersimpan.
+   */
+  let attachmentId: string | null = null;
+
+  if (type.requiresAttachment) {
+    if (!input.attachmentKey) {
+      throw new LeaveError(
+        `${type.name} wajib menyertakan lampiran, mis. surat dokter. Unggah berkasnya lebih dulu.`,
+        'invalid_state',
+      );
+    }
+    // Melempar bila kuncinya karangan, milik orang lain, atau sudah dipakai
+    // pengajuan lain.
+    attachmentId = (await claimAttachment(tx, tenantId, input.employeeId, input.attachmentKey)).id;
+  } else if (input.attachmentKey) {
+    // Lampiran opsional tetap diperiksa kepemilikannya. Jenis cuti yang tidak
+    // mewajibkannya bukan alasan untuk menerima kunci milik orang lain.
+    attachmentId = (await claimAttachment(tx, tenantId, input.employeeId, input.attachmentKey)).id;
   }
 
   // Masa kerja minimum. UU Ketenagakerjaan mensyaratkan 12 bulan untuk cuti
@@ -323,6 +347,10 @@ export async function submitRequest(
       actorUserId,
     });
   }
+
+  // Diadopsi setelah pengajuannya ada — pengunggahnya belum tahu id-nya saat
+  // mengunggah, sehingga lampiran selalu lahir yatim.
+  if (attachmentId) await attachToRequest(tx, tenantId, attachmentId, request.id);
 
   await publishEvent(tx, tenantId, {
     topic: EventTopic.LEAVE_REQUEST_SUBMITTED,

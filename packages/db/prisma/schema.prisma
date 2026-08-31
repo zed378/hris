@@ -1480,11 +1480,42 @@ model LeaveRequest {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   leaveType LeaveType       @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
-  approvals LeaveApproval[]
+  approvals   LeaveApproval[]
+  attachments LeaveAttachment[]
 
   @@unique([tenantId, requestNumber])
   @@index([tenantId, employeeId, startDate])
   @@map("leave_requests")
+  @@schema("leave")
+}
+
+/// Berkas lampiran pengajuan cuti — surat dokter, surat keterangan.
+///
+/// Berkasnya sendiri ada di penyimpanan blob; baris ini yang menghubungkannya
+/// dengan karyawan dan pengajuannya, dan yang membuat "wajib melampirkan surat
+/// dokter" berarti sesuatu. Sebelum tabel ini, syarat itu dipenuhi dengan
+/// mengetik sembarang teks ke sebuah kotak isian.
+model LeaveAttachment {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  employeeId String  @map("employee_id") @db.Uuid
+  /// Diisi saat pengajuan dibuat. Null berarti lampiran yatim.
+  requestId  String? @map("request_id") @db.Uuid
+
+  /// Kunci objek di penyimpanan. Acak, bukan turunan dari id siapa pun.
+  storageKey String @unique @map("storage_key")
+  fileName   String @map("file_name")
+  mimeType   String @map("mime_type")
+  sizeBytes  Int    @map("size_bytes")
+
+  uploadedBy String   @map("uploaded_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  request LeaveRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, employeeId])
+  @@index([tenantId, requestId])
+  @@map("leave_attachments")
   @@schema("leave")
 }
 

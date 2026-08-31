@@ -82,6 +82,14 @@ export default function MyLeavePage() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [approvers, setApprovers] = useState<Array<{ id: string; label: string }>>([]);
 
+  const [lampiran, setLampiran] = useState<{
+    storageKey: string;
+    fileName: string;
+    sizeBytes: number;
+  } | null>(null);
+  const [unggahBusy, setUnggahBusy] = useState(false);
+  const [unggahError, setUnggahError] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     leaveTypeId: '',
     startDate: today(),
@@ -125,6 +133,48 @@ export default function MyLeavePage() {
     [types, form.leaveTypeId],
   );
 
+  /**
+   * Mengunggah lampiran, lalu menyimpan kuncinya.
+   *
+   * Unggah mendahului pengajuan karena pengunggahnya belum tahu id pengajuannya.
+   * Kuncinya disimpan di form dan diklaim server saat pengajuan dibuat — server
+   * memeriksa bahwa berkas itu ada, milik pengaju, dan belum dipakai pengajuan
+   * lain.
+   */
+  const unggahLampiran = useCallback(
+    async (file: File) => {
+      setUnggahBusy(true);
+      setUnggahError(null);
+
+      const body = new FormData();
+      body.append('file', file);
+
+      // `content-type` sengaja tidak dipasang: peramban yang menentukannya
+      // sendiri beserta boundary multipart-nya, dan memasangnya manual
+      // menghasilkan badan yang tidak dapat diurai server.
+      const response = await api('/api/leave/attachments', { method: 'POST', body });
+
+      if (response.ok) {
+        const json = (await response.json()) as {
+          storageKey: string;
+          fileName: string;
+          sizeBytes: number;
+        };
+        setLampiran(json);
+        setForm((f) => ({ ...f, attachmentKey: json.storageKey }));
+      } else {
+        const json = (await response.json().catch(() => null)) as
+          | { error?: { message?: string } }
+          | null;
+        setUnggahError(json?.error?.message ?? 'Unggahan gagal.');
+        setLampiran(null);
+        setForm((f) => ({ ...f, attachmentKey: '' }));
+      }
+      setUnggahBusy(false);
+    },
+    [api],
+  );
+
   const submit = useCallback(async () => {
     setBusy(true);
     setMessage(null);
@@ -149,6 +199,7 @@ export default function MyLeavePage() {
         text: `${json.requestNumber} diajukan — ${json.totalDays} hari kerja, menunggu persetujuan.`,
       });
       setForm((f) => ({ ...f, reason: '', attachmentKey: '' }));
+      setLampiran(null);
       void load();
     } else {
       const json = (await response.json().catch(() => null)) as {
@@ -297,12 +348,36 @@ export default function MyLeavePage() {
         />
 
         {selectedType?.requiresAttachment && (
-          <input
-            value={form.attachmentKey}
-            onChange={(e) => setForm((f) => ({ ...f, attachmentKey: e.target.value }))}
-            placeholder="Nomor atau nama berkas surat dokter (wajib untuk jenis ini)"
-            className={`mt-2 w-full ${FIELD}`}
-          />
+          <div className="mt-2">
+            {/*
+              Berkas, bukan teks bebas.
+
+              Sebelumnya kotak ini menerima ketikan apa pun — sehingga syarat
+              "wajib melampirkan surat dokter" dipenuhi dengan mengetik kata
+              "ada". Untuk cuti sakit, surat dokter itulah satu-satunya hal yang
+              membedakan cuti berbayar dari mangkir.
+            */}
+            <input
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void unggahLampiran(file);
+              }}
+              disabled={unggahBusy}
+              className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm dark:file:bg-slate-800"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              {unggahBusy
+                ? 'Mengunggah…'
+                : lampiran
+                  ? `Terlampir: ${lampiran.fileName} (${Math.round(lampiran.sizeBytes / 1024)} KB)`
+                  : 'PDF, JPG, PNG, atau WebP — maksimal 5 MB. Wajib untuk jenis cuti ini.'}
+            </p>
+            {unggahError && (
+              <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{unggahError}</p>
+            )}
+          </div>
         )}
 
         <div className="mt-3 flex items-center gap-3">
