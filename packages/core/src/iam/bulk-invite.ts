@@ -2,55 +2,54 @@ import { type TenantClient } from '@hrms/db';
 import { inviteUser, IamError, type ActorContext } from './administration.ts';
 
 /**
- * Mengundang karyawan menjadi pengguna, secara massal.
+ * Inviting employees to become users, in bulk.
  *
- * Ditemukan lewat penelusuran alur pilot, dan bukan oleh satu pun uji.
+ * Found by walking the pilot flow, and by not one test.
  *
- * Pemetaan pengguna → karyawan di sistem ini adalah **referensi lunak lewat
- * email** (PLAN/01 §4.2): modul presensi mencari `employee.email` yang sama
- * dengan email pengguna yang sedang masuk. Rancangan itu benar dan disengaja —
- * ia yang membuat modul presensi tidak memegang kunci asing ke tabel karyawan,
- * sehingga keduanya dapat dipisah kelak.
+ * The user → employee mapping in this system is a **soft reference through
+ * email** (PLAN/01 §4.2): the attendance module looks for an `employee.email`
+ * matching the email of the user logged in. That design is right and deliberate
+ * — it is what keeps the attendance module from holding a foreign key into the
+ * employee table, so the two can be split later.
  *
- * Yang tidak ada adalah jembatannya. HR mengimpor 100 karyawan, dan **tidak satu
- * pun dari mereka punya akun.** Mereka tidak dapat masuk, tidak dapat mengetuk
- * presensi, tidak dapat mengajukan cuti, dan tidak dapat melihat slip gajinya.
- * Satu-satunya jalan adalah mengundang mereka satu per satu lewat formulir yang
- * meminta email dan nama yang sudah ada di baris karyawannya.
+ * What was missing is the bridge. HR imports 100 employees, and **not one of
+ * them has an account.** They cannot log in, cannot punch in, cannot request
+ * leave, and cannot see their payslip. The only route was inviting them one at a
+ * time through a form asking for the email and name already in their employee
+ * row.
  *
- * Untuk 100 orang itu 100 kali pengisian formulir dengan data yang sudah dimiliki
- * sistem — dan itu persis yang harus dilakukan tiga pilot Gerbang A setelah
- * berhasil mengimpor karyawannya.
+ * For 100 people that is 100 form submissions with data the system already has —
+ * and that is exactly what the three Gate A pilots would have to do after
+ * successfully importing their employees.
  *
- * ## Yang dilaporkan, bukan didiamkan
+ * ## What is reported rather than left unsaid
  *
- * **Karyawan tanpa email tidak dapat diundang**, dan jumlahnya dikembalikan.
- * Email adalah satu-satunya jembatan ke akun; tanpa itu tidak ada yang dapat
- * dikirimi undangan, dan tidak ada yang akan cocok saat ia mengetuk presensi.
- * Yang perlu dilakukan HR — melengkapi kolom email — hanya dapat dilakukannya
- * bila ia tahu berapa banyak yang kosong.
+ * **An employee with no email cannot be invited**, and their count is returned.
+ * Email is the only bridge to an account; without one there is nobody to send an
+ * invitation to, and nothing will match when they punch in. What HR needs to do
+ * — fill in the email column — they can only do if they know how many are empty.
  *
- * **Yang sudah punya akun dilewati**, bukan digagalkan. Undangan massal yang
- * berhenti pada orang pertama yang sudah terdaftar tidak akan pernah selesai di
- * perusahaan yang menambah karyawan setiap bulan.
+ * **Those who already have an account are skipped**, not failed. A bulk
+ * invitation that stops at the first person already registered would never
+ * finish at a company that adds employees every month.
  */
 
 export interface BulkInviteInput {
-  /** Kosong berarti seluruh karyawan aktif yang belum punya akun. */
+  /** Empty means every active employee without an account. */
   employeeIds?: readonly string[] | undefined;
   roleCode: string;
 }
 
 export interface BulkInviteResult {
   invited: Array<{ employeeId: string; userId: string; email: string }>;
-  /** Sudah punya akun dengan email yang sama. */
+  /** Already has an account with the same email. */
   alreadyHasAccount: number;
-  /** Tidak punya email — tidak dapat diundang, dan tidak akan cocok saat presensi. */
+  /** Has no email — cannot be invited, and will not match when punching in. */
   withoutEmail: Array<{ employeeId: string; employeeNumber: string; fullName: string }>;
   failed: Array<{ employeeId: string; reason: string }>;
 }
 
-/** Batas satu panggilan. Perusahaan yang lebih besar mengundang per departemen. */
+/** The limit for one call. A larger company invites department by department. */
 const MAX_PER_CALL = 500;
 
 export async function inviteEmployeesAsUsers(
@@ -85,9 +84,9 @@ export async function inviteEmployeesAsUsers(
     failed: [],
   };
 
-  // Akun yang sudah ada dibaca sekali, bukan sekali per karyawan. 500 karyawan
-  // berarti 500 query bila diperiksa satu per satu — seluruhnya di dalam satu
-  // transaksi permintaan yang dibatasi lima belas detik.
+  // Existing accounts are read once, not once per employee. 500 employees means
+  // 500 queries if checked one at a time — all of it inside one request
+  // transaction capped at fifteen seconds.
   const emails = employees
     .map((employee) => employee.email?.trim().toLowerCase())
     .filter((email): email is string => !!email);
@@ -123,9 +122,9 @@ export async function inviteEmployeesAsUsers(
         ctx,
       );
       result.invited.push({ employeeId: employee.id, userId, email });
-      // Ditandai supaya dua baris karyawan dengan email yang sama — hal yang
-      // terjadi pada suami-istri yang berbagi alamat — tidak menghasilkan
-      // undangan kedua yang pasti gagal.
+      // Marked so that two employee rows with the same email — which happens with
+      // a married couple sharing an address — do not produce a second invitation
+      // that is certain to fail.
       taken.add(email);
     } catch (error) {
       result.failed.push({

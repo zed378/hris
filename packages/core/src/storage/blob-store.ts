@@ -4,17 +4,17 @@ import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 /**
- * Penyimpanan berkas biner.
+ * Binary file storage.
  *
- * Ditarik keluar dari pipeline foto presensi setelah dokumen karyawan
- * membutuhkan hal yang sama. Bukan abstraksi yang dicari-cari: versi pertama
- * penyimpanan foto membawa dua bug yang saling menyembunyikan — path relatif
- * yang berbeda per proses, dan penghapusan yang menelan galat — dan menyalin
- * pola yang sama ke dokumen karyawan berarti menyalin keduanya sekaligus,
- * lengkap dengan sifat diamnya.
+ * Pulled out of the attendance photo pipeline once employee documents needed the
+ * same thing. Not a contrived abstraction: the first version of photo storage
+ * carried two bugs that hid each other — a relative path that differed per
+ * process, and a deletion that swallowed its errors — and copying that pattern
+ * into employee documents would have copied both, silence included.
  *
- * Antarmukanya sengaja sesempit ini supaya penggantinya ke S3-compatible kelak
- * hanya menyentuh satu berkas.
+ *
+ * Its interface is deliberately this narrow so that replacing it with an
+ * S3-compatible one later touches a single file.
  */
 
 export class BlobError extends Error {
@@ -28,67 +28,67 @@ export class BlobError extends Error {
 }
 
 /**
- * Akar penyimpanan.
+ * The storage root.
  *
- * Path relatif diselesaikan terhadap akar repositori, BUKAN terhadap direktori
- * kerja proses. Perbedaannya bukan kerapian: `apps/web` dan `apps/worker`
- * berjalan dari direktori berbeda, sehingga path relatif membuat keduanya
- * menunjuk tempat yang berlainan — satu proses menulis, proses lain mencari di
- * tempat yang salah, dan job pembersihan melaporkan berhasil menghapus berkas
- * yang tidak pernah ia temukan.
+ * A relative path resolves against the repository root, NOT against the
+ * process's working directory. The difference is not tidiness: `apps/web` and
+ * `apps/worker` run from different directories, so a relative path makes the two
+ * point at different places — one process writes, the other looks in the wrong
+ * place, and the cleanup job reports successfully deleting files it never found.
  */
 function storageRoot(envVar: string, fallback: string): string {
   const configured = process.env[envVar] ?? fallback;
   if (isAbsolute(configured)) return configured;
 
-  // packages/core/src/storage/blob-store.ts → naik empat tingkat ke akar repositori.
+  // packages/core/src/storage/blob-store.ts → four levels up to the repository root.
   const here = dirname(fileURLToPath(import.meta.url));
   return resolve(here, '../../../..', configured);
 }
 
 export interface DeleteOutcome {
-  /** Berkas benar-benar dihapus pada pemanggilan ini. */
+  /** The file was genuinely deleted on this call. */
   removed: boolean;
-  /** Berkas memang sudah tidak ada. Bukan galat. */
+  /** The file was already gone. Not an error. */
   alreadyGone: boolean;
 }
 
 export interface BlobStore {
-  /** Menyimpan isi dan mengembalikan kuncinya. */
+  /** Stores the contents and returns its key. */
   put: (content: Buffer, extension: string) => Promise<{ key: string; bytes: number }>;
   get: (key: string) => Promise<Buffer>;
-  /** Ukuran berkas dalam byte, atau null bila tidak ada. */
+  /** The file size in bytes, or null when it does not exist. */
   size: (key: string) => Promise<number | null>;
   /**
-   * Menghapus berkas.
+   * Deletes a file.
    *
-   * Membedakan "sudah tidak ada" dari "gagal dihapus". Versi pertama pipeline
-   * foto menelan seluruh galat, sehingga berkas yang TIDAK DITEMUKAN dilaporkan
-   * sebagai berhasil dihapus — job retensi terlihat bekerja sempurna sementara
-   * setiap berkas masih ada di disk. Kegagalan selain berkas-tidak-ada dilempar,
-   * supaya pemanggil dapat menghitungnya dan tidak menghapus rujukannya.
+   * Distinguishes "already gone" from "failed to delete". The first version of
+   * the photo pipeline swallowed every error, so a file that was NOT FOUND was
+   * reported as successfully deleted — the retention job looked like it was
+   * working perfectly while every file was still on disk. A failure other than
+   * file-not-found is thrown, so the caller can count it and not delete its
+   * reference.
    */
   remove: (key: string) => Promise<DeleteOutcome>;
 }
 
 /**
- * Membuat penyimpanan dengan akar dan aturan kunci sendiri.
+ * Creates a store with its own root and key rules.
  *
- * `envVar` memungkinkan tiap jenis berkas dipindahkan terpisah — foto presensi
- * ke volume berumur pendek, dokumen karyawan ke volume yang dicadangkan.
+ * `envVar` allows each kind of file to be moved separately — attendance photos
+ * to a short-lived volume, employee documents to one that is backed up.
  */
 export function createBlobStore(options: {
   envVar: string;
   fallbackDir: string;
-  /** Ekstensi yang diterima, tanpa titik. */
+  /** The accepted extensions, without the dot. */
   extensions: string[];
   maxBytes: number;
 }): BlobStore {
   const allowed = new Set(options.extensions.map((extension) => extension.toLowerCase()));
 
-  // Kunci divalidasi agar tidak dapat keluar dari direktori penyimpanan. Tanpa
-  // ini, kunci berisi "../" mengubah endpoint penyajian berkas menjadi pembaca
-  // berkas sembarang — dan job pembersihan menjadi penghapus berkas sembarang.
+  // The key is validated so it cannot escape the storage directory. Without this,
+  // a key containing "../" turns the file-serving endpoint into an arbitrary file
+  // reader — and the cleanup job into an arbitrary file deleter.
   const pathFor = (key: string): string => {
     const match = /^([0-9a-f-]{36})\.([a-z0-9]{1,5})$/.exec(key);
     if (!match || !allowed.has(match[2]!)) {
@@ -106,10 +106,10 @@ export function createBlobStore(options: {
         );
       }
 
-      // Kunci memuat UUID acak, bukan id karyawan atau tanggal. Kunci yang dapat
-      // ditebak berarti siapa pun yang mengetahui polanya dapat mengambil berkas
-      // orang lain hanya dengan menyusun URL-nya, sehingga otorisasi di endpoint
-      // penyajian menjadi satu-satunya penjaga alih-alih lapisan kedua.
+      // The key contains a random UUID, not an employee id or a date. A guessable
+      // key means anyone who learns the pattern can fetch someone else's file just
+      // by assembling the URL, which would make authorisation on the serving
+      // endpoint the only guard rather than the second layer.
       const key = `${randomUUID()}.${extension.toLowerCase()}`;
       const path = pathFor(key);
 

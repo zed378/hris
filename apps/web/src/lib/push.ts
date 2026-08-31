@@ -1,20 +1,20 @@
 /**
- * Berlangganan Web Push dari sisi klien (dokumen 11 §7).
+ * Subscribing to Web Push from the client (document 11 §7).
  *
- * ## Izin notifikasi hanya dapat diminta sekali
+ * ## Notification permission can only be asked for once
  *
- * Peramban memberi satu kesempatan. Setelah pengguna menolak, `requestPermission`
- * tidak akan pernah menampilkan dialognya lagi — mengubahnya menuntut membuka
- * setelan situs, dan tidak ada yang melakukannya.
+ * The browser gives one chance. Once a user refuses, `requestPermission` will
+ * never show its dialog again — changing it demands opening the site settings,
+ * and nobody does that.
  *
- * Karena itu seluruh berkas ini disusun untuk **tidak membakar kesempatan itu**:
- * setiap keadaan yang membuat langganan pasti gagal diperiksa LEBIH DULU, dan
- * izin hanya diminta ketika berlangganan benar-benar dapat berhasil.
+ * So this whole file is arranged **not to burn that chance**: every condition
+ * that would make a subscription certain to fail is checked FIRST, and
+ * permission is only requested when subscribing can genuinely succeed.
  *
- * Yang paling penting di antaranya adalah iOS. Di sana Web Push hanya berfungsi
- * bila PWA sudah dipasang ke Layar Utama; meminta izin sebelum itu menghasilkan
- * penolakan permanen pada pengguna yang sebenarnya bersedia — dan setelah ia
- * memasang PWA-nya, pintu itu sudah tertutup.
+ * The most important of those is iOS. There, Web Push only works once the PWA
+ * has been installed to the Home Screen; asking for permission before that
+ * produces a permanent refusal from a user who was actually willing — and once
+ * they have installed the PWA, that door is already closed.
  */
 
 export type PushOutcome =
@@ -31,8 +31,8 @@ export type PushOutcome =
     };
 
 function isIos(): boolean {
-  // iPadOS 13+ melaporkan dirinya sebagai Macintosh; `maxTouchPoints` yang
-  // membedakannya dari Mac sungguhan.
+  // iPadOS 13+ reports itself as a Macintosh; `maxTouchPoints` is what
+  // distinguishes it from a real Mac.
   const ua = navigator.userAgent;
   return (
     /iPad|iPhone|iPod/.test(ua) ||
@@ -43,12 +43,12 @@ function isIos(): boolean {
 function isStandalone(): boolean {
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
-    // Properti khusus Safari iOS, tidak ada di tipe standar.
+    // A Safari iOS-specific property, absent from the standard types.
     (navigator as unknown as { standalone?: boolean }).standalone === true
   );
 }
 
-/** Mengubah kunci VAPID base64url menjadi bentuk yang diterima `subscribe()`. */
+/** Converts a base64url VAPID key into the form `subscribe()` accepts. */
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
   const normal = padded.replace(/-/g, '+').replace(/_/g, '/');
@@ -69,9 +69,9 @@ export async function subscribeToPush(
     };
   }
 
-  // Konfigurasi server diperiksa SEBELUM izin diminta. Instalasi yang belum
-  // memasang kunci VAPID akan gagal berlangganan, dan kegagalan itu tidak boleh
-  // menghabiskan satu-satunya kesempatan bertanya.
+  // The server configuration is checked BEFORE permission is requested. An
+  // installation with no VAPID key would fail to subscribe, and that failure must
+  // not consume the one chance to ask.
   const info = await api('/api/notifications/subscriptions');
   if (!info.ok) {
     return { ok: false, reason: 'FAILED', message: 'Tidak dapat menghubungi server.' };
@@ -111,12 +111,12 @@ export async function subscribeToPush(
   try {
     const registration = await navigator.serviceWorker.ready;
 
-    // `subscribe()` mengembalikan langganan yang SUDAH ADA bila masih hidup,
-    // sehingga memanggilnya berulang kali aman — dan endpoint yang sama akan
-    // di-upsert server, bukan menghasilkan baris kedua.
+    // `subscribe()` returns the EXISTING subscription while it is alive, so
+    // calling it repeatedly is safe — and the same endpoint is upserted by the
+    // server rather than producing a second row.
     const subscription = await registration.pushManager.subscribe({
-      // Diwajibkan peramban, dan sengaja tidak dilawan: push senyap adalah
-      // kemampuan melacak kehadiran perangkat tanpa sepengetahuan pemiliknya.
+      // Required by the browser, and deliberately not fought: a silent push is the
+      // ability to track a device's presence without its owner knowing.
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
@@ -142,12 +142,12 @@ export async function subscribeToPush(
 }
 
 /**
- * Mencabut langganan perangkat ini.
+ * Unsubscribes this device.
  *
- * Dipanggil saat logout. Tanpa ini, perangkat bersama tetap menerima notifikasi
- * milik pengguna sebelumnya — nama, tanggal cuti, dan keputusannya muncul di
- * layar terkunci orang lain, dan tidak ada yang menyadarinya karena tidak ada
- * galat yang muncul di mana pun.
+ * Called at logout. Without it, a shared device keeps receiving the previous
+ * user's notifications — their name, leave dates, and the decision appearing on
+ * someone else's lock screen, with nobody noticing because no error appears
+ * anywhere.
  */
 export async function unsubscribeFromPush(
   api: (path: string, init?: RequestInit) => Promise<Response>,
@@ -159,12 +159,12 @@ export async function unsubscribeFromPush(
     const subscription = await registration.pushManager.getSubscription();
     if (!subscription) return;
 
-    // Server dulu, peramban kemudian.
+    // The server first, the browser second.
     //
-    // Urutan sebaliknya meninggalkan baris server yang menunjuk endpoint mati:
-    // pengirimannya akan gagal dengan 410 dan barisnya dibuang, tetapi di antara
-    // keduanya notifikasi tetap dikirim ke perangkat yang penggunanya sudah
-    // keluar. Jendelanya pendek, dan isinya nama orang.
+    // The reverse order leaves a server row pointing at a dead endpoint: delivery
+    // would fail with a 410 and the row would be dropped, but in between the
+    // notification is still sent to a device whose user has logged out. The window
+    // is short, and its contents are someone's name.
     await api('/api/notifications/subscriptions', {
       method: 'DELETE',
       body: JSON.stringify({ endpoint: subscription.endpoint }),
@@ -172,7 +172,7 @@ export async function unsubscribeFromPush(
 
     await subscription.unsubscribe();
   } catch {
-    // Kegagalan pencabutan tidak boleh menghalangi logout. Yang tertinggal
-    // adalah langganan yang akan dibuang server pada pengiriman gagal pertama.
+    // A failed unsubscribe must not block the logout. What is left behind is a
+    // subscription the server will drop on its first failed delivery.
   }
 }
