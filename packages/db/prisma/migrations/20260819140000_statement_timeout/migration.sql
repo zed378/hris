@@ -1,58 +1,58 @@
--- Batas waktu query dan transaksi menganggur (PLAN/12 F6 — pengerasan).
+-- Query and idle transaction timeouts (PLAN/12 P6 — hardening).
 --
--- Yang dijaga di sini bukan performa satu query, melainkan ketersediaan sistem
--- bagi tenant LAIN.
+-- What is protected here is not one query's performance but the availability of
+-- the system for OTHER tenants.
 --
--- Satu query tanpa indeks yang menyapu jutaan baris menahan koneksinya sampai
--- selesai. Pada pool yang terbatas, beberapa query semacam itu menghabiskan
--- seluruh koneksi, dan yang berhenti bekerja bukan tenant yang menjalankannya —
--- melainkan semua orang. Kegagalannya terlihat sebagai "aplikasi lambat" tanpa
--- satu pun galat, dan penyebabnya hampir mustahil ditemukan saat sedang terjadi.
+-- One unindexed query sweeping millions of rows holds its connection until it
+-- finishes. On a limited pool, a few such queries exhaust every connection, and
+-- what stops working is not the tenant that ran them — it is everyone. The
+-- failure looks like "the application is slow" with not one error, and its cause
+-- is nearly impossible to find while it is happening.
 --
--- Batasnya ditetapkan PER PERAN, bukan per koneksi, supaya tidak ada jalur kode
--- yang dapat lupa memasangnya.
+-- The limits are set PER ROLE, not per connection, so no code path can forget
+-- to apply them.
 
 -- -----------------------------------------------------------------------------
--- hrms_app — melayani permintaan pengguna
+-- hrms_app — serving user requests
 -- -----------------------------------------------------------------------------
 --
--- 15 detik. Permintaan yang lebih lama dari itu sudah gagal dari sudut pandang
--- penggunanya: ia sudah menekan muat ulang, dan query yang masih berjalan hanya
--- menahan koneksi untuk halaman yang tidak akan pernah ia lihat.
+-- 15 seconds. A request longer than that has already failed from its user's
+-- point of view: they have pressed reload, and the query still running only
+-- holds a connection for a page they will never see.
 --
--- Ekspor Excel adalah operasi terberat pada jalur ini, dan 5.000 baris terukur
--- selesai dalam sekitar 2,5 detik — enam kali lipat di bawah batas.
+-- The Excel export is the heaviest operation on this path, and 5,000 rows are
+-- measured at about 2.5 seconds — six times below the limit.
 ALTER ROLE hrms_app SET statement_timeout = '15s';
 
--- Transaksi yang dibuka lalu ditinggalkan menahan lock-nya selamanya.
+-- A transaction opened and then abandoned holds its locks forever.
 --
--- Ini yang membuat penutupan periode presensi atau persetujuan cuti tampak
--- "menggantung": transaksi lain menunggu lock yang dipegang transaksi yang
--- sudah tidak dilanjutkan siapa pun karena prosesnya mati di tengah jalan.
+-- This is what makes an attendance period close or a leave approval appear to
+-- "hang": another transaction waits on a lock held by a transaction nobody is
+-- continuing, because its process died halfway.
 ALTER ROLE hrms_app SET idle_in_transaction_session_timeout = '30s';
 
--- Batas menunggu lock. Lebih pendek dari statement_timeout dengan sengaja:
--- gagal cepat dengan pesan "sedang diproses orang lain" jauh lebih berguna
--- daripada menggantung lima belas detik lalu gagal tanpa keterangan.
+-- The lock wait limit. Deliberately shorter than statement_timeout: failing fast
+-- with "somebody else is working on this" is far more useful than hanging for
+-- fifteen seconds and then failing with no explanation.
 ALTER ROLE hrms_app SET lock_timeout = '5s';
 
 -- -----------------------------------------------------------------------------
--- hrms_worker — proses latar
+-- hrms_worker — the background process
 -- -----------------------------------------------------------------------------
 --
--- Jauh lebih longgar, dan itu memang bedanya: tidak ada orang yang menunggu di
--- depan layar. Impor 5.000 karyawan, penutupan tahun cuti, dan perhitungan
--- payroll seribu orang seluruhnya berjalan di sini.
+-- Far more generous, and that is exactly the difference: nobody is waiting in
+-- front of a screen. A 5,000-employee import, the leave year-end close, and a
+-- thousand-person payroll calculation all run here.
 --
--- Tetap DIBATASI, bukan dibiarkan tanpa batas. Job yang berputar selamanya
--- karena satu bug tetap menahan koneksinya, dan konsekuensinya sama saja bagi
+-- Still BOUNDED rather than unlimited. A job spinning forever because of one bug
+-- still holds its connection, and the consequence for other tenants is the same.
 -- tenant lain.
 ALTER ROLE hrms_worker SET statement_timeout = '5min';
 ALTER ROLE hrms_worker SET idle_in_transaction_session_timeout = '10min';
 ALTER ROLE hrms_worker SET lock_timeout = '30s';
 
 -- -----------------------------------------------------------------------------
--- hrms_platform — portal admin platform
+-- hrms_platform — the platform admin portal
 -- -----------------------------------------------------------------------------
 DO $$
 BEGIN
@@ -65,20 +65,20 @@ END
 $$;
 
 -- -----------------------------------------------------------------------------
--- Pemeriksaan drift skema
+-- Schema drift checking
 -- -----------------------------------------------------------------------------
 --
--- Mengembalikan tabel ber-`tenant_id` yang TIDAK punya kebijakan RLS aktif.
+-- Returns the `tenant_id` tables that have NO active RLS policy.
 --
--- Ada gerbang CI yang memeriksa hal yang sama, tetapi CI hanya melihat skema
--- yang dibangun dari migrasi. Yang dijaga fungsi ini adalah basis data
--- PRODUKSI: seseorang yang menambahkan tabel lewat psql pada malam insiden,
--- atau migrasi yang gagal separuh jalan, menghasilkan tabel tanpa RLS yang
--- tidak akan pernah terlihat oleh CI mana pun.
+-- A CI gate checks the same thing, but CI only sees the schema built from the
+-- migrations. What this function guards is the PRODUCTION database: someone
+-- adding a table through psql on the night of an incident, or a migration that
+-- failed halfway, produces a table without RLS that no CI will ever see.
 --
--- Tabel ber-`tenant_id` tanpa RLS berarti setiap tenant membaca data seluruh
--- tenant lain. Ia tidak menghasilkan galat, dan tidak ada yang menyadarinya
--- sampai seseorang melihat data yang bukan miliknya.
+-- A `tenant_id` table without RLS means every tenant reads every other tenant's
+-- data. It raises no error, and nobody notices until someone sees data that is
+-- not theirs.
+--
 CREATE OR REPLACE FUNCTION public.schema_drift_report()
 RETURNS TABLE (
   kind        text,
@@ -89,7 +89,7 @@ LANGUAGE sql
 STABLE
 SECURITY INVOKER
 AS $$
-  -- 1. Tabel ber-tenant_id tanpa RLS aktif atau tanpa FORCE.
+  -- 1. tenant_id tables with RLS off, or without FORCE.
   SELECT
     'rls_missing'::text,
     (c.table_schema || '.' || c.table_name)::text,
@@ -107,11 +107,11 @@ AS $$
 
   UNION ALL
 
-  -- 2. Tabel ber-tenant_id yang RLS-nya aktif tetapi tanpa satu pun kebijakan.
+  -- 2. tenant_id tables where RLS is on but there is not one policy.
   --
-  -- Lebih berbahaya daripada RLS yang mati: RLS aktif tanpa kebijakan menolak
-  -- SEMUANYA, sehingga modulnya berhenti bekerja total — dan itu terlihat
-  -- seperti kerusakan aplikasi, bukan seperti masalah konfigurasi.
+  -- More dangerous than RLS being off: RLS on with no policy refuses EVERYTHING,
+  -- so the module stops working entirely — and that looks like an application
+  -- fault rather than a configuration problem.
   SELECT
     'policy_missing'::text,
     (n.nspname || '.' || t.relname)::text,
@@ -131,11 +131,11 @@ AS $$
 
   UNION ALL
 
-  -- 3. Peran aplikasi yang dapat menembus RLS.
+  -- 3. Application roles that can bypass RLS.
   --
-  -- Satu `ALTER ROLE hrms_app BYPASSRLS` yang dijalankan untuk "sementara"
-  -- saat menyelesaikan insiden akan membuat seluruh isolasi tenant berhenti
-  -- berlaku, dan tidak ada satu pun uji yang akan menangkapnya.
+  -- One `ALTER ROLE hrms_app BYPASSRLS` run "temporarily" while resolving an
+  -- incident would stop the whole of tenant isolation applying, and not one test
+  -- would catch it.
   SELECT
     'bypass_rls'::text,
     r.rolname::text,

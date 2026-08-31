@@ -1,32 +1,32 @@
 /**
- * Pembacaan berkas ekspor mesin absensi (risiko R8, PLAN/04).
+ * Reading attendance machine export files (risk R8, PLAN/04).
  *
- * Strateginya bukan menulis adapter per vendor. Merek mesin fingerprint yang
- * beredar di Indonesia terlalu banyak dan terlalu sering berganti firmware untuk
- * itu, dan tenant pertama yang memakai merek yang belum didukung akan berhenti
- * di hari pertama. Yang dipakai di sini adalah pengenalan kolom generik —
- * pendekatan yang sama dengan impor Excel karyawan, dan yang sama alasannya.
+ * The strategy is not to write a per-vendor adapter. There are too many
+ * fingerprint machine brands in Indonesia, and their firmware changes too often
+ * for that, and the first tenant using an unsupported brand would stop on day
+ * one. What is used here is generic column recognition — the same approach as
+ * the employee Excel import, and for the same reason.
  *
- * Tiga bentuk yang benar-benar ditemui di lapangan:
+ * Three shapes genuinely encountered in the field:
  *
- *   1. Satu kolom tanggal-waktu   `PIN, DateTime, Status`
- *   2. Tanggal dan jam terpisah   `No. ID, Tanggal, Jam, Verifikasi`
- *   3. Tanpa kolom status         `UserID, Timestamp`   ← paling umum
+ *   1. One date-time column      `PIN, DateTime, Status`
+ *   2. Separate date and time    `No. ID, Tanggal, Jam, Verifikasi`
+ *   3. No status column          `UserID, Timestamp`   ← the most common
  *
- * Bentuk ketiga menuntut keputusan yang tidak dapat dihindari: mesin hanya
- * mencatat KAPAN seseorang menempelkan jarinya, bukan apakah ia sedang datang
- * atau pulang. Aturannya ada di `inferPunchTypes`, dan alasannya di situ juga.
+ * The third shape forces an unavoidable decision: the machine only records WHEN
+ * someone put their finger on it, not whether they were arriving or leaving. The
+ * rule is in `inferPunchTypes`, and its reasoning is there too.
  */
 
 export type DeviceColumn = 'employeeNumber' | 'dateTime' | 'date' | 'time' | 'status';
 
 /**
- * Alias kolom, dinormalkan sebelum dibandingkan.
+ * Column aliases, normalised before comparison.
  *
- * Ditulis dalam bentuk yang sudah dinormalkan — tanpa spasi, tanpa titik, huruf
- * kecil. Impor karyawan pernah punya bug persis di sini: judul dinormalkan tetapi
- * aliasnya tidak, sehingga `E-Mail` tidak pernah cocok dengan alias `e-mail` dan
- * kolomnya diam-diam tidak terbaca.
+ * Written in already-normalised form — no spaces, no dots, lower case. The
+ * employee import once had a bug exactly here: the headers were normalised but
+ * the aliases were not, so `E-Mail` never matched the alias `e-mail` and its
+ * column was silently unread.
  */
 const ALIASES: Record<DeviceColumn, string[]> = {
   employeeNumber: [
@@ -60,7 +60,7 @@ const ALIASES: Record<DeviceColumn, string[]> = {
   status: ['status', 'state', 'verifikasi', 'verify', 'checktype', 'inout', 'keterangan', 'tipe'],
 };
 
-/** Membuang segala yang tidak membedakan judul kolom. */
+/** Strips everything that does not distinguish one column header from another. */
 function normalize(header: string): string {
   return header
     .toLowerCase()
@@ -69,11 +69,11 @@ function normalize(header: string): string {
 }
 
 export interface DeviceColumnMapping {
-  /** Indeks kolom per peran. -1 berarti tidak ditemukan. */
+  /** The column index per role. -1 means not found. */
   index: Record<DeviceColumn, number>;
-  /** Peran wajib yang tidak ditemukan sama sekali. */
+  /** Required roles that were not found at all. */
   missing: string[];
-  /** Judul apa adanya, untuk ditampilkan kembali kepada pengguna. */
+  /** The headers as they were, to show back to the user. */
   headers: string[];
 }
 
@@ -100,7 +100,7 @@ export function detectDeviceColumns(headers: string[]): DeviceColumnMapping {
 
   const missing: string[] = [];
   if (index.employeeNumber === -1) missing.push('nomor karyawan (PIN / User ID / NIK)');
-  // Waktu boleh datang sebagai satu kolom atau sebagai tanggal + jam terpisah.
+  // The time may arrive as one column or as a separate date and time.
   if (index.dateTime === -1 && (index.date === -1 || index.time === -1)) {
     missing.push('waktu (kolom DateTime, atau kolom Tanggal dan Jam)');
   }
@@ -109,13 +109,13 @@ export function detectDeviceColumns(headers: string[]): DeviceColumnMapping {
 }
 
 /**
- * Membaca satu sel waktu menjadi jam dinding lokal.
+ * Reads one time cell into a local wall clock time.
  *
- * Yang dikembalikan SENGAJA bukan `Date`. Berkas mesin absensi tidak membawa
- * zona waktu — angka `2026-08-10 08:05` di dalamnya berarti pukul delapan pagi
- * di tempat mesin itu terpasang, dan mengubahnya menjadi `Date` di sini akan
- * menafsirkannya memakai zona proses yang membaca berkas. Zona tenant baru
- * diterapkan satu lapis di atas, tempat zona itu diketahui.
+ * What is returned is DELIBERATELY not a `Date`. An attendance machine file
+ * carries no timezone — the figure `2026-08-10 08:05` in it means eight in the
+ * morning where that machine is installed, and turning it into a `Date` here
+ * would interpret it in the timezone of whichever process read the file. The
+ * tenant's timezone is applied one layer above, where that timezone is known.
  */
 export interface WallClock {
   year: number;
@@ -131,7 +131,7 @@ const DATE_PATTERNS: Array<{ re: RegExp; order: 'ymd' | 'dmy' }> = [
 ];
 
 export function parseWallClock(dateCell: unknown, timeCell?: unknown): WallClock | null {
-  // Excel menyimpan tanggal sebagai Date bila selnya memang bertipe tanggal.
+  // Excel stores a date as a Date when the cell really is date-typed.
   if (dateCell instanceof Date && !Number.isNaN(dateCell.getTime())) {
     const base = {
       year: dateCell.getUTCFullYear(),
@@ -147,7 +147,7 @@ export function parseWallClock(dateCell: unknown, timeCell?: unknown): WallClock
   const raw = String(dateCell ?? '').trim();
   if (raw === '') return null;
 
-  // Satu kolom yang memuat keduanya: "2026-08-10 08:05:00", "10/08/2026 08:05".
+  // One column holding both: "2026-08-10 08:05:00", "10/08/2026 08:05".
   const [datePart, ...restParts] = raw.split(/[\sT]+/);
   const inlineTime = restParts.join(' ');
 
@@ -166,10 +166,10 @@ function parseDate(text: string): Pick<WallClock, 'year' | 'month' | 'day'> | nu
     if (!match) continue;
 
     const [a, b, c] = [Number(match[1]), Number(match[2]), Number(match[3])];
-    // `dmy` dipilih untuk format berpemisah dengan tahun di belakang karena
-    // itulah yang dipakai perangkat lunak mesin absensi berbahasa Indonesia.
-    // Menebak `mdy` akan menghasilkan tanggal yang SAH tetapi salah pada hari
-    // 1 sampai 12 setiap bulan — kesalahan yang tidak menimbulkan galat apa pun.
+    // `dmy` is chosen for a separator format with the year last because that is
+    // what Indonesian-language attendance machine software uses. Guessing `mdy`
+    // would produce dates that are VALID but wrong on days 1 through 12 of every
+    // month — a mistake that raises no error at all.
     const year = order === 'ymd' ? a! : c!;
     const month = order === 'ymd' ? b! : b!;
     const day = order === 'ymd' ? c! : a!;
@@ -201,18 +201,18 @@ function parseTime(cell: unknown): Pick<WallClock, 'hour' | 'minute'> | null {
 export type PunchType = 'IN' | 'OUT' | 'BREAK_START' | 'BREAK_END';
 
 /**
- * Menerjemahkan kolom status mesin, bila ada.
+ * Translates the machine's status column, where there is one.
  *
- * Mengembalikan `null` bila selnya kosong atau tidak dikenali — dan `null` di
- * sini berarti "biarkan urutan yang memutuskan", bukan "anggap masuk". Menebak
- * IN untuk status yang tidak dikenali akan menghasilkan hari-hari dengan dua jam
- * masuk dan tanpa jam pulang, yang lalu dihitung sebagai nol menit kerja.
+ * Returns `null` when the cell is empty or unrecognised — and `null` here means
+ * "let the ordering decide", not "assume a clock-in". Guessing IN for an
+ * unrecognised status would produce days with two clock-ins and no clock-out,
+ * which then count as zero minutes worked.
  */
 export function parseStatus(cell: unknown): PunchType | null {
   const key = normalize(String(cell ?? ''));
   if (key === '') return null;
 
-  // Angka: konvensi ZKTeco — 0 masuk, 1 pulang, 2/3 istirahat.
+  // Numeric: the ZKTeco convention — 0 in, 1 out, 2/3 break.
   if (/^\d+$/.test(key)) {
     const byCode: Record<string, PunchType> = {
       '0': 'IN',
@@ -223,9 +223,9 @@ export function parseStatus(cell: unknown): PunchType | null {
     return byCode[key] ?? null;
   }
 
-  // `cin`/`cout` berasal dari label "C/In" dan "C/Out" pada perangkat lunak
-  // ZKTeco — bentuk yang paling sering muncul di berkas nyata, dan yang paling
-  // mudah terlewat karena tidak terlihat seperti kata apa pun.
+  // `cin`/`cout` come from the "C/In" and "C/Out" labels in ZKTeco software —
+  // the form that appears most often in real files, and the easiest to miss
+  // because it does not look like a word.
   if (['in', 'masuk', 'checkin', 'cin', 'datang', 'clockin', 'dutyon', 'i'].includes(key)) {
     return 'IN';
   }
@@ -243,31 +243,30 @@ export function parseStatus(cell: unknown): PunchType | null {
 }
 
 export interface TimedPunch {
-  /** Indeks baris di berkas, untuk menunjuk galat kembali ke selnya. */
+  /** The row index in the file, so an error can be pointed back at its cell. */
   rowNumber: number;
   employeeNumber: string;
   wallClock: WallClock;
-  /** Dari kolom status, bila mesinnya menyediakannya. */
+  /** From the status column, where the machine provides one. */
   declaredType: PunchType | null;
 }
 
 /**
- * Menentukan jenis ketukan ketika mesin tidak menyatakannya.
+ * Decides the punch type when the machine does not state it.
  *
- * Ini keputusan yang tidak dapat dihindari, dan tidak ada jawaban yang benar
- * untuk semua kasus. Aturannya: **ketukan pertama pada satu hari kerja adalah
- * masuk, sisanya pulang.**
+ * This is an unavoidable decision, and there is no answer that is right for
+ * every case. The rule: **the first punch of a working day is a clock-in, the
+ * rest are clock-outs.**
  *
- * Bukan berselang-seling (masuk, pulang, masuk, pulang). Berselang-seling terlihat
- * lebih pintar dan justru lebih rapuh: satu tempelan jari yang tidak terbaca
- * mesin — hal yang terjadi setiap hari — akan membalik SELURUH sisa hari itu,
- * mengubah jam pulang menjadi jam masuk dan menghasilkan jam kerja negatif yang
+ * Not alternating (in, out, in, out). Alternating looks cleverer and is more
+ * fragile: one finger placement the machine failed to read — something that
+ * happens every day — would flip the ENTIRE rest of that day, turning a leaving
+ * time into an arrival time and producing negative hours rounded to zero.
  * dibulatkan menjadi nol.
- *
- * Aturan pertama-masuk-sisanya-pulang tidak memiliki mode gagal seperti itu.
- * Kalkulasi harian sudah mengambil ketukan IN pertama dan OUT terakhir, sehingga
- * ketukan di tengah — makan siang, keluar sebentar — tidak mengubah apa pun,
- * dan tetap tersimpan utuh bila kelak dibutuhkan.
+ * The first-in-rest-out rule has no such failure mode. The daily calculation
+ * already takes the first IN and the last OUT, so punches in the middle — lunch,
+ * stepping out briefly — change nothing, and are still stored intact in case they
+ * are needed later.
  */
 export function inferPunchTypes(punches: TimedPunch[]): Array<TimedPunch & { type: PunchType }> {
   const seenFirst = new Set<string>();
@@ -277,9 +276,9 @@ export function inferPunchTypes(punches: TimedPunch[]): Array<TimedPunch & { typ
     .map((punch) => {
       if (punch.declaredType) return { ...punch, type: punch.declaredType };
 
-      // Kunci hari memakai tanggal kalender di berkas, bukan tanggal kerja.
-      // Tanggal kerja butuh zona tenant dan aturan shift malam; yang dibutuhkan
-      // di sini hanya "ketukan pertama orang ini pada hari itu".
+      // The day key uses the calendar date in the file, not the working date. A
+      // working date needs the tenant's timezone and the night shift rules; all
+      // that is needed here is "this person's first punch that day".
       const key = `${punch.employeeNumber}|${punch.wallClock.year}-${punch.wallClock.month}-${punch.wallClock.day}`;
       if (!seenFirst.has(key)) {
         seenFirst.add(key);

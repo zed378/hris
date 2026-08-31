@@ -1,22 +1,22 @@
--- Modul Penggajian — struktur (PLAN/12 F5, skema dokumen 02 §9).
+-- The Payroll module — structure (PLAN/12 P5, schema per document 02 §9).
 --
--- Yang dibangun di sini adalah KERANGKANYA saja: komponen gaji, struktur gaji
--- berperiode, run, slip, dan jejak perhitungan. Aturan PPh21 dan BPJS TIDAK ada
--- di migrasi ini dan tidak boleh ditambahkan tanpa Gerbang C (dokumen 12 §F5):
--- ahli payroll terikat, 30 slip nyata sebagai kasus uji, dan spike S1 lulus.
+-- What is built here is the FRAMEWORK only: salary components, period-based
+-- salary structures, runs, payslips, and the calculation trace. The PPh21 and
+-- BPJS rules are NOT in this migration and must not be added without Gate C
+-- (document 12 §P5): a payroll expert engaged, 30 real payslips as test cases,
+-- and spike S1 passing.
 --
--- Dua tabel di bawah ini yang paling menentukan apakah modul ini layak dipakai:
+-- Two tables below decide most of whether this module is usable at all:
 --
---   `statutory_configs` — tarif pajak dan BPJS sebagai DATA berversi tanggal,
---   bukan konstanta di dalam kode. Tarif berubah lewat peraturan menteri yang
---   terbit bulan Desember dan berlaku Januari; sistem yang menaruhnya di kode
---   menuntut deploy pada minggu tersibuk dalam setahun, dan tidak dapat
---   menghitung ulang slip bulan lalu dengan tarif yang berlaku saat itu.
+--   `statutory_configs` — tax and BPJS rates as date-versioned DATA, not
+--   constants inside the code. Rates change through a ministerial regulation
+--   issued in December and effective in January; a system that puts them in code
+--   demands a deploy in the busiest week of the year, and cannot recompute last
+--   month's payslip with the rate that applied then.
 --
---   `calculation_traces` — rincian setiap angka pada setiap baris slip. Saat
---   karyawan menyanggah gajinya, HR menunjukkan rinciannya alih-alih berdebat.
---   Tanpa ini, satu-satunya jawaban atas "kenapa potongan saya segini" adalah
---   "begitu hasil sistemnya".
+--   `calculation_traces` — the detail behind every figure on a payslip line.
+--   When an employee challenges their pay, HR shows the breakdown instead of
+--   arguing. Without it, the only answer to "why is my deduction this much" is
 
 CREATE SCHEMA IF NOT EXISTS payroll;
 
@@ -36,7 +36,7 @@ CREATE TYPE payroll."RunStatus" AS ENUM (
 CREATE TYPE payroll."RunType" AS ENUM ('MONTHLY', 'THR', 'BONUS', 'ADJUSTMENT');
 
 -- -----------------------------------------------------------------------------
--- Komponen gaji
+-- Salary components
 -- -----------------------------------------------------------------------------
 CREATE TABLE payroll.components (
     "id" UUID NOT NULL,
@@ -46,20 +46,20 @@ CREATE TABLE payroll.components (
     "type" payroll."ComponentType" NOT NULL,
     "calc_method" payroll."CalcMethod" NOT NULL,
 
-    -- Diisi sesuai `calc_method`: FIXED memakai amount, FORMULA memakai
-    -- expression, PERCENTAGE memakai rate atas `base_component_code`.
+    -- Filled according to `calc_method`: FIXED uses amount, FORMULA uses
+    -- expression, PERCENTAGE uses rate over `base_component_code`.
     "amount" DECIMAL(18,2),
     "expression" TEXT,
     "rate" DECIMAL(9,6),
     "base_component_code" TEXT,
 
-    -- Termasuk dasar perhitungan pajak dan BPJS. Dipisah karena tidak semua
-    -- tunjangan masuk keduanya, dan salah satu saja sudah mengubah gaji bersih.
+    -- Part of the tax and BPJS calculation base. Separated because not every
+    -- allowance belongs to both, and either one alone changes the net pay.
     "taxable" BOOLEAN NOT NULL DEFAULT true,
     "bpjs_base" BOOLEAN NOT NULL DEFAULT false,
 
-    -- Urutan hitung. Komponen yang memakai hasil komponen lain harus berada
-    -- setelahnya; siklus ditolak aplikasi sebelum run dimulai.
+    -- The calculation order. A component using another's result must come after
+    -- it; a cycle is refused by the application before the run starts.
     "sort_order" INTEGER NOT NULL DEFAULT 0,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
 
@@ -72,11 +72,11 @@ CREATE TABLE payroll.components (
 CREATE UNIQUE INDEX "components_tenant_id_code_key" ON payroll.components("tenant_id", "code");
 CREATE INDEX "components_tenant_id_sort_order_idx" ON payroll.components("tenant_id", "sort_order");
 
--- Setiap metode menuntut kolomnya sendiri terisi.
+-- Every method requires its own column to be filled.
 --
--- Tanpa ini, komponen FORMULA tanpa expression akan menghasilkan nol pada
--- setiap slip — angka yang terlihat seperti keputusan, bukan seperti
--- konfigurasi yang belum selesai.
+-- Without this, a FORMULA component with no expression would produce zero on
+-- every payslip — a figure that looks like a decision rather than an unfinished
+-- configuration.
 ALTER TABLE payroll.components
   ADD CONSTRAINT "components_method_complete" CHECK (
     ("calc_method" = 'FIXED' AND "amount" IS NOT NULL) OR
@@ -86,12 +86,12 @@ ALTER TABLE payroll.components
   );
 
 -- -----------------------------------------------------------------------------
--- Struktur gaji per karyawan, berperiode (P13)
+-- Per-employee salary structure, period-based (P13)
 -- -----------------------------------------------------------------------------
 --
--- Baris ditutup, tidak ditimpa. Kenaikan gaji bulan Juli tidak boleh mengubah
--- slip bulan Juni — dan slip Juni harus tetap dapat dihitung ulang dengan angka
--- yang berlaku saat itu, misalnya ketika ada koreksi presensi.
+-- A row is closed, not overwritten. A July raise must not change a June payslip —
+-- and the June payslip must remain recomputable with the figures that applied
+-- then, for instance when an attendance correction arrives.
 CREATE TABLE payroll.salary_structures (
     "id" UUID NOT NULL,
     "tenant_id" UUID NOT NULL,
@@ -112,10 +112,10 @@ CREATE TABLE payroll.salary_structures (
 CREATE INDEX "salary_structures_tenant_employee_idx"
   ON payroll.salary_structures("tenant_id", "employee_id", "effective_from");
 
--- Paling banyak satu baris BERJALAN per karyawan per komponen.
+-- At most one CURRENT row per employee per component.
 --
--- Indeks unik parsial, bukan pemeriksaan aplikasi: dua permintaan kenaikan gaji
--- yang tiba bersamaan akan sama-sama membaca "belum ada yang berjalan".
+-- A partial unique index, not an application check: two raise requests arriving
+-- at the same moment would both read "nothing is current".
 CREATE UNIQUE INDEX "salary_structures_one_open_per_component"
   ON payroll.salary_structures("tenant_id", "employee_id", "component_id")
   WHERE "effective_to" IS NULL;
@@ -125,25 +125,25 @@ ALTER TABLE payroll.salary_structures
   CHECK ("effective_to" IS NULL OR "effective_to" >= "effective_from");
 
 -- -----------------------------------------------------------------------------
--- Konfigurasi statutori berversi
+-- Versioned statutory configuration
 -- -----------------------------------------------------------------------------
 --
--- Tarif PPh21, PTKP, batas upah BPJS, dan persentase iurannya disimpan sebagai
--- DATA dengan rentang berlaku — bukan konstanta di dalam kode.
+-- The PPh21 rates, PTKP, the BPJS wage ceilings, and their contribution
+-- percentages are stored as DATA with an effective range — not as constants in
+-- the code.
 --
--- Dua akibat yang membuat perbedaannya nyata:
+-- Two consequences make the difference concrete:
 --
---   1. Perubahan tarif diterapkan lewat konfigurasi, tanpa deploy (DoD F5).
---   2. Slip bulan lalu dapat dihitung ulang dengan tarif yang berlaku BULAN
---      LALU. Tarif di dalam kode hanya mengenal "sekarang", sehingga koreksi
---      presensi Desember yang dihitung ulang pada Januari akan memakai tarif
---      baru dan menghasilkan angka yang tidak pernah ada di slip mana pun.
+--   1. A rate change is applied through configuration, with no deploy (P5 DoD).
+--   2. Last month's payslip can be recomputed with LAST MONTH's rate. A rate in
+--      code knows only "now", so a December attendance correction recomputed in
+--      January would use the new rate and produce a figure never on any payslip.
 --
--- ISI tabel ini sengaja KOSONG pada migrasi ini. Mengisinya menuntut Gerbang C.
+-- This table is deliberately EMPTY here. Filling it requires Gate C.
 CREATE TABLE payroll.statutory_configs (
     "id" UUID NOT NULL,
-    -- NULL berarti berlaku untuk seluruh tenant (nilai bawaan platform).
-    -- Tenant yang punya kekhususan mengisinya dengan tenant_id-nya sendiri.
+    -- NULL means it applies to every tenant (the platform default).
+    -- A tenant with a special case fills it with its own tenant_id.
     "tenant_id" UUID,
     -- PPH21_TER, PTKP, BPJS_KES, BPJS_JHT, BPJS_JP, BPJS_JKK, BPJS_JKM, UMR
     "kind" TEXT NOT NULL,
@@ -152,8 +152,8 @@ CREATE TABLE payroll.statutory_configs (
 
     "effective_from" DATE NOT NULL,
     "effective_to" DATE,
-    -- Rujukan peraturan yang menjadi dasarnya. Wajib: angka pajak tanpa dasar
-    -- hukum tidak dapat dipertanggungjawabkan saat diperiksa.
+    -- The regulation it is based on. Mandatory: a tax figure with no legal basis
+    -- cannot be defended under inspection.
     "legal_basis" TEXT NOT NULL,
 
     "created_by" UUID,
@@ -170,7 +170,7 @@ ALTER TABLE payroll.statutory_configs
   CHECK ("effective_to" IS NULL OR "effective_to" >= "effective_from");
 
 -- -----------------------------------------------------------------------------
--- Run penggajian
+-- Payroll runs
 -- -----------------------------------------------------------------------------
 CREATE TABLE payroll.payroll_runs (
     "id" UUID NOT NULL,
@@ -203,11 +203,11 @@ CREATE TABLE payroll.payroll_runs (
 CREATE UNIQUE INDEX "payroll_runs_tenant_id_run_number_key"
   ON payroll.payroll_runs("tenant_id", "run_number");
 
--- Satu run per tenant per periode per jenis, kecuali yang dibatalkan.
+-- One run per tenant per period per type, cancelled ones aside.
 --
--- Inilah yang memenuhi DoD "menjalankan run yang sama dua kali menghasilkan
--- tepat satu run". Ditegakkan basis data, bukan pemeriksaan aplikasi: dua klik
--- tombol "Hitung" yang tiba bersamaan akan sama-sama membaca "belum ada run".
+-- This is what satisfies the DoD "running the same run twice produces exactly
+-- one run". Enforced by the database, not by an application check: two clicks of
+-- the "Calculate" button arriving together would both read "there is no run yet".
 CREATE UNIQUE INDEX "payroll_runs_one_active_per_period"
   ON payroll.payroll_runs("tenant_id", "period_year", "period_month", "run_type")
   WHERE "status" <> 'CANCELLED';
@@ -217,7 +217,7 @@ ALTER TABLE payroll.payroll_runs
   CHECK ("period_month" BETWEEN 1 AND 12);
 
 -- -----------------------------------------------------------------------------
--- Slip gaji dan barisnya
+-- Payslips and their lines
 -- -----------------------------------------------------------------------------
 CREATE TABLE payroll.payslips (
     "id" UUID NOT NULL,
@@ -229,9 +229,9 @@ CREATE TABLE payroll.payslips (
     "deduction" DECIMAL(18,2) NOT NULL DEFAULT 0,
     "net" DECIMAL(18,2) NOT NULL DEFAULT 0,
 
-    -- Potret data hulu pada saat dihitung: hari kerja, hari hadir, jam lembur,
-    -- hari cuti tanpa gaji. Disimpan supaya perhitungan ulang dari potret yang
-    -- sama memberi hasil identik meski presensinya berubah kemudian.
+    -- A snapshot of the upstream data at calculation time: working days, days
+    -- present, overtime hours, unpaid leave days. Stored so that recomputing from
+    -- the same snapshot gives an identical result even if attendance changes later.
     "snapshot" JSONB NOT NULL,
 
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -263,33 +263,32 @@ CREATE TABLE payroll.payslip_lines (
 CREATE INDEX "payslip_lines_payslip_id_sort_order_idx"
   ON payroll.payslip_lines("payslip_id", "sort_order");
 
--- Nama dan kode komponen DIDENORMALISASI ke baris slip.
+-- The component name and code are DENORMALISED onto the payslip line.
 --
--- Slip gaji adalah dokumen yang berlaku bertahun-tahun. Mengganti nama komponen
--- dari "Tunjangan Transport" menjadi "Tunjangan Transportasi" tidak boleh
--- mengubah slip yang sudah diterbitkan — orang yang mencetaknya tahun lalu
--- harus melihat kata yang sama.
+-- A payslip is a document that stands for years. Renaming a component from
+-- "Tunjangan Transport" to "Tunjangan Transportasi" must not change a payslip
+-- already issued — someone who printed it last year has to see the same words.
 
 -- -----------------------------------------------------------------------------
--- Jejak perhitungan
+-- The calculation trace
 -- -----------------------------------------------------------------------------
 --
--- Satu baris per angka yang dihitung, memuat formula dan nilai variabelnya.
--- Saat karyawan menyanggah gajinya, HR menunjukkan rinciannya alih-alih
--- berdebat — dan itu perbedaan antara sengketa yang selesai dalam lima menit
--- dan sengketa yang berakhir di dinas ketenagakerjaan.
+-- One row per computed figure, holding the formula and its variable values.
+-- When an employee challenges their pay, HR shows the breakdown instead of
+-- arguing — and that is the difference between a dispute settled in five minutes
+-- and a dispute that ends at the labour office.
 CREATE TABLE payroll.calculation_traces (
     "id" BIGSERIAL NOT NULL,
     "tenant_id" UUID NOT NULL,
     "payslip_id" UUID NOT NULL,
     "component_code" TEXT NOT NULL,
 
-    -- Formula atau metode yang dipakai, apa adanya.
+    -- The formula or method used, as it was.
     "expression" TEXT,
-    -- Nilai setiap variabel pada saat dihitung.
+    -- The value of every variable at calculation time.
     "inputs" JSONB NOT NULL,
     "result" DECIMAL(18,2) NOT NULL,
-    -- Penjelasan satu kalimat untuk ditampilkan ke karyawan.
+    -- A one-sentence explanation to show the employee.
     "explanation" TEXT,
 
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -301,7 +300,7 @@ CREATE INDEX "calculation_traces_payslip_id_idx"
   ON payroll.calculation_traces("payslip_id");
 
 -- -----------------------------------------------------------------------------
--- Kunci asing
+-- Foreign keys
 -- -----------------------------------------------------------------------------
 ALTER TABLE payroll.salary_structures
   ADD CONSTRAINT "salary_structures_component_id_fkey"
@@ -329,7 +328,7 @@ ALTER TABLE payroll.calculation_traces
   ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- -----------------------------------------------------------------------------
--- Hak akses dan RLS
+-- Grants and RLS
 -- -----------------------------------------------------------------------------
 GRANT USAGE ON SCHEMA payroll TO hrms_app, hrms_worker;
 
@@ -360,12 +359,12 @@ BEGIN
 END
 $$;
 
--- `statutory_configs` berbeda: barisnya boleh milik platform (tenant_id NULL)
--- dan dibaca seluruh tenant. Kebijakannya karenanya mengizinkan baris global
--- DIBACA siapa pun, tetapi hanya baris tenant sendiri yang dapat DITULIS.
+-- `statutory_configs` is different: its rows may belong to the platform
+-- (tenant_id NULL) and are read by every tenant. Its policy therefore lets a
+-- global row be READ by anyone, while only a tenant's own rows can be WRITTEN.
 --
--- Tanpa pemisahan itu, satu tenant dapat mengubah tarif PPh21 yang dipakai
--- seluruh tenant lain.
+-- Without that separation, one tenant could change the PPh21 rate every other
+-- tenant uses.
 ALTER TABLE payroll.statutory_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payroll.statutory_configs FORCE ROW LEVEL SECURITY;
 
