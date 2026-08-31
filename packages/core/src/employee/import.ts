@@ -12,20 +12,19 @@ import {
 import type { ActorContext } from './employees.ts';
 
 /**
- * Impor karyawan dari Excel (PLAN/12 Fase 2, Gerbang A).
+ * Employee import from Excel (PLAN/12 Phase 2, Gate A).
  *
- * Selalu dua langkah: **unggah lalu tinjau**, baru simpan.
+ * Always two steps: **upload then review**, and only then save.
  *
- * Pratinjau bukan kenyamanan, ia satu-satunya cara membuat impor dapat
- * dibatalkan. Berkas pelanggan hampir tidak pernah bersih pada percobaan
- * pertama, dan impor sekali jalan yang berhasil separuh meninggalkan basis data
- * dalam keadaan yang tidak diinginkan siapa pun serta mahal untuk dikembalikan.
+ * The preview is not a convenience, it is the only thing that makes an import
+ * cancellable. A customer's file is almost never clean on the first attempt, and
+ * a one-shot import that half succeeds leaves the database in a state nobody
+ * wanted and that is expensive to undo.
  *
- * Aturan yang mengikat: **satu baris bergalat tidak menggagalkan berkas.**
- * Impor yang berhenti di baris pertama yang salah memaksa pelanggan memperbaiki
- * 500 baris satu per satu, mengunggah ulang 500 kali. Yang benar adalah
- * memvalidasi semuanya, melaporkan seluruh galat sekaligus, dan menyimpan yang
- * sah bila pengguna memilih demikian.
+ * The binding rule: **one bad row does not fail the file.** An import that stops
+ * at the first wrong row forces the customer to fix 500 rows one at a time and
+ * re-upload 500 times. The right thing is to validate everything, report every
+ * error at once, and save the valid rows if the user chooses to.
  */
 
 const MAX_ROWS = 10_000;
@@ -43,35 +42,35 @@ export class ImportError extends Error {
 export interface ImportPreview {
   jobId: string;
   fileName: string;
-  /** Nama sheet yang dibaca, dan berapa sheet yang ditemukan di berkas. */
+  /** The sheet name that was read, and how many sheets the file contained. */
   sheetName: string;
   sheetCount: number;
   totalRows: number;
   validRows: number;
   errorRows: number;
   columns: ColumnMapping;
-  /** Contoh baris bergalat untuk ditampilkan. Bukan seluruhnya. */
+  /** A sample of the failing rows to display. Not all of them. */
   sampleErrors: Array<{ rowNumber: number; errors: RowError[]; name: string }>;
 }
 
 /**
- * Bentuk PII yang disimpan pada baris pratinjau impor.
+ * The shape of the PII stored on an import preview row.
  *
- * Sama persis dengan yang disimpan tabel karyawan: terenkripsi, ber-indeks buta,
- * dan bertopeng. **Bukan** teks apa adanya.
+ * Exactly what the employee table stores: encrypted, blind-indexed, and masked.
+ * **Not** plain text.
  *
- * Ini menutup lubang yang membatalkan seluruh kerja enkripsi PII bagi jalur
- * onboarding yang paling banyak dipakai. `import_rows.raw` dan `.parsed`
- * menyimpan isi berkas apa adanya, dan berkas impor karyawan memuat kolom NIK,
- * NPWP, dan Nomor Rekening. Artinya: satu impor 500 karyawan meninggalkan 500
- * NIK sebagai **teks biasa** di dalam JSON, di basis data yang sama yang dengan
- * hati-hati mengenkripsi kolom NIK di tabel sebelahnya dengan AES-256-GCM.
+ * This closes a hole that voided the entire PII encryption effort for the
+ * most-used onboarding path. `import_rows.raw` and `.parsed` stored the file's
+ * contents as they were, and an employee import file contains the national ID,
+ * tax ID, and bank account columns. Which means: one 500-employee import left
+ * 500 national IDs as **plain text** inside JSON, in the same database that
+ * carefully encrypts the national ID column in the table next to it with
+ * AES-256-GCM.
  *
- * Yang membuatnya lebih buruk: tidak ada satu pun jalur yang menghapus baris
- * pratinjau. Status `DISCARDED` ada di enum sejak awal tanpa satu pun produsen,
- * sehingga pratinjau yang diunggah lalu ditinggalkan bertahan selamanya. HR yang
- * mencoba format berkasnya lima kali sebelum berhasil meninggalkan lima salinan.
- */
+ * What made it worse: no path deleted a preview row. The `DISCARDED` status had
+ * been in the enum from the start with not one producer, so a preview uploaded
+ * and then abandoned survived forever. HR trying their file format five times
+ * before it worked left five copies behind.
 interface PreparedPii {
   encrypted: string | null;
   index: string | null;
@@ -85,11 +84,11 @@ export interface StoredRow extends Omit<ParsedRow, 'nationalId' | 'taxId' | 'ban
 }
 
 /**
- * Menyiapkan PII satu baris untuk disimpan, atau melaporkannya sebagai galat.
+ * Prepares one row's PII for storage, or reports it as an error.
  *
- * Nilai yang ditolak `preparePii` — sudah bertopeng, atau tidak memuat satu pun
- * angka — menjadi galat baris biasa, bukan kegagalan seluruh impor. Satu sel
- * berisi "tidak ada" tidak boleh menggagalkan 999 baris lainnya.
+ * A value `preparePii` refuses — already masked, or containing not one digit —
+ * becomes an ordinary row error, not a failure of the whole import. One cell
+ * reading "tidak ada" must not fail the other 999 rows.
  */
 export function prepareRowPii(
   parsed: ParsedRow,
@@ -126,32 +125,32 @@ export function prepareRowPii(
 }
 
 /**
- * Sel yang boleh disimpan untuk keperluan pesan galat.
+ * The cells that may be stored for the sake of error messages.
  *
- * Bentuknya objek per-KOLOM YANG DIKENALI, bukan larik seluruh sel. Perbedaan
- * itu adalah perbaikannya sendiri.
+ * Its shape is an object of RECOGNISED COLUMNS, not an array of every cell.
+ * That difference is the fix itself.
  *
- * Versi pertama menyimpan seluruh sel apa adanya lalu menutupi kolom PII yang
- * **dikenali**. Uji e2e langsung menunjukkan lubangnya: berkas berjudul kolom
- * "NIK" meninggalkan nomor KTP lengkap di dalam JSON. Dan "NIK" tidak dikenali
- * BUKAN karena kelalaian — daftar aliasnya sengaja mengecualikannya, dengan
- * komentar yang berbunyi "menebak salah berarti menyimpan nomor identitas
- * nasional di kolom yang tidak terenkripsi". Kehati-hatian itu benar, lalu
- * dibatalkan oleh penyimpanan sel mentah yang tidak dipikirkan bersamanya.
+ * The first version stored every cell as it was and then masked the
+ * **recognised** PII columns. An e2e test showed the hole immediately: a file
+ * with a column headed "NIK" left complete ID card numbers inside the JSON. And
+ * "NIK" being unrecognised was NOT an oversight — the alias list excludes it
+ * deliberately, with a comment reading "guessing wrong means storing a national
+ * identity number in an unencrypted column". That caution was right, and then
+ * undone by a raw cell store that was not thought through alongside it.
  *
- * Dengan bentuk sekarang, kolom yang tidak dikenali tidak ikut tersimpan sama
- * sekali. Itu juga menutup kolom tambahan yang dibawa tenant sendiri — "Nama
- * Ibu Kandung", "Golongan Darah", "Nomor BPJS" — yang selama ini ikut terbawa
- * utuh tanpa ada yang memintanya.
+ * In its present shape, an unrecognised column is not stored at all. That also
+ * closes the custom columns a tenant brings themselves — "Nama Ibu Kandung",
+ * "Golongan Darah", "Nomor BPJS" — which until now were carried along intact
+ * without anyone asking.
  *
- * Kolom PII yang dikenali tetap disimpan sebagai bentuk bertopeng: cukup untuk
- * mengenali baris mana yang dimaksud, tidak cukup untuk menjadi salinan kedua
- * nomor identitas seseorang.
+ * A recognised PII column is still stored in masked form: enough to tell which
+ * row is meant, not enough to become a second copy of someone's identity
+ * number.
  *
- * Catatan jujur: **belum ada satu pun jalur yang membaca kolom ini.** Alasan ia
- * ada — "supaya pesan galat dapat menunjuk persis apa yang diketik pengguna" —
- * adalah rencana, bukan fitur. Ia dipertahankan karena rencana itu masuk akal
- * dan bentuk ini membuatnya aman; seandainya tetap tidak terpakai, kolomnya
+ * An honest note: **no path reads this column yet.** Its stated reason — "so an
+ * error message can point at exactly what the user typed" — is a plan, not a
+ * feature. It is kept because the plan is reasonable and this shape makes it
+ * safe; if it stays unused, the column deserves deleting.
  * layak dihapus.
  */
 const PII_FIELDS = new Set(['nationalId', 'taxId', 'bankAccount']);
@@ -184,8 +183,8 @@ export function buildRawForStorage(
 }
 
 /**
- * Mengurai berkas, memvalidasi setiap baris, dan menyimpan hasilnya sebagai
- * pratinjau. Tidak ada satu pun karyawan yang dibuat di sini.
+ * Parses the file, validates every row, and stores the result as a preview.
+ * Not one employee is created here.
  */
 export async function parseImportFile(
   tx: TenantClient,
@@ -194,14 +193,13 @@ export async function parseImportFile(
   ctx: ActorContext,
 ): Promise<ImportPreview> {
   /**
-   * `readXlsxFile` mengembalikan daftar SHEET, bukan daftar baris: bentuknya
-   * `[{ sheet, data }]`. Versi pertama memperlakukannya sebagai baris dan
-   * membungkam keberatan TypeScript dengan cast — akibatnya setiap berkas
-   * dilaporkan "kosong atau hanya berisi baris judul", karena panjang array
-   * sheet memang 1.
+   * `readXlsxFile` returns a list of SHEETS, not a list of rows: its shape is
+   * `[{ sheet, data }]`. The first version treated it as rows and silenced
+   * TypeScript's objection with a cast — so every file was reported as "empty or
+   * containing only a header row", because the sheet array's length really is 1.
    *
-   * Kompilator sudah menyampaikannya lewat galat tipe. Cast itu yang membuatnya
-   * diam.
+   * The compiler had already said so through a type error. That cast is what
+   * silenced it.
    */
   let sheets: Array<{ sheet: string; data: unknown[][] }>;
   try {
@@ -213,10 +211,10 @@ export async function parseImportFile(
     );
   }
 
-  // Sheet pertama yang dipakai, dan namanya dikembalikan ke pengguna. Berkas HR
-  // kerap memuat beberapa sheet ("Data", "Rekap", "Sheet1" kosong), dan diam-diam
-  // membaca salah satu tanpa memberi tahu adalah cara termudah membuat seseorang
-  // mengimpor data yang salah tanpa menyadarinya.
+  // The first sheet is used, and its name is returned to the user. An HR file
+  // often contains several sheets ("Data", "Rekap", an empty "Sheet1"), and
+  // silently reading one without saying so is the easiest way to make someone
+  // import the wrong data without realising.
   const first = sheets[0];
   const sheet = first?.data ?? [];
 
@@ -255,9 +253,9 @@ export async function parseImportFile(
     select: { id: true },
   });
 
-  // Duplikat diperiksa terhadap dua sumber: data yang sudah ada di basis data,
-  // dan baris-baris lain di dalam berkas yang sama. Yang kedua sering terlewat,
-  // padahal berkas hasil gabungan beberapa cabang justru paling sering memuatnya.
+  // Duplicates are checked against two sources: the data already in the database,
+  // and the other rows inside the same file. The second is often overlooked,
+  // even though a file merged from several branches is where they occur most.
   const existing = await tx.employee.findMany({
     where: { tenantId },
     select: { employeeNumber: true, nationalIdIndex: true },
@@ -284,9 +282,9 @@ export async function parseImportFile(
     const cells = sheet[i] ?? [];
     const rowNumber = i + 1; // 1-indeks, dan baris 1 adalah judul.
 
-    // Baris yang seluruh selnya kosong dilewati diam-diam. Berkas Excel hampir
-    // selalu punya beberapa ratus baris kosong di bawah data, dan melaporkannya
-    // sebagai galat akan mengubur galat yang sesungguhnya.
+    // A row whose cells are all empty is skipped silently. An Excel file almost
+    // always has a few hundred empty rows below the data, and reporting them as
+    // errors would bury the real ones.
     if (cells.every((cell) => cell === null || cell === undefined || String(cell).trim() === '')) {
       continue;
     }
@@ -324,12 +322,12 @@ export async function parseImportFile(
       }
     }
 
-    // PII disiapkan DI SINI, bukan saat commit.
+    // The PII is prepared HERE, not at commit time.
     //
-    // Sebelumnya `preparePii` dipanggil saat menyimpan karyawan, sehingga di
-    // antara unggah dan simpan — jendela yang panjangnya ditentukan HR, dan
-    // pada pratinjau yang ditinggalkan tidak pernah berakhir — NIK, NPWP, dan
-    // nomor rekening berada sebagai teks biasa di dalam JSON.
+    // Previously `preparePii` was called when saving the employee, so between
+    // upload and save — a window whose length HR decides, and which never ends
+    // for an abandoned preview — the national ID, tax ID, and bank account sat
+    // as plain text inside the JSON.
     const stored = prepareRowPii(parsed, errors);
 
     if (errors.length === 0) validRows += 1;
@@ -345,8 +343,8 @@ export async function parseImportFile(
     });
   }
 
-  // Disisipkan berbatch. Satu `createMany` berisi 10.000 baris membangun satu
-  // pernyataan raksasa yang memakan memori di kedua sisi koneksi.
+  // Inserted in batches. One `createMany` holding 10,000 rows builds a single
+  // enormous statement that consumes memory on both ends of the connection.
   for (let i = 0; i < rows.length; i += 500) {
     await tx.importRow.createMany({ data: rows.slice(i, i + 500) as never });
   }
@@ -385,11 +383,11 @@ export interface CommitResult {
 }
 
 /**
- * Menyimpan baris yang sah dari sebuah pratinjau.
+ * Saves the valid rows of a preview.
  *
- * Baris bergalat dilewati, bukan menggagalkan seluruhnya. Pengguna memperbaikinya
- * di Excel dan mengunggah ulang — dan karena nomor karyawan yang sudah masuk kini
- * terdeteksi sebagai duplikat, unggahan kedua tidak menggandakan siapa pun.
+ * Failing rows are skipped rather than failing everything. The user fixes them
+ * in Excel and re-uploads — and because an employee number already imported is
+ * now detected as a duplicate, the second upload duplicates nobody.
  */
 export async function commitImport(
   tx: TenantClient,
@@ -419,8 +417,8 @@ export async function commitImport(
 
     await tx.employee.createMany({
       data: batch.map((row) => {
-        // Sudah tersiapkan sejak pratinjau — terenkripsi, ber-indeks, bertopeng.
-        // Tidak ada teks biasa yang perlu diambil dari mana pun di sini.
+        // Already prepared at preview time — encrypted, indexed, masked. There is
+        // no plain text to fetch from anywhere here.
         const parsed = row.parsed as unknown as StoredRow;
         const { nationalId, taxId, bankAccount } = parsed;
 
@@ -448,16 +446,15 @@ export async function commitImport(
       }),
     });
 
-    // Baris yang sudah tersimpan sebagai karyawan DIHAPUS, bukan ditandai.
+    // A row already stored as an employee is DELETED, not flagged.
     //
-    // Ia sudah selesai menjalankan tugasnya. Yang tersisa hanyalah salinan
-    // kedua data kepegawaian di tabel yang tidak diaudit pembacaannya, tidak
-    // masuk ekspor portabilitas, dan tidak dihapus oleh apa pun — sementara
-    // catatan aslinya sudah ada di tabel karyawan dengan seluruh penjagaannya.
+    // It has finished its job. What remains is only a second copy of personnel
+    // data in a table whose reads are not audited, that is not part of the
+    // portability export, and that nothing deletes — while the original record
+    // already sits in the employee table with all of its guards.
     //
-    // Ringkasannya tetap tersimpan pada `import_jobs`: berapa baris, berapa
-    // yang tersimpan, siapa yang mengunggah, kapan. Itu yang dibutuhkan audit;
-    // isi selnya tidak.
+    // Its summary stays in `import_jobs`: how many rows, how many stored, who
+    // uploaded it, when. That is what an audit needs; the cell contents are not.
     await tx.importRow.deleteMany({
       where: { id: { in: batch.map((row) => row.id) } },
     });
@@ -477,9 +474,9 @@ export async function commitImport(
     entityType: 'import_job',
     entityId: jobId,
     actorUserId: ctx.actorUserId,
-    // Jumlah, bukan isi. Berkas impor memuat seluruh PII sekaligus; menyalin
-    // apa pun darinya ke tabel audit yang disimpan tujuh tahun akan membatalkan
-    // seluruh kerja enkripsi.
+    // Counts, not contents. An import file carries all of the PII at once; copying
+    // any of it into an audit table kept for seven years would void the entire
+    // encryption effort.
     after: { fileName: job.fileName, committed, skipped: errorRows },
     ip: ctx.ip,
     userAgent: ctx.userAgent,
@@ -495,7 +492,7 @@ export async function commitImport(
   return { committed, skipped: errorRows };
 }
 
-/** Rincian pratinjau, termasuk seluruh baris bergalat untuk ditampilkan di grid. */
+/** Preview detail, including every failing row so the grid can display them. */
 export async function getImportPreview(
   tx: TenantClient,
   tenantId: string,
@@ -539,10 +536,10 @@ export async function getImportPreview(
 
 
 /**
- * Umur pratinjau impor sebelum dibuang.
+ * How long an import preview lives before being discarded.
  *
- * Tujuh hari. Cukup panjang bagi HR yang mengunggah Jumat sore lalu memeriksanya
- * Senin, dan cukup pendek untuk bukan disebut penyimpanan.
+ * Seven days. Long enough for HR who uploads on a Friday afternoon and checks it
+ * on Monday, and short enough not to count as storage.
  */
 export const PREVIEW_MAX_AGE_DAYS = 7;
 
@@ -552,17 +549,17 @@ export interface DiscardResult {
 }
 
 /**
- * Membuang pratinjau impor yang ditinggalkan.
+ * Discards abandoned import previews.
  *
- * Status `DISCARDED` ada di enum sejak migrasi pertama modul impor **tanpa satu
- * pun produsen** — pola yang sama dengan `LEAVE`, `MANUAL`, dan metode akrual:
- * nilai yang dideklarasikan tetapi tidak pernah dihasilkan siapa pun. Akibatnya
- * di sini bukan sekadar kosakata yang tidak terpakai: pratinjau yang diunggah
- * lalu ditinggalkan bertahan selamanya, dan HR yang mencoba format berkasnya
- * lima kali sebelum berhasil meninggalkan lima salinan data kepegawaian.
+ * The `DISCARDED` status has been in the enum since the import module's first
+ * migration **with not one producer** — the same pattern as `LEAVE`, `MANUAL`,
+ * and the accrual methods: a value declared but never produced by anyone. Here
+ * the consequence is more than unused vocabulary: a preview uploaded and then
+ * abandoned survived forever, and HR trying their file format five times before
+ * it worked left five copies of their personnel data.
  *
- * Barisnya dihapus; ringkasan pekerjaannya tetap ada dengan status DISCARDED,
- * supaya "saya pernah mengunggah berkas itu, ke mana perginya" punya jawaban.
+ * Its rows are deleted; the job summary stays with a DISCARDED status, so "I did
+ * upload that file, where did it go" has an answer.
  */
 export async function discardStalePreviews(
   tx: TenantClient,

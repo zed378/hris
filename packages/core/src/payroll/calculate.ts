@@ -3,28 +3,28 @@ import { evaluateFormula, FormulaError } from './formula.ts';
 import { orderComponents, salaryAt, BASE_VARIABLES } from './components.ts';
 
 /**
- * Mesin perhitungan gaji (PLAN/12 F5).
+ * The salary calculation engine (PLAN/12 P5).
  *
- * **Yang TIDAK ada di sini: PPh21, PTKP, dan BPJS.** Ketiganya terkunci Gerbang
- * C — ahli payroll terikat, 30 slip nyata sebagai kasus uji, dan spike S1 lulus
- * 30/30. Menuliskannya dari pembacaan peraturan sendiri berarti menghasilkan
- * angka yang terlihat masuk akal dan salah, dan salah menghitung pajak karyawan
- * adalah kewajiban hukum yang ditanggung pelanggan, bukan kami.
+ * **What is NOT here: PPh21, PTKP, and BPJS.** All three are locked behind Gate
+ * C — a payroll expert engaged, 30 real payslips as test cases, and spike S1
+ * passing 30/30. Writing them from one's own reading of the regulations produces
+ * numbers that look plausible and are wrong, and miscalculating an employee's
+ * tax is a legal liability borne by the customer, not by us.
  *
- * Yang ADA di sini adalah kerangkanya: komponen terkonfigurasi dihitung menurut
- * metodenya, dalam urutan ketergantungan, dengan setiap angka meninggalkan
- * jejak. Ketika Gerbang C terbuka, PPh21 dan BPJS masuk sebagai komponen
- * bertipe `DEDUCTION` yang membaca `statutory_configs` — tanpa mengubah mesin ini.
+ * What IS here is the framework: configured components computed by their method,
+ * in dependency order, with every figure leaving a trace. Once Gate C opens,
+ * PPh21 and BPJS enter as `DEDUCTION`-type components reading
+ * `statutory_configs` — with no change to this engine.
  *
- * Tiga sifat yang dijaga, dan seluruhnya berasal dari DoD Fase 5:
+ * Three properties are maintained, all of them from the Phase 5 DoD:
  *
- *   1. **Deterministik.** Menghitung ulang dari potret yang sama memberi hasil
- *      identik, meski presensi hulu berubah kemudian.
- *   2. **Setiap angka punya jejak.** Formula dan nilai variabelnya disimpan,
- *      sehingga sanggahan karyawan dijawab dengan rincian, bukan perdebatan.
- *   3. **Satu run per periode.** Ditegakkan indeks unik parsial di basis data,
- *      bukan pemeriksaan aplikasi.
- */
+ *   1. **Deterministic.** Recalculating from the same snapshot gives an
+ *      identical result, even if the upstream attendance changed afterwards.
+ *   2. **Every figure has a trace.** The formula and its variable values are
+ *      stored, so an employee's challenge is answered with a breakdown rather
+ *      than an argument.
+ *   3. **One run per period.** Enforced by a partial unique index in the
+ *      database, not by an application check.
 
 export class PayrollError extends Error {
   constructor(
@@ -38,11 +38,11 @@ export class PayrollError extends Error {
 }
 
 /**
- * Potret data hulu untuk satu karyawan pada satu periode.
+ * A snapshot of the upstream data for one employee in one period.
  *
- * Disimpan pada slip, dan perhitungan ulang membacanya dari sana alih-alih
- * dari presensi. Itulah yang membuat rekalkulasi deterministik: koreksi
- * presensi bulan lalu tidak diam-diam mengubah slip yang sudah terbit.
+ * Stored on the payslip, and a recalculation reads it from there rather than
+ * from attendance. That is what makes recalculation deterministic: correcting
+ * last month's attendance does not silently change a payslip already issued.
  */
 export interface PayrollSnapshot {
   hariKerja: number;
@@ -55,7 +55,7 @@ export interface PayrollSnapshot {
   hariKalender: number;
 }
 
-/** Membangun potret dari rekap presensi dan cuti pada periode tersebut. */
+/** Builds the snapshot from the attendance and leave recaps for that period. */
 export async function buildSnapshot(
   tx: TenantClient,
   tenantId: string,
@@ -78,9 +78,9 @@ export async function buildSnapshot(
   });
   if (!employee) throw new PayrollError('Karyawan tidak ditemukan', 'not_found', employeeId);
 
-  // Cuti tanpa gaji dihitung terpisah: ia satu-satunya jenis cuti yang memotong
-  // upah, dan menggabungkannya dengan alfa akan menghilangkan perbedaan antara
-  // orang yang izin resmi dan orang yang tidak datang tanpa kabar.
+  // Unpaid leave is counted separately: it is the only leave type that reduces
+  // wages, and merging it with absence would erase the difference between
+  // someone with formal permission and someone who simply did not turn up.
   const unpaidLeave = await tx.leaveRequest.count({
     where: {
       tenantId,
@@ -109,7 +109,7 @@ export async function buildSnapshot(
   };
 }
 
-/** Menerjemahkan potret menjadi variabel yang dikenal formula. */
+/** Translates the snapshot into the variables a formula recognises. */
 function scopeFrom(snapshot: PayrollSnapshot): Record<string, number> {
   return {
     HARI_KERJA: snapshot.hariKerja,
@@ -147,11 +147,11 @@ export interface CalculatedPayslip {
 const ZERO = new Prisma.Decimal(0);
 
 /**
- * Menghitung satu slip.
+ * Computes one payslip.
  *
- * Murni: tidak menulis apa pun. Dipisahkan dari penyimpanan supaya dapat diuji
- * tanpa basis data, dan supaya uji regresi emas — 30 kasus dari slip nyata yang
- * dijalankan setiap commit — tidak menuntut seluruh sistem berjalan.
+ * Pure: it writes nothing. Separated from storage so it can be tested without a
+ * database, and so the golden regression tests — 30 cases from real payslips run
+ * on every commit — do not require the whole system to be running.
  */
 export async function calculatePayslip(
   tx: TenantClient,
@@ -182,8 +182,8 @@ export async function calculatePayslip(
 
   const assigned = await salaryAt(tx, tenantId, employeeId, periodEnd);
 
-  // Urutan ketergantungan, bukan `sortOrder` semata. Komponen yang dihitung
-  // sebelum dasarnya menghasilkan nol — angka yang terlihat seperti keputusan.
+  // Dependency order, not `sortOrder` alone. A component computed before its
+  // base yields zero — a number that looks like a decision.
   const ordered = orderComponents(components);
 
   const scope: Record<string, number | Prisma.Decimal> = scopeFrom(shot);
@@ -197,8 +197,8 @@ export async function calculatePayslip(
 
     switch (component.calcMethod) {
       case 'FIXED': {
-        // Nilai per karyawan menang atas nilai bawaan komponen. Gaji pokok
-        // memang berbeda per orang; komponen hanya menyediakan cadangan.
+        // A per-employee value beats the component default. Basic salary genuinely
+        // differs per person; the component only provides a fallback.
         amount = assigned.get(component.code) ?? component.amount ?? ZERO;
         explanation = assigned.has(component.code)
           ? 'Nilai tetap dari struktur gaji karyawan'
@@ -243,8 +243,8 @@ export async function calculatePayslip(
         try {
           amount = evaluateFormula(component.expression ?? '0', scope);
         } catch (error) {
-          // Nama karyawan disertakan: run seribu orang yang gagal tanpa
-          // menyebut siapa memaksa HR menebak baris mana yang bermasalah.
+          // The employee's name is included: a thousand-person run that fails
+          // without naming anyone forces HR to guess which row is the problem.
           throw new PayrollError(
             `Komponen "${component.code}" gagal dihitung: ` +
               (error instanceof FormulaError ? error.message : String(error)),
@@ -253,9 +253,9 @@ export async function calculatePayslip(
           );
         }
 
-        // Hanya variabel yang benar-benar dirujuk yang dicatat. Menyimpan
-        // seluruh scope pada setiap baris menghasilkan jejak yang tidak dapat
-        // dibaca — dan jejak yang tidak dibaca sama saja tidak ada.
+        // Only the variables actually referenced are recorded. Storing the whole
+        // scope on every line produces a trace that cannot be read — and a trace
+        // nobody reads is the same as no trace at all.
         for (const name of [...BASE_VARIABLES, ...components.map((c) => c.code)]) {
           if (component.expression?.includes(name)) {
             inputs[name] = String(scope[name] ?? '');
@@ -270,10 +270,10 @@ export async function calculatePayslip(
         explanation = 'Metode tidak dikenali';
     }
 
-    // Dibulatkan ke rupiah penuh pada setiap baris, bukan hanya pada total.
-    // Membulatkan hanya di akhir membuat jumlah baris pada slip tidak sama
-    // dengan totalnya — dan yang membacanya akan menghitung sendiri lalu
-    // menemukan selisih satu rupiah yang tidak dapat dijelaskan.
+    // Rounded to whole rupiah on every line, not only on the total. Rounding only
+    // at the end makes the payslip's lines fail to add up to its total — and
+    // whoever reads it will add them up themselves and find a one-rupiah
+    // discrepancy that cannot be explained.
     amount = amount.toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
 
     scope[component.code] = amount;
@@ -318,39 +318,38 @@ export interface RunResult {
 }
 
 /**
- * Perhitungan run, dipecah menjadi potongan yang MASING-MASING ter-commit.
+ * The run calculation, split into chunks that are EACH committed.
  *
- * Sebelum ini, seluruh run berjalan di dalam satu transaksi permintaan HTTP.
- * Komentar di tempat ini menjanjikan "mematikan worker di tengah kalkulasi →
- * dilanjutkan tanpa slip ganda", dan kodenya memang melewati slip yang sudah
- * ada — tetapi janji itu **tidak pernah dapat ditepati**, karena tidak ada satu
- * pun slip yang ter-commit sampai seluruh run selesai.
+ * Before this, the whole run happened inside a single HTTP request transaction.
+ * A comment right here promised "kill the worker mid-calculation → it continues
+ * with no duplicate payslip", and the code did skip payslips that already
+ * existed — but that promise **could never be kept**, because not one payslip
+ * was committed until the whole run finished.
  *
- * Yang sesungguhnya terjadi pada run besar:
+ * What actually happened on a large run:
  *
- *   1. Transaksi interaktif Prisma punya batas bawaan lima detik.
- *   2. Peran `hrms_app` punya `statement_timeout` 15 detik.
- *   3. Run seribu karyawan melewati keduanya.
- *   4. Transaksi dibatalkan. SELURUH slip yang sudah dihitung hilang.
- *   5. HR menekan "Hitung" lagi. Himpunan slip-yang-sudah-ada kosong.
- *      Semuanya diulang dari nol, dan gagal lagi di detik yang sama.
+ *   1. A Prisma interactive transaction has a five-second default limit.
+ *   2. The `hrms_app` role has a 15-second `statement_timeout`.
+ *   3. A thousand-employee run passes both.
+ *   4. The transaction is rolled back. EVERY payslip already computed is lost.
+ *   5. HR presses "Calculate" again. The set of existing payslips is empty.
+ *      Everything repeats from zero, and fails again at the same second.
  *
- * Run itu tidak akan pernah selesai, berapa kali pun dicoba, dan yang dilihat HR
- * hanyalah galat transaksi yang tidak menjelaskan apa pun. Kode pemulihannya ada
- * sejak awal; yang tidak ada adalah kesempatan bagi kode itu untuk berguna.
+ * That run would never finish, however many times it was tried, and all HR saw
+ * was a transaction error explaining nothing. The recovery code was there from
+ * the start; what was missing was any chance for it to be useful.
  *
- * Karena itu bentuknya kini tiga bagian yang dipanggil dalam transaksi
- * TERPISAH — `startRun`, `calculateBatch` berulang, lalu `finishRun`. Setiap
- * potongan ter-commit, sehingga kemajuan bertahan melewati proses yang mati.
+ * So its shape is now three parts called in SEPARATE transactions — `startRun`,
+ * `calculateBatch` repeatedly, then `finishRun`. Every chunk is committed, so
+ * progress survives a process that dies.
  */
 
 /**
- * Karyawan per transaksi.
+ * Employees per transaction.
  *
- * Dipilih agar satu potongan selesai jauh di bawah `statement_timeout` peran
- * worker (5 menit). Lebih besar berarti lebih sedikit commit dan sedikit lebih
- * cepat; lebih kecil berarti lebih sedikit pekerjaan yang hilang ketika proses
- * mati. Lima puluh berada di sisi yang tidak menyesal.
+ * Chosen so one chunk finishes well below the worker role's `statement_timeout`
+ * (5 minutes). Larger means fewer commits and slightly more speed; smaller means
+ * less work lost when a process dies. Fifty sits on the side one does not regret.
  */
 export const BATCH_SIZE = 50;
 
@@ -369,10 +368,10 @@ export interface BatchFailure {
 }
 
 /**
- * Menandai run mulai dihitung, dan mengembalikan daftar karyawan yang tersisa.
+ * Marks the run as calculating, and returns the employees still outstanding.
  *
- * Yang dikembalikan hanya id — daftar seribu id muat di memori, seribu snapshot
- * gaji tidak.
+ * Only ids are returned — a thousand ids fit in memory, a thousand salary
+ * snapshots do not.
  */
 export async function startRun(
   tx: TenantClient,
@@ -414,16 +413,16 @@ export async function startRun(
 }
 
 /**
- * Menghitung satu potongan karyawan.
+ * Computes one chunk of employees.
  *
- * Karyawan yang gagal dikembalikan sebagai `failures` dan potongan tetap
- * berjalan. Satu struktur gaji yang belum lengkap tidak boleh menahan slip 999
- * orang lain — dan HR yang menerima "payroll gagal" tanpa keterangan tidak dapat
- * berbuat apa-apa dengan kalimat itu.
+ * A failing employee is returned in `failures` and the chunk carries on. One
+ * incomplete salary structure must not hold back 999 other people's payslips —
+ * and HR who receive "payroll failed" with no detail can do nothing with that
+ * sentence.
  *
- * Slip yang sudah ada diperiksa lagi di sini, bukan hanya di `startRun`. Di
- * antara keduanya ada jeda, dan pada jeda itu proses lain mungkin sudah
- * menghitung sebagian — hal yang terjadi bila HR menekan "Hitung" dua kali.
+ * Existing payslips are checked again here, not only in `startRun`. There is a
+ * gap between the two, and in that gap another process may already have computed
+ * some — which is what happens when HR presses "Calculate" twice.
  */
 export async function calculateBatch(
   tx: TenantClient,
@@ -501,14 +500,14 @@ export async function calculateBatch(
 }
 
 /**
- * Menutup run: menjumlahkan, menetapkan status, dan mengaudit.
+ * Closes the run: sums it up, sets the status, and audits it.
  *
- * Totalnya dihitung ulang dari BASIS DATA, bukan diakumulasi di memori.
- * Akumulasi memori hanya benar bila satu proses menyelesaikan seluruh run — dan
- * seluruh gunanya pemecahan ini adalah agar itu tidak perlu benar. Proses yang
- * mati di potongan ketujuh lalu dilanjutkan proses lain akan melaporkan total
- * tujuh potongan terakhir sebagai total seluruh perusahaan, dan angka itu masuk
- * ke laporan tanpa satu pun galat.
+ * The totals are recomputed from the DATABASE, not accumulated in memory.
+ * Memory accumulation is only correct when one process finishes the whole run —
+ * and the entire point of this split is that it need not be. A process that dies
+ * on the seventh chunk and is continued by another would report the last seven
+ * chunks' total as the whole company's total, and that number enters a report
+ * with not one error.
  */
 export async function finishRun(
   tx: TenantClient,
@@ -560,17 +559,16 @@ export async function finishRun(
 }
 
 /**
- * Menandai run gagal beserta sebabnya.
+ * Marks a run as failed, with its cause.
  *
- * Dipanggil worker ketika sebuah potongan melempar galat yang bukan kegagalan
- * per-karyawan — koneksi putus, tenant hilang. Run yang ditinggal berstatus
- * CALCULATING selamanya adalah run yang tombolnya tidak akan ditekan siapa pun
- * lagi: `startRun` memang menerimanya kembali, tetapi tidak ada yang tahu bahwa
+ * Called by the worker when a chunk throws something that is not a per-employee
+ * failure — a dropped connection, a missing tenant. A run left CALCULATING
+ * forever is a run whose button nobody will press again: `startRun` would accept
+ * it back, but nobody knows it may be retried.
  * ia boleh dicoba.
- *
- * `updateMany` dengan syarat status, bukan `update`. Run yang sementara itu
- * sudah selesai dihitung proses lain tidak boleh ditandai gagal oleh pesan
- * yang datang terlambat.
+ * `updateMany` with a status condition, not `update`. A run that another process
+ * has meanwhile finished computing must not be marked failed by a message that
+ * arrives late.
  */
 export async function failRun(
   tx: TenantClient,
