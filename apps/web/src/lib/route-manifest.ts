@@ -1,37 +1,37 @@
 /**
- * Peta route → modul → permission (PLAN/01 §5.2).
+ * The route → module → permission map (PLAN/01 §5.2).
  *
- * Ini penegakan P7: **tidak ada route tanpa keputusan otorisasi eksplisit.**
- * Sebuah handler yang tidak terdaftar di sini tidak dapat dijangkau — bukan
- * karena lupa dilindungi, melainkan karena `defineRoute` menolak menjalankannya.
+ * This is P7 enforced: **no route without an explicit authorisation decision.**
+ * A handler not registered here cannot be reached — not because someone forgot
+ * to protect it, but because `defineRoute` refuses to run it.
  *
- * Konsekuensi yang disengaja: menambah endpoint memaksa penulisnya menjawab dua
- * pertanyaan sebelum menulis satu baris logika — modul apa yang memilikinya, dan
- * permission apa yang menjaganya. Itu adalah pertanyaan yang paling mahal bila
- * baru ditanyakan setelah 200 route ada.
+ * A deliberate consequence: adding an endpoint forces its author to answer two
+ * questions before writing a line of logic — which module owns it, and which
+ * permission guards it. Those are the most expensive questions to ask for the
+ * first time once 200 routes exist.
  *
- * Ada uji CI yang membandingkan berkas ini dengan berkas `route.ts` di disk;
- * salah satu tanpa pasangannya menggagalkan build.
+ * A CI test compares this file against the `route.ts` files on disk; either one
+ * without its counterpart fails the build.
  */
 
 export interface RouteRule {
-  /** Modul pemilik. Bila tenant tidak melanggan, request ditolak 402 (P8). */
+  /** The owning module. If the tenant does not subscribe, the request is refused with 402 (P8). */
   module: string;
-  /** Permission yang dibutuhkan. `null` berarti cukup terautentikasi. */
+  /** The permission required. `null` means being authenticated is enough. */
   permission: string | null;
-  /** Tanpa autentikasi sama sekali. Hanya untuk jalur masuk. */
+  /** No authentication at all. Only for the entry paths. */
   public?: boolean;
-  /** Batas laju per IP untuk jalur publik yang dapat ditebak. */
+  /** A per-IP rate limit for guessable public paths. */
   rateLimit?: { windowSeconds: number; max: number };
 }
 
 export type RouteId = keyof typeof ROUTE_MANIFEST;
 
 export const ROUTE_MANIFEST = {
-  // --- Jalur masuk: publik, tetapi dibatasi laju --------------------------------
-  // Login sengaja dibatasi ketat. Tanpa itu, kunci akun per pengguna justru
-  // menjadi senjata: penyerang dapat mengunci seluruh karyawan satu perusahaan
-  // hanya dengan mengirim kata sandi salah delapan kali per akun.
+  // --- Entry paths: public, but rate limited ------------------------------------
+  // Login is deliberately limited hard. Without that, per-user account locking
+  // becomes a weapon: an attacker can lock out an entire company's employees by
+  // sending eight wrong passwords per account.
   'POST /api/auth/login': {
     module: 'core',
     permission: null,
@@ -50,10 +50,10 @@ export const ROUTE_MANIFEST = {
     public: true,
   },
 
-  // --- Pendaftaran mandiri ------------------------------------------------------
-  // Dibatasi ketat: setiap panggilan membuat tenant, peran, dan pengguna. Tanpa
-  // batas laju, endpoint ini adalah cara termurah untuk memenuhi basis data
-  // dengan tenant sampah.
+  // --- Self-service registration ------------------------------------------------
+  // Limited hard: every call creates a tenant, roles, and a user. Without a rate
+  // limit this endpoint is the cheapest way to fill the database with junk
+  // tenants.
   'POST /api/tenants/register': {
     module: 'core',
     permission: null,
@@ -61,10 +61,10 @@ export const ROUTE_MANIFEST = {
     rateLimit: { windowSeconds: 3600, max: 5 },
   },
 
-  // --- Reset kata sandi & undangan ----------------------------------------------
-  // Ketiganya publik karena pemakainya, menurut definisi, belum dapat login.
-  // Batas lajunya ketat: `forgot` mengirim email atas nama kita, dan endpoint
-  // pengirim email tanpa batas adalah alat spam yang merusak reputasi domain.
+  // --- Password reset & invitations ---------------------------------------------
+  // All three are public because their users, by definition, cannot log in yet.
+  // Their rate limits are tight: `forgot` sends email on our behalf, and an
+  // unlimited email-sending endpoint is a spam tool that ruins a domain's reputation.
   'POST /api/auth/password/forgot': {
     module: 'core',
     permission: null,
@@ -84,10 +84,10 @@ export const ROUTE_MANIFEST = {
     rateLimit: { windowSeconds: 900, max: 20 },
   },
 
-  // --- Pengguna, peran, dan hak akses khusus (PLAN/05 §7) ------------------------
-  // Modul `iam` bersifat CORE, sehingga endpoint ini tidak pernah tertutup oleh
-  // langganan — sebuah tenant harus selalu dapat mengelola penggunanya sendiri,
-  // apa pun paketnya.
+  // --- Users, roles, and special access (PLAN/05 §7) ------------------------------
+  // The `iam` module is CORE, so these endpoints are never closed by a
+  // subscription — a tenant must always be able to manage its own users, whatever
+  // its plan.
   'GET /api/users': { module: 'iam', permission: 'iam.user.read' },
   'POST /api/users': { module: 'iam', permission: 'iam.user.create' },
   'POST /api/users/from-employees': { module: 'iam', permission: 'iam.user.create' },
@@ -97,9 +97,9 @@ export const ROUTE_MANIFEST = {
   'GET /api/audit': { module: 'iam', permission: 'iam.audit.read' },
   'PUT /api/roles/[id]/permissions': { module: 'iam', permission: 'iam.role.manage' },
 
-  // --- Karyawan (Fase 2) --------------------------------------------------------
-  // Modul `employee` bertier BASIC, sehingga endpoint ini menolak dengan 402 pada
-  // tenant yang paketnya tidak mencakupnya — bahkan bagi TENANT_OWNER (P8).
+  // --- Employees (Phase 2) --------------------------------------------------------
+  // The `employee` module is BASIC tier, so these endpoints refuse with 402 for a
+  // tenant whose plan does not include it — even for a TENANT_OWNER (P8).
   'GET /api/employees': { module: 'employee', permission: 'employee.employee.read.all' },
   'POST /api/employees': { module: 'employee', permission: 'employee.employee.create' },
   'GET /api/employees/[id]': { module: 'employee', permission: 'employee.employee.read.all' },
@@ -113,79 +113,79 @@ export const ROUTE_MANIFEST = {
     module: 'employee',
     permission: 'employee.document.manage',
   },
-  // Izin dasar yang dimiliki semua orang. Pemilahan pemilik-vs-HR terjadi di
-  // dalam handler — tanpa itu, karyawan tidak dapat membuka pindaian KTP-nya
-  // sendiri, yang justru hak yang dijamin UU PDP.
+  // The basic permission everyone holds. The owner-vs-HR distinction happens
+  // inside the handler — without that, an employee could not open the scan of
+  // their own ID card, which is a right the Personal Data Protection Act guarantees.
   'GET /api/documents/[docId]': { module: 'employee', permission: 'employee.employee.read.own' },
   'DELETE /api/documents/[docId]': {
     module: 'employee',
     permission: 'employee.document.manage',
   },
 
-  // Impor Excel — jalur migrasi dari produk referensi, dan inti Gerbang A.
-  // Templat memakai permission ekspor, bukan impor: mengunduh contoh kolom
-  // adalah langkah pertama sebelum seseorang memutuskan akan mengimpor.
+  // Excel import — the migration path from the reference product, and the heart of
+  // Gate A. The template uses the export permission, not the import one:
+  // downloading a column sample is the first step before deciding to import.
   'GET /api/employees/template': { module: 'employee', permission: 'employee.export.execute' },
   'GET /api/employees/export': { module: 'employee', permission: 'employee.export.execute' },
 
-  // Kontrak kerja. Pengingat berakhirnya PKWT adalah alasan modul ini ditarik
-  // maju ke Fase 2: satu kontrak yang lolos berubah menjadi PKWTT demi hukum,
-  // dan itu tidak dapat dibatalkan (dokumen 08, A5).
+  // Employment contracts. Fixed-term expiry reminders are why this module was
+  // pulled forward into Phase 2: one contract that lapses becomes permanent by
+  // operation of law, and that cannot be undone (document 08, A5).
   'GET /api/contracts/expiring': { module: 'employee', permission: 'employee.contract.read' },
   'POST /api/contracts': { module: 'employee', permission: 'employee.contract.manage' },
   'POST /api/employees/import': { module: 'employee', permission: 'employee.import.execute' },
   'GET /api/employees/import/[id]': { module: 'employee', permission: 'employee.import.execute' },
   'POST /api/employees/import/[id]/commit': { module: 'employee', permission: 'employee.import.execute' },
 
-  // --- Struktur organisasi (Fase 2) ---------------------------------------------
+  // --- Organisational structure (Phase 2) -------------------------------------------
   'GET /api/org/departments': { module: 'employee', permission: 'employee.employee.read.all' },
   'POST /api/org/departments': { module: 'employee', permission: 'employee.employee.update' },
   'GET /api/org/positions': { module: 'employee', permission: 'employee.employee.read.all' },
   'POST /api/org/positions': { module: 'employee', permission: 'employee.employee.update' },
   'POST /api/org/placements': { module: 'employee', permission: 'employee.employee.update' },
 
-  // --- Presensi (Fase 3) --------------------------------------------------------
-  // Mengetuk presensi memakai permission bercakupan `own`: karyawan hanya dapat
-  // mengetuk untuk dirinya sendiri, dan `employeeId` diturunkan dari sesi — tidak
-  // pernah dari badan request.
+  // --- Attendance (Phase 3) --------------------------------------------------------
+  // Punching uses an `own`-scoped permission: an employee can only punch for
+  // themselves, and `employeeId` is derived from the session — never from the
+  // request body.
   'POST /api/attendance/punch': { module: 'attendance', permission: 'attendance.punch.create.own' },
   'GET /api/attendance/me': { module: 'attendance', permission: 'attendance.record.read.own' },
 
-  // Unggah foto memakai izin presensi sendiri; penyajiannya memeriksa lapisan
-  // kedua di dalam handler — karyawan biasa hanya boleh melihat fotonya sendiri.
+  // Uploading a photo uses the ordinary punch permission; serving it checks a
+  // second layer inside the handler — an ordinary employee may only see their own.
   'POST /api/attendance/photo': { module: 'attendance', permission: 'attendance.punch.create.own' },
   'GET /api/attendance/photo/[key]': { module: 'attendance', permission: 'attendance.record.read.own' },
 
-  // Antrean tinjauan. Presensi bertanda TIDAK ditolak otomatis — ia menunggu
-  // keputusan manusia yang mengenal konteksnya (P14).
+  // The review queue. A flagged punch is NOT refused automatically — it waits for
+  // a human decision by someone who knows the context (P14).
   'GET /api/attendance/review': { module: 'attendance', permission: 'attendance.review.handle' },
   'POST /api/attendance/review': { module: 'attendance', permission: 'attendance.review.handle' },
 
-  // Persetujuan hanya dapat diberikan untuk diri sendiri, jadi izinnya adalah
-  // izin presensi dasar — bukan izin administratif. HR tidak punya jalur untuk
-  // menyetujui atas nama siapa pun, dan itu memang inti aturannya.
-  // Cakupan dasbor ditentukan izin di dalam handler, bukan oleh parameter.
-  // Izin di manifes karenanya izin dasar yang dimiliki semua orang.
+  // Consent can only be given for oneself, so its permission is the basic punch
+  // permission — not an administrative one. HR has no path to consent on anyone's
+  // behalf, and that is the heart of the rule.
+  // Dashboard scope is decided by permissions inside the handler, not by a
+  // parameter. The manifest permission is therefore the basic one everyone holds.
   'GET /api/dashboard': { module: 'core', permission: 'core.dashboard.view.own' },
 
-  // --- Kesehatan -------------------------------------------------------------
+  // --- Health -----------------------------------------------------------------
   //
-  // Keduanya TIDAK memakai defineRoute — lihat berkas rutenya. Didaftarkan di
-  // sini semata supaya pemeriksaan cakupan manifes tidak melaporkannya sebagai
-  // rute yang tidak terdaftar (P7).
+  // Neither uses defineRoute — see their route files. They are registered here
+  // purely so the manifest coverage check does not report them as unregistered
+  // routes (P7).
   'GET /api/health': { module: 'core', permission: null, public: true },
   'GET /api/ready': { module: 'core', permission: null, public: true },
 
-  // --- Langganan -------------------------------------------------------------
+  // --- Subscription ------------------------------------------------------------
   //
-  // Modulnya `core`, bukan modul yang sedang diatur. Endpoint yang mengatur
-  // langganan tidak boleh ikut mati ketika modul yang diaturnya dinonaktifkan.
+  // Its module is `core`, not the module being managed. An endpoint that manages
+  // a subscription must not die along with the module it is managing.
   'GET /api/subscription': { module: 'core', permission: 'core.settings.manage' },
-  // Ekspor seluruh data tenant — portabilitas UU PDP.
+  // Exporting all of a tenant's data — Personal Data Protection Act portability.
   //
-  // Batas lajunya ketat: satu ekspor lengkap membaca setiap tabel milik tenant,
-  // dan tombol yang ditekan berulang kali karena berkasnya lama muncul akan
-  // menjalankan seluruh pembacaan itu berkali-kali sekaligus.
+  // Its rate limit is tight: one complete export reads every table the tenant
+  // owns, and a button pressed repeatedly because the file is slow to appear
+  // would run all of that reading several times at once.
   'GET /api/tenant/export': {
     module: 'core',
     permission: 'core.settings.manage',
@@ -193,12 +193,12 @@ export const ROUTE_MANIFEST = {
   },
   'POST /api/subscription': { module: 'core', permission: 'core.settings.manage' },
 
-  // --- Penggajian ------------------------------------------------------------
+  // --- Payroll -----------------------------------------------------------------
   'GET /api/payroll/components': { module: 'payroll', permission: 'payroll.component.manage' },
   'POST /api/payroll/components': { module: 'payroll', permission: 'payroll.component.manage' },
-  // PUT memeriksa formula tanpa menyimpannya, dipakai layar konfigurasi saat
-  // admin mengetik. Izinnya sama dengan menyimpan: yang boleh mengetahui
-  // variabel apa saja yang tersedia adalah yang boleh mengonfigurasinya.
+  // PUT validates a formula without saving it, used by the configuration screen
+  // while an admin types. Its permission is the same as saving: whoever may know
+  // which variables exist is whoever may configure them.
   'PUT /api/payroll/components': { module: 'payroll', permission: 'payroll.component.manage' },
 
   'GET /api/payroll/salary': { module: 'payroll', permission: 'payroll.salary.read' },
@@ -208,17 +208,17 @@ export const ROUTE_MANIFEST = {
   'GET /api/payroll/runs/export': { module: 'payroll', permission: 'payroll.run.execute' },
   'POST /api/payroll/runs': { module: 'payroll', permission: 'payroll.run.execute' },
   'GET /api/payroll/runs/[id]': { module: 'payroll', permission: 'payroll.run.execute' },
-  // Persetujuan diperiksa di dalam handler dengan izin terpisah: orang yang
-  // menghitung dan orang yang menyetujui sebaiknya berbeda.
+  // Approval is checked inside the handler with a separate permission: the person
+  // who calculates and the person who approves should be different.
   'POST /api/payroll/runs/[id]': { module: 'payroll', permission: 'payroll.run.execute' },
 
-  // Izin dasar yang dimiliki semua orang; pemilahan sendiri-vs-semua terjadi di
-  // dalam handler. Tanpa itu, karyawan tidak dapat melihat slip gajinya sendiri.
+  // The basic permission everyone holds; the own-vs-all distinction happens inside
+  // the handler. Without it, an employee could not see their own payslip.
   'GET /api/payroll/payslips': { module: 'payroll', permission: 'payroll.payslip.read.own' },
 
-  // --- Cuti ------------------------------------------------------------------
-  // Notifikasi bukan milik satu modul — ia melayani semuanya. Diletakkan di
-  // modul inti supaya berlangganan tidak menuntut langganan modul apa pun.
+  // --- Leave ---------------------------------------------------------------------
+  // Notifications belong to no single module — they serve all of them. Placed in
+  // the core module so subscribing does not require subscribing to any module.
   'GET /api/notifications/subscriptions': { module: 'core', permission: 'core.profile.read.own' },
   'POST /api/notifications/subscriptions': { module: 'core', permission: 'core.profile.read.own' },
   'DELETE /api/notifications/subscriptions': {
@@ -227,8 +227,8 @@ export const ROUTE_MANIFEST = {
   },
   'GET /api/leave/types': { module: 'leave', permission: 'leave.request.create.own' },
   'POST /api/leave/types': { module: 'leave', permission: 'leave.policy.manage' },
-  // Cakupan daftar ditentukan izin di dalam handler, bukan oleh parameter:
-  // klien yang meminta `all` tanpa izin menerima daftarnya sendiri, bukan galat.
+  // List scope is decided by permissions inside the handler, not by a parameter:
+  // a client asking for `all` without the permission receives its own list, not an error.
   'GET /api/leave/requests': { module: 'leave', permission: 'leave.request.read.own' },
   'GET /api/leave/requests/export': { module: 'leave', permission: 'leave.request.read.all' },
   'POST /api/leave/requests': { module: 'leave', permission: 'leave.request.create.own' },
@@ -243,7 +243,7 @@ export const ROUTE_MANIFEST = {
   'POST /api/leave/attachments': { module: 'leave', permission: 'leave.request.create.own' },
   'GET /api/leave/attachments/[key]': {
     module: 'leave',
-    // Izin dasar; kepemilikan berkas diperiksa di dalam handler-nya.
+    // The basic permission; file ownership is checked inside its handler.
     permission: 'leave.request.read.own',
   },
   'GET /api/leave/balances': { module: 'leave', permission: 'leave.balance.read.own' },
@@ -277,14 +277,14 @@ export const ROUTE_MANIFEST = {
   'POST /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.shift.manage' },
   'GET /api/attendance/policy': {
     module: 'attendance',
-    // Layar presensi perlu tahu apakah foto wajib SEBELUM meminta izin kamera.
+    // The attendance screen needs to know whether a photo is required BEFORE it asks for camera permission.
     permission: 'attendance.punch.create.own',
   },
   'PUT /api/attendance/policy': { module: 'attendance', permission: 'attendance.shift.manage' },
   'GET /api/attendance/holidays': {
     module: 'attendance',
-    // Semua orang perlu melihatnya: kalender cuti menampilkannya, dan karyawan
-    // yang mengajukan cuti perlu tahu tanggal mana yang tidak memotong saldo.
+    // Everyone needs to see them: the leave calendar displays them, and an employee
+    // requesting leave needs to know which dates do not deduct from their balance.
     permission: 'attendance.record.read.own',
   },
   'POST /api/attendance/holidays': {
@@ -306,9 +306,9 @@ export const ROUTE_MANIFEST = {
   'GET /api/attendance/shifts': { module: 'attendance', permission: 'attendance.record.read.own' },
   'POST /api/attendance/shifts': { module: 'attendance', permission: 'attendance.shift.manage' },
 
-  // --- Bootstrap ----------------------------------------------------------------
-  // Tidak memerlukan permission: setiap pengguna terautentikasi berhak tahu apa
-  // yang boleh ia lihat. Isinya sendiri sudah tersaring akses efektif.
+  // --- Bootstrap --------------------------------------------------------------------
+  // Requires no permission: every authenticated user is entitled to know what they
+  // may see. Its contents are already filtered by effective access.
   'GET /api/me/bootstrap': {
     module: 'core',
     permission: null,
@@ -320,27 +320,27 @@ export function lookupRoute(method: string, pathname: string): RouteRule | undef
 }
 
 /**
- * Tampilan bertipe lebar dari manifest yang sama.
+ * A wide-typed view of the same manifest.
  *
- * `as const satisfies` di atas memberi kunci bertipe literal — itulah yang
- * membuat `defineRoute('GET /api/typo')` gagal dikompilasi. Efek sampingnya,
- * properti opsional seperti `rateLimit` hanya muncul pada anggota union yang
- * memilikinya, sehingga iterasi generik atas manifest tidak dapat mengaksesnya.
+ * The `as const satisfies` above gives literal-typed keys — that is what makes
+ * `defineRoute('GET /api/typo')` fail to compile. As a side effect, optional
+ * properties such as `rateLimit` appear only on the union members that have
+ * them, so generic iteration over the manifest cannot reach them.
  *
- * Dua bentuk, satu sumber: kode yang menyebut satu route memakai `ROUTE_MANIFEST`
- * (aman terhadap salah ketik), kode yang mengiterasi seluruh route memakai
+ * Two shapes, one source: code naming a single route uses `ROUTE_MANIFEST`
+ * (typo-safe), code iterating every route uses `ROUTE_RULES`.
  * `ROUTE_RULES`.
  */
 export const ROUTE_RULES: Readonly<Record<string, RouteRule>> = ROUTE_MANIFEST;
 
 /**
- * Manifest control plane.
+ * The control plane manifest.
  *
- * Terpisah dari `ROUTE_MANIFEST` dan tidak punya kolom `module` maupun
- * `permission`: bidang admin tidak mengenal langganan, dan perannya belum
- * berjenjang. Menyatukan keduanya dalam satu tabel akan menggoda seseorang untuk
- * memakai `defineRoute` pada jalur admin — dan pada saat itu token tenant menjadi
- * kunci ke control plane.
+ * Separate from `ROUTE_MANIFEST` and carrying neither a `module` nor a
+ * `permission` column: the admin plane knows nothing of subscriptions, and its
+ * roles are not yet tiered. Merging the two into one table would tempt someone
+ * into using `defineRoute` on an admin path — and at that moment a tenant token
+ * becomes a key to the control plane.
  */
 export interface AdminRouteRule {
   public?: boolean;
@@ -352,8 +352,8 @@ export type AdminRouteId = keyof typeof ADMIN_ROUTE_MANIFEST;
 export const ADMIN_ROUTE_MANIFEST = {
   'POST /admin/api/auth/login': {
     public: true,
-    // Lebih ketat daripada login tenant. Satu akun di sini memegang metadata
-    // seluruh pelanggan, dan jumlah akunnya dapat dihitung dengan jari.
+    // Stricter than a tenant login. One account here holds every customer's
+    // metadata, and those accounts can be counted on one hand.
     rateLimit: { windowSeconds: 900, max: 10 },
   },
   'GET /admin/api/tenants': {},

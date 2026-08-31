@@ -1,45 +1,45 @@
 /**
- * Penilaian kepercayaan bukti presensi (dokumen 10 §5, prinsip P14).
+ * Trust scoring for attendance evidence (document 10 §5, principle P14).
  *
- * Aturan yang mengikat seluruh berkas ini: **skor, bukan ya/tidak.**
+ * The rule binding this whole file: **a score, not a yes/no.**
  *
- * Koordinat dan foto adalah klaim perangkat, dan setiap klaim perangkat dapat
- * dipalsukan. Sistem yang menolak presensi berdasarkan satu sinyal akan menolak
- * orang yang benar-benar bekerja — GPS di dalam gudang beton meleset ratusan
- * meter, ponsel murah melaporkan akurasi buruk, dan jaringan seluler di kawasan
- * industri membuat lokasi jatuh ke menara terdekat.
+ * Coordinates and photos are device claims, and every device claim can be
+ * faked. A system that refuses a punch on one signal will refuse people who
+ * genuinely worked — GPS inside a concrete warehouse is hundreds of metres out,
+ * a cheap phone reports poor accuracy, and the mobile network in an industrial
+ * estate drops the location onto the nearest mast.
  *
- * Yang benar adalah menilai, menandai yang mencurigakan, dan menyerahkan
- * keputusan akhir kepada manusia yang mengenal konteksnya.
+ * The right thing is to score it, flag what is suspicious, and leave the final
+ * decision to a human who knows the context.
  *
- * Batas kejujuran yang harus dinyatakan (dokumen 10 §1.1): sistem ini TIDAK
- * dapat mendeteksi mock GPS dari peramban. Presensi web karenanya selalu
- * mendapat penalti dan tidak pernah boleh dijual sebagai "antipalsu".
+ * The honesty boundary that has to be stated (document 10 §1.1): this system
+ * CANNOT detect mock GPS from a browser. Web punching therefore always takes a
+ * penalty and must never be sold as "spoof-proof".
  */
 
 export interface TrustFlag {
   code: string;
-  /** Pengurangan skor. Positif. */
+  /** The score deduction. Positive. */
   penalty: number;
   message: string;
 }
 
 export interface TrustInput {
   source: 'WEB' | 'MOBILE' | 'DEVICE' | 'MANUAL';
-  /** Jarak ke lokasi kerja terdekat, meter. Null bila lokasi tidak dikirim. */
+  /** Distance to the nearest work site, in metres. Null when no location was sent. */
   distanceM: number | null;
-  /** Radius geofence lokasi terdekat. */
+  /** The geofence radius of the nearest site. */
   radiusM: number | null;
-  /** Akurasi yang dilaporkan perangkat, meter. */
+  /** The accuracy the device reported, in metres. */
   accuracyM: number | null;
   maxAccuracyM: number | null;
   /**
-   * Kebijakan tenant. Dihilangkan berarti nilai bawaan.
+   * Tenant policy. Omitted means the defaults.
    *
-   * `requireLocation`/`requirePhoto` yang `false` berarti ketiadaannya TIDAK
-   * menurunkan skor — bukan berarti buktinya diabaikan bila ada. Kantor
-   * konsultan yang stafnya bekerja dari rumah tidak membutuhkan foto pada
-   * setiap ketukan; proyek konstruksi membutuhkannya.
+   * A `false` `requireLocation`/`requirePhoto` means its absence does NOT lower
+   * the score — not that the evidence is ignored when present. A consultancy
+   * whose staff work from home does not need a photo on every punch; a
+   * construction site does.
    */
   policy?: {
     requireLocation: boolean;
@@ -47,22 +47,22 @@ export interface TrustInput {
     autoApproveThreshold: number;
   };
   hasPhoto: boolean;
-  /** Selisih jam perangkat terhadap jam server, detik. */
+  /** The device clock's offset from the server clock, in seconds. */
   clockSkewSeconds: number | null;
-  /** Perangkat melaporkan lokasi tiruan. Hanya tersedia di aplikasi native. */
+  /** The device reports a mock location. Only available in the native app. */
   mockLocationReported: boolean;
   /**
-   * Bukti yang tidak ada KARENA karyawan menarik persetujuannya (UU PDP).
+   * Evidence that is missing BECAUSE the employee withdrew their consent
+   * (Personal Data Protection Act).
    *
-   * Dibedakan dari bukti yang sekadar tidak ada, dan pembedaan itu menentukan
-   * keabsahan persetujuannya. Bila menarik persetujuan lokasi membuat setiap
-   * presensi masuk antrean tinjauan, karyawan akan menyetujuinya untuk berhenti
-   * dipanggil HR — dan persetujuan yang diberikan untuk menghindari akibat
-   * bukan persetujuan bebas, sehingga tidak sah menurut UU PDP No. 27/2022.
+   * Distinguished from evidence that is merely absent, and that distinction
+   * decides whether the consent is valid at all. If withdrawing location consent
+   * sent every punch into the review queue, an employee would consent just to
+   * stop being called in by HR — and consent given to avoid a consequence is not
+   * free consent, and so is invalid under Personal Data Protection Act No. 27/2022.
    *
-   * Karena itu penaltinya nol. Tandanya tetap ada supaya catatan presensinya
-   * jujur tentang mengapa buktinya tipis, tetapi ia tidak mendorong siapa pun
-   * ke antrean.
+   * So its penalty is zero. The flag stays so the attendance record is honest
+   * about why its evidence is thin, but it pushes nobody into the queue.
    */
   consentWithheld?: { location?: boolean; photo?: boolean } | undefined;
 }
@@ -70,32 +70,32 @@ export interface TrustInput {
 export interface TrustAssessment {
   score: number;
   flags: TrustFlag[];
-  /** Di bawah ambang ini, presensi masuk antrean tinjauan HR. */
+  /** Below this threshold, a punch enters the HR review queue. */
   needsReview: boolean;
 }
 
 /**
- * Ambang tinjauan bawaan.
+ * The default review threshold.
  *
- * Dipilih supaya satu sinyal lemah saja tidak memicu tinjauan, tetapi kombinasi
- * dua sinyal memicu. Metrik yang harus dipantau: bila lebih dari 12% presensi
- * masuk antrean, HR berhenti meninjau dan skornya menjadi teater (PLAN/12 §11).
+ * Chosen so one weak signal alone does not trigger a review, while a combination
+ * of two does. The metric to watch: if more than 12% of punches enter the queue,
+ * HR stops reviewing and the score becomes theatre (PLAN/12 §11).
  *
- * Kini dapat disetel per tenant — justru karena metrik itu. Ambang yang tepat
- * untuk proyek konstruksi bukan ambang yang tepat untuk kantor konsultan, dan
- * satu angka untuk keduanya berarti salah satunya membanjiri antreannya.
+ * It is now configurable per tenant — precisely because of that metric. The right
+ * threshold for a construction site is not the right threshold for a consultancy,
+ * and one number for both means one of them floods its queue.
  */
 const DEFAULT_REVIEW_THRESHOLD = 60;
 
 export function assessTrust(input: TrustInput): TrustAssessment {
   const flags: TrustFlag[] = [];
 
-  // --- Sumber ----------------------------------------------------------------
+  // --- Source ------------------------------------------------------------------
   if (input.source === 'WEB') {
-    // Risiko R47. Peramban tidak menyediakan API untuk mendeteksi mock GPS,
-    // sehingga presensi web secara struktural lebih lemah daripada native.
-    // Penaltinya kecil supaya tidak sendirian memicu tinjauan — ia menjadi
-    // penentu hanya bila digabung sinyal lain.
+    // Risk R47. A browser offers no API for detecting mock GPS, so web punching
+    // is structurally weaker than native. Its penalty is small so it does not
+    // trigger a review on its own — it becomes decisive only combined with
+    // another signal.
     flags.push({
       code: 'WEB_UNVERIFIED_DEVICE',
       penalty: 15,
@@ -112,23 +112,22 @@ export function assessTrust(input: TrustInput): TrustAssessment {
   }
 
   /**
-   * Mesin absensi tidak dinilai dengan ukuran ponsel.
+   * An attendance machine is not scored by phone standards.
    *
-   * Ketukan dari mesin fingerprint atau face recognition tidak membawa koordinat
-   * dan tidak membawa swafoto — dan tidak satu pun dari keduanya berarti buktinya
-   * lemah. Lokasinya adalah mesin itu sendiri, yang terpasang di dinding kantor
-   * dan tidak bisa dibawa pulang. Identitasnya adalah sidik jari, yang lebih sulit
-   * dipalsukan daripada foto apa pun yang dikirim peramban.
+   * A punch from a fingerprint or face recognition machine carries no coordinates
+   * and no selfie — and neither absence means its evidence is weak. Its location
+   * is the machine itself, bolted to an office wall and impossible to take home.
+   * Its identity is a fingerprint, harder to fake than any photo a browser sends.
    *
-   * Tanpa pengecualian ini, ketukan mesin bernilai 50 — di bawah ambang — sehingga
-   * SETIAP ketukan dari mesin masuk antrean tinjauan. Bagi tenant yang memang
-   * memakai mesin, antrean itu berisi seluruh presensinya, dan HR berhenti
-   * meninjau pada hari pertama.
+   * Without this exception a machine punch scores 50 — below the threshold — so
+   * EVERY machine punch enters the review queue. For a tenant that does use a
+   * machine, that queue holds all of their attendance, and HR stops reviewing on
+   * day one.
    *
-   * Yang tetap dinilai adalah jalur masuknya. Berkas CSV diunggah oleh manusia
-   * dan isinya dapat disunting sebelum diunggah; kepercayaannya melekat pada
-   * mesinnya, bukan pada berkasnya. Penaltinya kecil supaya tidak sendirian
-   * memicu tinjauan, dan akan hilang ketika integrasi langsung menggantikan impor.
+   * What is still scored is how it arrived. A CSV file is uploaded by a human and
+   * its contents can be edited before uploading; the trust belongs to the machine,
+   * not to the file. Its penalty is small so it does not trigger a review alone,
+   * and it disappears once a direct integration replaces the import.
    */
   if (input.source === 'DEVICE') {
     flags.push({
@@ -141,7 +140,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     return { score, flags, needsReview: score < threshold(input) };
   }
 
-  // --- Lokasi ----------------------------------------------------------------
+  // --- Location ----------------------------------------------------------------
   if (input.distanceM === null) {
     flags.push(
       input.consentWithheld?.location
@@ -152,10 +151,10 @@ export function assessTrust(input: TrustInput): TrustAssessment {
           }
         : {
             code: 'NO_LOCATION',
-            // Tenant yang memang tidak mewajibkan lokasi tidak menghasilkan
-            // penalti — tetapi tandanya TETAP muncul. Menghilangkan tandanya
-            // akan membuat "tanpa lokasi" tidak dapat dibedakan dari "di dalam
-            // pagar", dan itu keterangan yang hilang tanpa ada yang memintanya.
+            // A tenant that genuinely does not require a location incurs no
+            // penalty — but the flag STILL appears. Removing the flag would make
+            // "no location" indistinguishable from "inside the fence", and that is
+            // information lost with nobody asking for it.
             penalty: input.policy?.requireLocation === false ? 0 : 30,
             message: 'Tanpa data lokasi',
           },
@@ -163,8 +162,8 @@ export function assessTrust(input: TrustInput): TrustAssessment {
   } else if (input.radiusM !== null && input.distanceM > input.radiusM) {
     const excess = input.distanceM - input.radiusM;
 
-    // Penalti berjenjang. Meleset 30 meter dari pagar kantor hampir selalu
-    // ketidaktepatan GPS; meleset dua kilometer hampir selalu bukan.
+    // A tiered penalty. Thirty metres outside the office fence is almost always
+    // GPS imprecision; two kilometres almost always is not.
     const penalty = excess > 2000 ? 50 : excess > 500 ? 35 : excess > 100 ? 20 : 10;
 
     flags.push({
@@ -179,9 +178,9 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     input.maxAccuracyM !== null &&
     input.accuracyM > input.maxAccuracyM
   ) {
-    // Akurasi buruk membuat jarak tidak dapat dipercaya ke dua arah — ia bisa
-    // menyembunyikan orang yang jauh, dan menuduh orang yang dekat. Penaltinya
-    // sedang, dan pesannya menyebutkan angkanya supaya HR dapat menilai sendiri.
+    // Poor accuracy makes the distance untrustworthy in both directions — it can
+    // hide someone far away and accuse someone close by. Its penalty is moderate,
+    // and its message names the figure so HR can judge for themselves.
     flags.push({
       code: 'LOW_GPS_ACCURACY',
       penalty: 15,
@@ -189,7 +188,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     });
   }
 
-  // --- Bukti foto ------------------------------------------------------------
+  // --- Photo evidence ------------------------------------------------------------
   if (!input.hasPhoto) {
     flags.push(
       input.consentWithheld?.photo
@@ -206,11 +205,11 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     );
   }
 
-  // --- Waktu perangkat -------------------------------------------------------
+  // --- Device time -----------------------------------------------------------------
   if (input.clockSkewSeconds !== null && Math.abs(input.clockSkewSeconds) > 300) {
-    // Jam perangkat yang meleset lebih dari lima menit adalah sinyal kuat: itu
-    // cara paling sederhana memalsukan presensi luring. Toleransi lima menit
-    // memberi ruang untuk jam yang sekadar tidak tersinkron.
+    // A device clock more than five minutes out is a strong signal: it is the
+    // simplest way to fake an offline punch. A five-minute tolerance leaves room
+    // for a clock that is merely unsynchronised.
     flags.push({
       code: 'CLOCK_SKEW',
       penalty: 35,
@@ -218,10 +217,10 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     });
   }
 
-  // --- Sinyal paling kuat ----------------------------------------------------
+  // --- The strongest signal ----------------------------------------------------
   if (input.mockLocationReported) {
-    // Satu-satunya sinyal yang cukup kuat untuk memicu tinjauan sendirian.
-    // Perangkat yang mengaku memakai lokasi tiruan tidak menyisakan tafsiran lain.
+    // The only signal strong enough to trigger a review on its own. A device that
+    // admits to using a mock location leaves no other reading.
     flags.push({
       code: 'MOCK_LOCATION',
       penalty: 70,
@@ -239,11 +238,11 @@ function formatDistance(meters: number): string {
 }
 
 /**
- * Jarak Haversine dalam meter.
+ * Haversine distance in metres.
  *
- * Bumi diperlakukan sebagai bola, bukan elipsoid. Galatnya sampai 0,5% — pada
- * radius geofence 150 meter itu kurang dari satu meter, jauh di bawah ketidak-
- * tepatan GPS mana pun. Vincenty lebih akurat dan tidak memberi manfaat apa pun
+ * The earth is treated as a sphere, not an ellipsoid. The error reaches 0.5% —
+ * on a 150-metre geofence radius that is under a metre, far below any GPS
+ * imprecision. Vincenty is more accurate and offers nothing at all here.
  * di sini.
  */
 export function haversineMeters(
@@ -264,7 +263,7 @@ export function haversineMeters(
   return Math.round(2 * R * Math.asin(Math.min(1, Math.sqrt(h))));
 }
 
-/** Ambang tinjauan yang berlaku untuk satu penilaian. */
+/** The review threshold in force for one assessment. */
 function threshold(input: TrustInput): number {
   return input.policy?.autoApproveThreshold ?? DEFAULT_REVIEW_THRESHOLD;
 }
