@@ -5,21 +5,21 @@ import { runInNewContext } from 'node:vm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
- * Kebijakan cache service worker (DoD Fase 3).
+ * The service worker caching policy (Phase 3 DoD).
  *
- * Butir DoD-nya berbunyi: "Endpoint dashboard dan data sensitif tidak pernah
- * masuk Cache Storage — diverifikasi uji otomatis."
+ * Its DoD item reads: "Dashboard and sensitive-data endpoints never enter Cache
+ * Storage — verified by an automated test."
  *
- * Uji ini menjalankan `public/sw.js` YANG SEBENARNYA di dalam konteks VM dengan
- * global service worker yang dipalsukan. Menyalin logikanya ke dalam berkas uji
- * akan menguji salinan, bukan yang dikirim — dan salinan itu akan berbeda dari
- * aslinya pada perubahan pertama yang lupa disalin.
+ * This test runs the ACTUAL `public/sw.js` inside a VM context with faked
+ * service worker globals. Copying its logic into the test file would test the
+ * copy rather than what ships — and that copy would differ from the original at
+ * the first change somebody forgets to copy.
  *
- * Yang dijaga bukan kerapian. Cache Storage bertahan setelah tab ditutup,
- * setelah logout, dan dapat dibaca skrip mana pun yang berjalan di origin yang
- * sama. Satu balasan API yang tersimpan di sana adalah data kepegawaian yang
- * tertinggal di perangkat bersama — ponsel gudang yang dipakai bergantian tiga
- * shift, komputer resepsionis, tablet di ruang rapat.
+ * What is guarded is not tidiness. Cache Storage survives a tab closing,
+ * survives a logout, and can be read by any script running on the same origin.
+ * One API response stored there is personnel data left behind on a shared
+ * device — a warehouse phone passed between three shifts, a receptionist's
+ * computer, a tablet in a meeting room.
  */
 
 const SW_PATH = join(
@@ -34,13 +34,13 @@ interface FetchEvent {
 
 type FetchHandler = (event: FetchEvent) => void;
 
-/** Memuat sw.js sungguhan dan mengembalikan handler `fetch`-nya. */
+/** Loads the real sw.js and returns its `fetch` handler. */
 function loadServiceWorker(): { onFetch: FetchHandler; cachePuts: string[] } {
   const source = readFileSync(SW_PATH, 'utf8');
   const listeners = new Map<string, (event: unknown) => void>();
 
-  // Setiap `cache.put` dicatat. Inilah yang membuktikan sesuatu benar-benar
-  // masuk Cache Storage — bukan sekadar bahwa handler tidak melempar.
+  // Every `cache.put` is recorded. That is what proves something genuinely
+  // entered Cache Storage — not merely that the handler did not throw.
   const cachePuts: string[] = [];
 
   const fakeCache = {
@@ -87,12 +87,12 @@ function loadServiceWorker(): { onFetch: FetchHandler; cachePuts: string[] } {
 }
 
 /**
- * Menjalankan handler untuk satu permintaan.
+ * Runs the handler for one request.
  *
- * `intercepted` menjadi true bila service worker mengambil alih permintaannya.
- * Permintaan yang TIDAK diambil alih diteruskan peramban apa adanya — dan itulah
- * yang dituntut untuk jalur sensitif: bukan "di-cache dengan hati-hati",
- * melainkan tidak disentuh sama sekali.
+ * `intercepted` becomes true when the service worker takes the request over. A
+ * request that is NOT taken over is passed through by the browser as it is — and
+ * that is what the sensitive paths demand: not "carefully cached", but not
+ * touched at all.
  */
 function dispatch(
   onFetch: FetchHandler,
@@ -105,7 +105,7 @@ function dispatch(
     method: init.method ?? 'GET',
     ...(init.headers ? { headers: init.headers } : {}),
   });
-  // `mode` bersifat hanya-baca pada Request, jadi dipasang di atasnya.
+  // `mode` is read-only on a Request, so it is set on top of it.
   Object.defineProperty(request, 'mode', { value: init.mode ?? 'no-cors' });
 
   onFetch({
@@ -126,17 +126,17 @@ describe('service worker tidak menyentuh jalur sensitif', () => {
   });
 
   it('melewatkan seluruh endpoint API', () => {
-    // Termasuk yang belum ada. Penjagaan berbasis awalan `/api/` menutup
-    // endpoint yang ditambahkan fase berikutnya tanpa ada yang perlu ingat
-    // memperbarui daftarnya.
+    // Including the ones that do not exist yet. A guard based on the `/api/`
+    // prefix closes endpoints added in a later phase without anyone needing to
+    // remember to update a list.
     //
-    // Sebagian diuji dengan `mode: 'navigate'`, dan itu disengaja. Permintaan
-    // `cors` memang tidak pernah diambil alih handler ini — sehingga menguji
-    // API hanya dengan `cors` akan LULUS meski penjaga `NEVER_CACHE` dihapus
-    // seluruhnya. Uji yang lulus karena alasan yang salah tidak menjaga apa pun.
+    // Some are tested with `mode: 'navigate'`, and that is deliberate. A `cors`
+    // request is never taken over by this handler — so testing the API with
+    // `cors` alone would PASS even with the `NEVER_CACHE` guard removed
+    // entirely. A test that passes for the wrong reason guards nothing.
     //
-    // `navigate` ke jalur API bukan skenario karangan: membuka URL ekspor
-    // langsung di tab baru menghasilkan persis permintaan itu.
+    // A `navigate` to an API path is not an invented scenario: opening an export
+    // URL directly in a new tab produces exactly that request.
     for (const path of [
       '/api/dashboard',
       '/api/employees',
@@ -155,8 +155,8 @@ describe('service worker tidak menyentuh jalur sensitif', () => {
   });
 
   it('melewatkan bidang admin sepenuhnya', () => {
-    // Bidang admin bukan PWA (dokumen 11). Satu halamannya yang ter-cache di
-    // perangkat berarti antarmuka control plane tertinggal di sana.
+    // The admin plane is not a PWA (document 11). One of its pages cached on a
+    // device means the control plane interface left behind there.
     const { intercepted } = dispatch(sw.onFetch, 'https://hrms.test/admin/tenants', {
       mode: 'navigate',
     });
@@ -173,9 +173,9 @@ describe('service worker tidak menyentuh jalur sensitif', () => {
   });
 
   it('melewatkan permintaan yang membawa Authorization, apa pun jalurnya', () => {
-    // Penjagaan kedua, dan yang paling penting: ia menutup jalur yang BELUM
-    // ADA. Halaman data yang ditambahkan kelak tidak akan otomatis ter-cache
-    // hanya karena tidak ada yang ingat memperbarui daftar NEVER_CACHE.
+    // The second guard, and the most important: it closes the paths that DO NOT
+    // EXIST yet. A data page added later will not be cached automatically merely
+    // because nobody remembered to update the NEVER_CACHE list.
     const { intercepted } = dispatch(sw.onFetch, 'https://hrms.test/laporan-baru', {
       mode: 'navigate',
       headers: { authorization: 'Bearer eyJ...' },
@@ -184,7 +184,7 @@ describe('service worker tidak menyentuh jalur sensitif', () => {
   });
 
   it('melewatkan metode selain GET', () => {
-    // POST yang ter-cache akan memutar ulang tindakan, bukan menampilkan data.
+    // A cached POST would replay an action rather than display data.
     const { intercepted } = dispatch(sw.onFetch, 'https://hrms.test/api/attendance/punch', {
       method: 'POST',
     });
@@ -207,7 +207,7 @@ describe('service worker menangani yang memang boleh', () => {
   });
 
   it('mengambil alih navigasi halaman aplikasi', () => {
-    // Inilah gunanya PWA: halaman presensi tetap terbuka saat jaringan hilang.
+    // This is what the PWA is for: the attendance page stays open when the network drops.
     const { intercepted } = dispatch(sw.onFetch, 'https://hrms.test/attendance/punch', {
       mode: 'navigate',
     });
@@ -222,8 +222,8 @@ describe('service worker menangani yang memang boleh', () => {
   });
 
   it('tidak menyimpan apa pun ke cache saat menangani navigasi', () => {
-    // Navigasi memakai network-first dan hanya MEMBACA cache sebagai cadangan.
-    // Menuliskannya akan membuat halaman data kemarin bertahan di perangkat.
+    // Navigation uses network-first and only READS the cache as a fallback.
+    // Writing to it would leave yesterday's data page on the device.
     dispatch(sw.onFetch, 'https://hrms.test/employees', { mode: 'navigate' });
     expect(sw.cachePuts).toEqual([]);
   });
@@ -231,9 +231,9 @@ describe('service worker menangani yang memang boleh', () => {
 
 describe('daftar aset kerangka', () => {
   it('tidak memuat satu pun jalur data', () => {
-    // `SHELL_ASSETS` di-cache saat pemasangan, tanpa melewati handler fetch —
-    // sehingga penjagaan di atas tidak berlaku untuknya. Satu jalur data yang
-    // masuk daftar itu akan ter-cache sebelum ada yang sempat menolaknya.
+    // `SHELL_ASSETS` is cached at install time, without passing through the fetch
+    // handler — so the guards above do not apply to it. One data path on that
+    // list would be cached before anything had a chance to refuse it.
     const source = readFileSync(SW_PATH, 'utf8');
     const match = /const SHELL_ASSETS = \[([^\]]*)\]/.exec(source);
     expect(match, 'SHELL_ASSETS tidak ditemukan di sw.js').not.toBeNull();

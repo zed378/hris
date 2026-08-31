@@ -8,17 +8,17 @@ import {
 } from '../src/payroll/formula.ts';
 
 /**
- * Parser formula gaji.
+ * The salary formula parser.
  *
- * Dua hal yang diuji di sini, dan keduanya menentukan apakah modul payroll layak
- * dijalankan sama sekali:
+ * Two things are tested here, and both decide whether the payroll module is fit
+ * to run at all:
  *
- *   1. **Tidak ada jalan menuju eksekusi kode.** Formula ditulis admin HR
- *      tenant lewat antarmuka web. Satu celah di sini berarti setiap admin
- *      tenant memegang eksekusi kode arbitrer di server yang memegang data gaji
- *      seluruh tenant lain.
- *   2. **Aritmetika desimal, bukan float.** DoD Fase 5 menuntut kecocokan
- *      sampai satuan rupiah, dan `0.1 + 0.2` dalam IEEE-754 tidak sama dengan
+ *   1. **There is no route to code execution.** Formulas are written by a
+ *      tenant's HR admin through a web interface. One gap here means every
+ *      tenant admin holds arbitrary code execution on the server holding every
+ *      other tenant's salary data.
+ *   2. **Decimal arithmetic, not float.** The Phase 5 DoD demands a match down
+ *      to the rupiah, and `0.1 + 0.2` in IEEE-754 does not equal `0.3`.
  *      `0.3`.
  */
 
@@ -41,15 +41,15 @@ describe('aritmetika', () => {
   });
 
   it('menghitung dengan presisi desimal, bukan float', () => {
-    // Inilah alasan Decimal dipakai. `0.1 + 0.2` dalam JavaScript biasa
-    // menghasilkan 0.30000000000000004, dan selisih itu menjadi rupiah yang
-    // tidak dapat dijelaskan pada slip gaji.
+    // This is why Decimal is used. `0.1 + 0.2` in ordinary JavaScript gives
+    // 0.30000000000000004, and that difference becomes rupiah nobody can explain
+    // on a payslip.
     expect(hitung('0.1 + 0.2')).toBe('0.3');
     expect(0.1 + 0.2).not.toBe(0.3);
   });
 
   it('menghitung potongan gaji tanpa pembulatan yang menyimpang', () => {
-    // BPJS Kesehatan 1% dari upah, dengan batas atas 12 juta.
+    // BPJS Kesehatan at 1% of wages, with a 12 million ceiling.
     const scope = { UPAH: n('8_500_000'.replace(/_/g, '')) };
     expect(hitung('min(UPAH, 12000000) * 0.01', scope)).toBe('85000');
   });
@@ -71,16 +71,16 @@ describe('variabel', () => {
   });
 
   it('MELEMPAR untuk variabel yang tidak dikenal, bukan menganggapnya nol', () => {
-    // Ini uji terpenting dalam berkas ini. Salah ketik nama variabel yang
-    // diperlakukan sebagai nol menghasilkan slip gaji yang salah tanpa satu pun
-    // keluhan — dan nol itu terlihat seperti keputusan, bukan kesalahan.
+    // This is the most important test in this file. A mistyped variable name
+    // treated as zero produces a wrong payslip without one complaint — and that
+    // zero looks like a decision rather than a mistake.
     expect(() => hitung('TUNJANGAN_TRANSPOT * 22', { TUNJANGAN_TRANSPOR: 25_000 })).toThrow(
       FormulaError,
     );
   });
 
   it('menyebutkan variabel yang tersedia dalam pesan galatnya', () => {
-    // Pesan yang hanya berkata "variabel tidak dikenal" memaksa admin menebak.
+    // A message that only says "unknown variable" forces the admin to guess.
     expect(() => hitung('SALAH', { GAJI_POKOK: 1, MASA_KERJA: 2 })).toThrow(
       /GAJI_POKOK, MASA_KERJA/,
     );
@@ -98,8 +98,8 @@ describe('fungsi', () => {
   });
 
   it('membulatkan setengah ke atas', () => {
-    // Konvensi perhitungan gaji. ROUND_HALF_EVEN akan membulatkan 2,5 menjadi 2,
-    // dan selisih satu rupiah itu menggagalkan uji regresi emas.
+    // The salary calculation convention. ROUND_HALF_EVEN would round 2.5 down to
+    // 2, and that one-rupiah difference fails the golden regression tests.
     expect(hitung('round(2.5, 0)')).toBe('3');
     expect(hitung('round(1234.567, 2)')).toBe('1234.57');
   });
@@ -110,8 +110,8 @@ describe('fungsi', () => {
   });
 
   it('menolak fungsi yang tidak ada dalam daftar putih', () => {
-    // Termasuk yang terdengar tidak berbahaya. Daftar putih menutup seluruh
-    // permukaan sekaligus; daftar hitam selalu tertinggal satu nama.
+    // Including the ones that sound harmless. An allowlist closes the whole
+    // surface at once; a blocklist is always one name behind.
     expect(() => hitung('sqrt(16)')).toThrow(/tidak tersedia/);
     expect(() => hitung('eval("1")')).toThrow(FormulaError);
     expect(() => hitung('constructor(1)')).toThrow(FormulaError);
@@ -126,9 +126,9 @@ describe('fungsi', () => {
 
 describe('penolakan masukan berbahaya', () => {
   it('tidak dapat mencapai objek global', () => {
-    // Tidak ada jalur dari parser ini menuju objek JavaScript apa pun: variabel
-    // hanya dicari di scope yang diberikan pemanggil, dan pemanggilan fungsi
-    // hanya dicari di daftar putih.
+    // There is no path from this parser to any JavaScript object: a variable is
+    // only looked up in the scope the caller provided, and a function call only
+    // in the allowlist.
     for (const jahat of [
       'process',
       'globalThis',
@@ -155,15 +155,15 @@ describe('penolakan masukan berbahaya', () => {
   });
 
   it('menolak pembagian nol alih-alih menghasilkan Infinity', () => {
-    // Infinity yang mengalir ke slip gaji lebih buruk daripada run yang
-    // berhenti dan mengatakan formulanya salah.
+    // An Infinity flowing into a payslip is worse than a run that stops and says
+    // the formula is wrong.
     expect(() => hitung('100 / 0')).toThrow(/Pembagian dengan nol/);
     expect(() => hitung('100 / (A - A)', { A: 5 })).toThrow(FormulaError);
   });
 
   it('menolak titik sebagai pemisah ribuan', () => {
-    // `1.000.000` diketik orang yang terbiasa format Indonesia. Menerimanya
-    // sebagai NaN akan menyebarkan NaN sampai ke slip gaji.
+    // `1.000.000` is typed by someone used to the Indonesian format. Accepting it
+    // as NaN would propagate NaN all the way to the payslip.
     expect(() => hitung('1.000.000')).toThrow(/pemisah ribuan/);
   });
 
@@ -184,9 +184,9 @@ describe('pemeriksaan formula saat konfigurasi', () => {
   });
 
   it('menolak variabel yang tidak tersedia SEBELUM payroll berjalan', () => {
-    // Formula yang salah harus ditolak di layar konfigurasi. Menemukannya saat
-    // run berarti menemukannya pada tanggal 25, ketika seribu slip harus keluar
-    // besok pagi.
+    // A bad formula has to be refused on the configuration screen. Finding it
+    // during a run means finding it on the 25th, when a thousand payslips are due
+    // tomorrow morning.
     const hasil = checkFormula('GAJI_POKOK * TUNJANGAN_HANTU', tersedia);
     expect(hasil.ok).toBe(false);
     expect(hasil.error?.message).toContain('TUNJANGAN_HANTU');
@@ -206,17 +206,18 @@ describe('pemeriksaan formula saat konfigurasi', () => {
 });
 
 /**
- * `if` harus malas.
+ * `if` has to be lazy.
  *
- * Regresi dari uji ujung-ke-ujung. Versi pertama mengevaluasi kedua cabang,
- * dengan alasan bahwa formula gaji tidak punya efek samping. Alasan itu salah:
- * pembagian nol adalah GALAT, bukan efek samping — dan menjaga terhadap
- * pembagi nol adalah alasan paling umum orang menulis `if` dalam formula gaji.
+ * A regression from an end-to-end test. The first version evaluated both
+ * branches, on the grounds that a salary formula has no side effects. That
+ * reasoning was wrong: division by zero is an ERROR, not a side effect — and
+ * guarding against a zero divisor is the most common reason anyone writes `if`
+ * in a salary formula.
  *
- * Formula bawaan sendiri yang menemukannya:
+ * The built-in formula found it itself:
  *   `if(HARI_KERJA > 0, GAJI_POKOK / HARI_KERJA * HARI_ALFA, 0)`
- * Dengan evaluasi penuh, penjaganya tidak pernah bekerja dan seluruh run gagal
- * untuk setiap karyawan yang belum punya rekap presensi.
+ * With full evaluation its guard never worked and the whole run failed for every
+ * employee with no attendance recap yet.
  */
 describe('evaluasi malas pada if', () => {
   it('tidak menghitung cabang yang tidak terpilih', () => {
@@ -243,7 +244,7 @@ describe('evaluasi malas pada if', () => {
   });
 
   it('tetap melempar bila cabang yang TERPILIH bermasalah', () => {
-    // Kemalasan bukan pengampunan: cabang yang benar-benar dipakai tetap
+    // Laziness is not leniency: the branch genuinely used is still fully checked.
     // diperiksa penuh.
     expect(() => hitung('if(1, 1/0, 42)')).toThrow(/Pembagian dengan nol/);
   });

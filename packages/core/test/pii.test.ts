@@ -20,12 +20,12 @@ import {
 } from '../src/employee/pii.ts';
 
 /**
- * Uji lapisan PII.
+ * Tests for the PII layer.
  *
- * Ini bagian yang paling mahal bila salah dan paling sunyi kegagalannya: enkripsi
- * yang rusak tidak melempar galat, ia hanya menyimpan sesuatu yang tidak dapat
- * dibaca kembali — dan biasanya baru ketahuan saat payroll pertama butuh nomor
- * rekening.
+ * This is the part most expensive to get wrong and quietest when it fails:
+ * broken encryption throws no error, it merely stores something that cannot be
+ * read back — and that is usually discovered when the first payroll run needs a
+ * bank account number.
  */
 
 describe('enkripsi', () => {
@@ -35,14 +35,14 @@ describe('enkripsi', () => {
   });
 
   it('nilai sama menghasilkan ciphertext berbeda', () => {
-    // Sifat inilah yang membuat enkripsi aman, sekaligus yang membuat indeks buta
-    // diperlukan. Bila keduanya sama, penyerang dapat menghitung siapa berbagi NIK.
+    // This property is what makes encryption safe, and also what makes a blind
+    // index necessary. If the two matched, an attacker could work out who shares a national ID.
     expect(encryptPii('3201123456789012')).not.toBe(encryptPii('3201123456789012'));
   });
 
   it('menolak ciphertext yang diubah', () => {
-    // GCM bersifat terautentikasi: satu bit yang berubah harus gagal, bukan
-    // menghasilkan plaintext sampah yang lolos ke slip gaji.
+    // GCM is authenticated: one changed bit has to fail rather than produce
+    // garbage plaintext that reaches a payslip.
     const encoded = encryptPii('3201123456789012');
     const parts = encoded.split('.');
     const tampered = Buffer.from(parts[3]!, 'base64url');
@@ -63,9 +63,9 @@ describe('indeks buta', () => {
   });
 
   it('mengabaikan pemisah', () => {
-    // Data dari Excel datang dengan titik, spasi, dan tanda hubung yang bervariasi.
-    // Tanpa normalisasi, NIK yang sama menghasilkan indeks berbeda dan constraint
-    // unique berhenti menangkap duplikat — kegagalan yang sepenuhnya senyap.
+    // Data from Excel arrives with varying dots, spaces, and hyphens. Without
+    // normalisation the same national ID produces different indexes and the
+    // unique constraint stops catching duplicates — an entirely silent failure.
     expect(blindIndex('3201.1234.5678.9012')).toBe(blindIndex('3201123456789012'));
     expect(blindIndex('3201 1234 5678 9012')).toBe(blindIndex('3201123456789012'));
     expect(blindIndex('3201-1234-5678-9012')).toBe(blindIndex('3201123456789012'));
@@ -95,9 +95,9 @@ describe('penyamaran', () => {
   });
 
   it('nilai pendek disamarkan seluruhnya', () => {
-    // Menyisakan "empat digit terakhir" dari nilai enam digit berarti menyerahkan
-    // dua pertiganya. Data pendek yang tidak wajar biasanya salah input, dan
-    // menyamarkan seluruhnya adalah kegagalan yang aman.
+    // Leaving the "last four digits" of a six-digit value hands over two thirds
+    // of it. Unusually short data is usually a mistyped entry, and masking all of
+    // it is the safe failure.
     expect(maskNationalId('12345')).toBe('*****');
     expect(maskBankAccount('1234')).toBe('****');
   });
@@ -139,9 +139,9 @@ describe('revealPii', () => {
   });
 
   it('tanpa izin, kunci enkripsi tidak pernah disentuh', () => {
-    // Inti perbaikan atas versi pertama. Dengan kunci dihapus dari lingkungan,
-    // jalur tersamar harus tetap berhasil — bila ia mendekripsi diam-diam, uji
-    // ini gagal dengan galat kunci.
+    // The heart of the fix over the first version. With the key removed from the
+    // environment, the masked path still has to succeed — if it decrypted
+    // silently, this test would fail with a key error.
     const saved = process.env['PII_ENCRYPTION_KEY'];
     delete process.env['PII_ENCRYPTION_KEY'];
     try {
@@ -184,16 +184,17 @@ describe('preparePii', () => {
 });
 
 /**
- * Penjaga nilai tersamar, pada batas tulis.
+ * The masked value guard, at the write boundary.
  *
- * Bug yang ditutup uji ini ditemukan lewat e2e pembaruan massal: nilai
- * `••••••••1234` yang disalin dari layar diterima dan tersimpan sebagai NIK.
- * Grid memang mengunci kolomnya — tetapi penguncian itu hanya berlaku di satu
- * layar, sementara jalur tulis yang sama dipakai impor Excel, pembaruan massal,
- * dan API langsung (prinsip P9: layar menyembunyikan, server menolak).
+ * The bug this test closes was found through an end-to-end bulk update: a value
+ * of `••••••••1234` copied off the screen was accepted and stored as a national
+ * ID. The grid does lock its column — but that lock applies to one screen, while
+ * the same write path is used by Excel import, bulk updates, and the API
+ * directly (principle P9: the screen hides, the server refuses).
  *
- * Kerusakannya senyap dan permanen: NIK asli tertimpa deretan tanda, terenkripsi
- * rapi, dan baru ketahuan saat payroll pertama membutuhkan nomor rekening.
+ * The damage is silent and permanent: the real national ID overwritten by a row
+ * of marks, neatly encrypted, and only discovered when the first payroll run
+ * needs a bank account number.
  */
 describe('penolakan nilai tersamar', () => {
   it('menolak samaran bintang dari ekspor Excel', () => {
@@ -201,8 +202,8 @@ describe('penolakan nilai tersamar', () => {
   });
 
   it('menolak samaran bulatan dari tampilan layar', () => {
-    // Karakter inilah yang lolos pada versi pertama penjaga ini, karena
-    // pemeriksaannya hanya mengenali bintang.
+    // This is the character that got through the first version of this guard,
+    // because its check only recognised the asterisk.
     expect(() => preparePii('••••••••1234', maskBankAccount, 'rekening')).toThrow(
       MaskedValueError,
   InvalidIdentifierError,
@@ -210,8 +211,8 @@ describe('penolakan nilai tersamar', () => {
   });
 
   it('menyebut kolomnya dalam pesan', () => {
-    // Pesan yang tidak menyebut kolom mana yang salah tidak dapat ditindaklanjuti
-    // pada baris berisi tiga kolom PII.
+    // A message that does not name the offending column cannot be acted on for a
+    // row holding three PII columns.
     expect(() => preparePii('****1234', maskTaxId, 'NPWP')).toThrow(/NPWP/);
   });
 
@@ -222,8 +223,8 @@ describe('penolakan nilai tersamar', () => {
   });
 
   it('menerima kolom kosong tanpa mengeluh', () => {
-    // Mengosongkan kolom adalah cara yang sah untuk tidak mengisinya, dan
-    // pesan galatnya sendiri menyarankan itu.
+    // Clearing a column is a legitimate way of not filling it in, and the error
+    // message itself suggests exactly that.
     expect(preparePii('', maskNationalId, 'NIK').encrypted).toBeNull();
     expect(preparePii(null, maskNationalId, 'NIK').encrypted).toBeNull();
   });
@@ -231,9 +232,9 @@ describe('penolakan nilai tersamar', () => {
 
 describe('penolakan nilai yang mustahil menjadi nomor identitas', () => {
   it('menolak hasil salin-tempel yang rusak encoding-nya', () => {
-    // Ditemukan lewat e2e: shell yang salah menyandikan karakter samaran
-    // mengirimkan deretan karakter pengganti, dan nilai itu tersimpan sebagai
-    // NIK tanpa satu pun keberatan.
+    // Found through e2e: a shell mis-encoding the masking character sent a run of
+    // replacement characters, and that value was stored as a national ID without
+    // one objection.
     expect(() => preparePii('\uFFFD\uFFFD\uFFFD\uFFFD1234', maskNationalId, 'NIK')).toThrow(
       InvalidIdentifierError,
     );
@@ -247,17 +248,17 @@ describe('penolakan nilai yang mustahil menjadi nomor identitas', () => {
   });
 
   it('tetap menerima pemisah yang lazim diketik orang', () => {
-    // NPWP hampir selalu ditulis dengan titik dan strip. Menolaknya akan
-    // membuat orang mengetik ulang seluruh kolom, dan pengetikan ulang itulah
-    // sumber kesalahan yang sebenarnya.
+    // A tax ID is almost always written with dots and dashes. Refusing that would
+    // make people retype the whole column, and retyping is where the real
+    // mistakes come from.
     expect(() => preparePii('09.254.294.3-407.000', maskTaxId, 'NPWP')).not.toThrow();
     expect(() => preparePii('3201 2345 6789 9012', maskNationalId, 'NIK')).not.toThrow();
   });
 
   it('menerima nomor rekening bercampur huruf', () => {
-    // Beberapa bank memakai awalan huruf. Aturan panjang atau angka-saja akan
-    // menolak nasabah yang sah, dan itu lebih merugikan daripada menerima yang
-    // tampak aneh.
+    // Some banks use a letter prefix. A length rule or a digits-only rule would
+    // refuse a legitimate customer, and that costs more than accepting one that
+    // looks odd.
     expect(() => preparePii('BCA1234567890', maskBankAccount, 'rekening')).not.toThrow();
   });
 });
