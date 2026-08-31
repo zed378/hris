@@ -1,6 +1,14 @@
 # 14 — Service Split: Extracting Auth, and the Platform Around It
 
-**Status:** stages 1–6 built and verified; 7–8 open. See §10.
+**Status:** all eight stages built. Stages 1, 2, 4 and 5 are always on; 3, 6 and
+7 are opt-in and **off by default**; stage 8's precondition is met and enforced,
+its build split not done. See §10.
+
+**The default deployment is unchanged.** Every stage that adds a dependency or a
+network hop is selected by an environment variable, so the monolith remains a
+complete, working system and a rollback is a configuration change rather than a
+revert. §3's warning still stands: none of `12` §9's triggers has fired, and the
+product question in §13.1 is still unanswered.
 **Supersedes:** nothing. It *amends* document `12` §9 — see §3, which is the part
 of this document worth arguing with.
 

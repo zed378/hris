@@ -10,10 +10,21 @@ work: **[`PLAN/12-Small-Team-Execution-Plan.md`](PLAN/12-Small-Team-Execution-Pl
 Current state is tracked honestly, bugs included, in
 **[`PLAN/13-Implementation-Status.md`](PLAN/13-Implementation-Status.md)**.
 
-The agreed next architectural step — extracting **auth** into its own service,
-and the message broker, Redis, and log shipping that follow it — is in
+The service split — extracting **auth**, plus Redis, the broker, and the
+observability that follow it — is in
 **[`PLAN/14-Service-Split-and-Platform-Evolution.md`](PLAN/14-Service-Split-and-Platform-Evolution.md)**.
-Decided, not yet built; the containers below are still the ones that exist.
+All eight stages are built. **Seven of them are off by default**, and the
+containers below are still what an ordinary deployment runs:
+
+| Turned on by | What changes |
+|---|---|
+| nothing | the monolith, exactly as before |
+| `REDIS_URL` | rate-limit counters and the permission cache become shared — **required past one replica** |
+| `AUTH_SERVICE_URL` | authorization moves to the auth service (`--profile split`) |
+| `BROKER_URL` | events move from pg-boss to NATS (`--profile broker`) |
+
+A rollback is an environment variable, not a revert. That is the property the
+stages were sequenced to preserve.
 
 > The product interface is in Indonesian, because its users are Indonesian HR
 > staff. Code, comments, and documentation are in English. Do not translate
