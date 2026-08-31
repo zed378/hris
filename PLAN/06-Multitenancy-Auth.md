@@ -1,66 +1,66 @@
-# 06 — Multitenancy & Autentikasi (X-Tenant-ID)
+# 06 — Multitenancy & Authentication (X-Tenant-ID)
 
-> Dokumen ini melengkapi `05-Dynamic-Role-Menu-Access.md` yang menangani peran, menu, dan hak akses per pengguna. Di sini dibahas lapisan di bawahnya: **identifikasi tenant** dan **autentikasi**, sesuai keputusan menunda SSO/OIDC untuk fase pengembangan awal.
+> This document complements `05-Dynamic-Role-Menu-Access.md`, which handles roles, menus, and per-user access. What follows is the layer beneath it: **tenant identification** and **authentication**, in line with the decision to defer SSO/OIDC for the early development phases.
 
 ---
 
-## 1. Model Multitenancy
+## 1. The Multitenancy Model
 
-### 1.1 Keputusan
+### 1.1 The Decision
 
-**Shared database per service + kolom `tenant_id` + Row-Level Security.**
+**A shared database per service + a `tenant_id` column + Row-Level Security.**
 
-Setiap service memiliki basis datanya sendiri (dok. 02), dan di dalam setiap basis data itu seluruh tenant berbagi tabel yang sama, dipisahkan oleh `tenant_id` yang ditegakkan RLS.
+Every service owns its own database (doc. 02), and inside each of those databases all tenants share the same tables, separated by a `tenant_id` that RLS enforces.
 
-| Model | Isolasi | Biaya/tenant | Kompleksitas migrasi | Verdict |
-|-------|---------|--------------|----------------------|---------|
-| **Shared schema + `tenant_id` + RLS** | Logis, ditegakkan mesin DB | Sangat rendah | 1 migrasi × 14 service | **Dipilih** |
-| Schema per tenant | Menengah | Rendah | N tenant × 14 service — tidak terkelola | Ditolak |
-| Database per tenant | Kuat | Menengah | N × 14 koneksi pool | Ditolak untuk SaaS |
-| Instance terpisah (silo) | Total | Tinggi | Per pelanggan | Opsi enterprise saja |
+| Model | Isolation | Cost per tenant | Migration complexity | Verdict |
+|-------|-----------|-----------------|----------------------|---------|
+| **Shared schema + `tenant_id` + RLS** | Logical, enforced by the DB engine | Very low | 1 migration × 14 services | **Chosen** |
+| Schema per tenant | Medium | Low | N tenants × 14 services — unmanageable | Rejected |
+| Database per tenant | Strong | Medium | N × 14 connection pools | Rejected for SaaS |
+| Separate instances (silo) | Total | High | Per customer | An enterprise option only |
 
-Pada arsitektur microservices, argumen menolak schema/database-per-tenant menjadi jauh lebih kuat: kompleksitas migrasi tidak dikalikan jumlah tenant saja, tetapi jumlah tenant **dikali jumlah service**. Seratus tenant × 14 service = 1.400 eksekusi migrasi yang bisa gagal sebagian.
+Under a microservices architecture the argument against schema- or database-per-tenant becomes far stronger: migration complexity is multiplied not by the number of tenants alone, but by the number of tenants **times the number of services**. A hundred tenants × 14 services = 1,400 migration executions that can partially fail.
 
-### 1.2 Lapisan Isolasi
+### 1.2 Isolation Layers
 
 ```
-Lapisan                      Mekanisme                                     Gagal-aman?
+Layer                        Mechanism                                     Fail-safe?
 ──────────────────────────────────────────────────────────────────────────────────────
-1. Klien                     X-Tenant-ID dikirim di setiap request         Tidak
-2. API Gateway               Validasi X-Tenant-ID vs klaim JWT             Tidak
-3. Propagasi antar-service   Header gRPC + header pesan RabbitMQ           Tidak
-4. Aplikasi (service)        AsyncLocalStorage ServiceContext              Tidak
-5. Query                     Prisma extension injeksi tenant_id            Tidak
-6. Basis data                Row-Level Security (NOBYPASSRLS)              ✅ YA
-7. Cache Redis               Prefix kunci t:{tenantId}:                    Tidak
-8. Object storage            Prefix kunci tenants/{tenantId}/              Sebagian
-9. WebSocket                 Room tenant:{tenantId}:*                      Tidak
+1. Client                    X-Tenant-ID sent on every request             No
+2. API Gateway               Validate X-Tenant-ID against the JWT claim    No
+3. Inter-service propagation gRPC headers + RabbitMQ message headers       No
+4. Application (service)     AsyncLocalStorage ServiceContext              No
+5. Query                     A Prisma extension injecting tenant_id        No
+6. Database                  Row-Level Security (NOBYPASSRLS)              ✅ YES
+7. Redis cache               Key prefix t:{tenantId}:                      No
+8. Object storage            Key prefix tenants/{tenantId}/                Partly
+9. WebSocket                 Rooms tenant:{tenantId}:*                     No
 ```
 
-Hanya lapisan 6 yang benar-benar gagal-aman, dan itu disengaja. **RLS adalah pertahanan yang tidak bisa dilewati bug aplikasi**; delapan lapisan lainnya adalah kejelasan dan optimasi, bukan jaminan.
+Only layer 6 is genuinely fail-safe, and that is deliberate. **RLS is the defence that an application bug cannot get past**; the other eight layers are clarity and optimisation, not a guarantee.
 
 ---
 
-## 2. X-Tenant-ID: Aturan Penggunaan
+## 2. X-Tenant-ID: The Rules of Use
 
-### 2.1 Prinsip yang Tidak Dikompromikan
+### 2.1 The Uncompromised Principle
 
-`X-Tenant-ID` adalah **pembeda request**, bukan **sumber otorisasi**.
+`X-Tenant-ID` is a **request discriminator**, not a **source of authorisation**.
 
 ```
-X-Tenant-ID dipakai untuk:              X-Tenant-ID TIDAK dipakai untuk:
-✓ Routing dan pemilihan konteks         ✗ Menentukan data mana yang boleh diakses
-✓ Propagasi antar-service               ✗ Menggantikan verifikasi identitas
-✓ Label log, metrik, dan trace          ✗ Sumber kebenaran saat berbeda dari token
-✓ Prefix cache dan storage
-✓ Diagnostik dan dukungan
+X-Tenant-ID is used for:                X-Tenant-ID is NOT used for:
+✓ Routing and context selection         ✗ Deciding which data may be accessed
+✓ Inter-service propagation             ✗ Replacing identity verification
+✓ Labelling logs, metrics, and traces   ✗ Being the truth when it differs from the token
+✓ Cache and storage prefixes
+✓ Diagnostics and support
 ```
 
-**Alasannya sederhana:** header dikirim klien, dan klien dapat mengubahnya. Bila `X-Tenant-ID` menjadi dasar keputusan akses, siapa pun yang sudah login di satu perusahaan dapat membaca data perusahaan lain hanya dengan mengganti satu nilai header di DevTools. Karena itu **gateway wajib membandingkannya dengan klaim `tenantId` di token sesi**, dan menolak bila berbeda.
+**The reason is simple:** the header is sent by the client, and a client can change it. If `X-Tenant-ID` became the basis of an access decision, anyone logged into one company could read another company's data by editing a single header value in DevTools. That is why **the gateway must compare it against the `tenantId` claim in the session token** and refuse when they differ.
 
-Ketidakcocokan itu sendiri adalah sinyal serangan — bukan kesalahan biasa — sehingga dicatat ke log keamanan, bukan sekadar dikembalikan sebagai error 400.
+The mismatch itself is an attack signal — not an ordinary mistake — so it is written to the security log rather than merely returned as a 400.
 
-### 2.2 Alur Header
+### 2.2 Header Flow
 
 ```mermaid
 sequenceDiagram
@@ -69,35 +69,35 @@ sequenceDiagram
     participant AUTH as auth-service
     participant SVC as payroll-service
     participant MQ as RabbitMQ
-    participant W as Konsumer
+    participant W as Consumer
 
     B->>GW: GET /api/payroll/payslips<br/>Authorization: Bearer <JWT><br/>X-Tenant-ID: 018f-acme
-    GW->>GW: verifikasi tanda tangan JWT
-    GW->>GW: bandingkan header vs klaim tenantId
+    GW->>GW: verify the JWT signature
+    GW->>GW: compare the header against the tenantId claim
 
-    alt Header ≠ klaim token
+    alt Header ≠ token claim
         GW->>GW: securityLog.warn(TENANT_MISMATCH)
         GW-->>B: 403 TENANT_MISMATCH
     end
 
-    GW->>AUTH: gRPC ValidateSession (di-cache 60 dtk)
+    GW->>AUTH: gRPC ValidateSession (cached 60 s)
     AUTH-->>GW: {valid, userId, tenantId}
-    GW->>GW: cek status tenant, entitlement modul, permission
+    GW->>GW: check tenant status, module entitlement, permissions
 
     GW->>SVC: gRPC GetPayslips<br/>metadata: x-tenant-id, x-correlation-id, x-actor-id
     SVC->>SVC: ServiceContext.run({tenantId, ...})
     SVC->>SVC: SET LOCAL app.tenant_id = '018f-acme'
-    Note over SVC: RLS memfilter setiap query secara otomatis
-    SVC-->>GW: hasil (sudah terfilter tenant)
+    Note over SVC: RLS filters every query automatically
+    SVC-->>GW: results (already tenant-filtered)
     GW-->>B: 200
 
     SVC->>MQ: publish event<br/>headers: x-tenant-id
-    MQ->>W: konsumsi
-    W->>W: validasi header vs payload.tenantId
+    MQ->>W: consume
+    W->>W: validate the header against payload.tenantId
     W->>W: ServiceContext.run + SET LOCAL
 ```
 
-### 2.3 Implementasi di Gateway
+### 2.3 The Gateway Implementation
 
 ```typescript
 // services/api-gateway/src/middleware/tenant-context.middleware.ts
@@ -106,7 +106,7 @@ export class TenantContextMiddleware implements NestMiddleware {
   async use(req: FastifyRequest, res: FastifyReply, next: () => void) {
     const headerTenant = req.headers['x-tenant-id'] as string | undefined;
 
-    // 1. Header wajib ada dan berbentuk UUID
+    // 1. The header is mandatory and must be a UUID
     if (!headerTenant) {
       throw new BadRequestException({ code: 'MISSING_TENANT_HEADER',
         message: 'Header X-Tenant-ID wajib disertakan.' });
@@ -115,11 +115,11 @@ export class TenantContextMiddleware implements NestMiddleware {
       throw new BadRequestException({ code: 'INVALID_TENANT_HEADER' });
     }
 
-    // 2. Token adalah sumber kebenaran
-    const claims = req.auth;   // sudah diverifikasi AuthGuard
+    // 2. The token is the source of truth
+    const claims = req.auth;   // already verified by AuthGuard
     if (!claims?.tenantId) throw new UnauthorizedException('MISSING_TENANT_CLAIM');
 
-    // 3. Header HARUS cocok dengan token. Inilah gerbang keamanannya.
+    // 3. The header MUST match the token. This is the security gate.
     if (headerTenant !== claims.tenantId) {
       this.securityLog.warn({
         event: 'TENANT_MISMATCH',
@@ -127,18 +127,18 @@ export class TenantContextMiddleware implements NestMiddleware {
         userId: claims.sub, ip: req.ip, userAgent: req.headers['user-agent'],
         path: req.url,
       });
-      // Pesan sengaja tidak menjelaskan apa yang tidak cocok
+      // The message deliberately does not explain what failed to match
       throw new ForbiddenException({ code: 'TENANT_MISMATCH' });
     }
 
-    // 4. Status tenant
-    const tenant = await this.tenantCache.get(headerTenant);   // Redis TTL 60 dtk
+    // 4. Tenant status
+    const tenant = await this.tenantCache.get(headerTenant);   // Redis, 60 s TTL
     if (!tenant)                        throw new UnauthorizedException('TENANT_NOT_FOUND');
     if (tenant.status === 'SUSPENDED')  throw new ForbiddenException({ code: 'TENANT_SUSPENDED',
       message: 'Akun perusahaan Anda sedang ditangguhkan. Hubungi administrator.' });
     if (tenant.status === 'PURGED')     throw new ForbiddenException({ code: 'TENANT_CLOSED' });
 
-    // 5. Bangun konteks yang mengalir ke seluruh call stack dan ke service hilir
+    // 5. Build the context that flows through the whole call stack and on to downstream services
     ServiceContextStore.run({
       tenantId:      tenant.id,
       tenantCode:    tenant.code,
@@ -155,7 +155,7 @@ export class TenantContextMiddleware implements NestMiddleware {
 }
 ```
 
-### 2.4 Propagasi ke Service Hilir
+### 2.4 Propagation to Downstream Services
 
 ```typescript
 // services/api-gateway/src/grpc/context-interceptor.ts
@@ -164,8 +164,8 @@ export const outboundContextInterceptor: Interceptor = (options, nextCall) =>
     start(metadata, listener, next) {
       const ctx = ServiceContextStore.get();
       if (!ctx?.tenantId) {
-        // Panggilan tanpa konteks tenant adalah bug, bukan kasus tepi. Gagalkan keras.
-        throw new Error('CONTEXT_MISSING: panggilan gRPC tanpa tenant context');
+        // A call without tenant context is a bug, not an edge case. Fail hard.
+        throw new Error('CONTEXT_MISSING: a gRPC call without tenant context');
       }
       metadata.set('x-tenant-id',      ctx.tenantId);
       metadata.set('x-correlation-id', ctx.correlationId);
@@ -177,9 +177,9 @@ export const outboundContextInterceptor: Interceptor = (options, nextCall) =>
   });
 ```
 
-### 2.5 Penerimaan di Service
+### 2.5 Reception Inside a Service
 
-Setiap service memperlakukan `x-tenant-id` dari gateway sebagai **sudah tepercaya**, karena satu-satunya jalur masuk adalah gateway. Namun kepercayaan itu harus ditegakkan di lapisan jaringan, bukan diasumsikan:
+Every service treats the `x-tenant-id` coming from the gateway as **already trusted**, because the gateway is the only way in. But that trust has to be enforced at the network layer, not assumed:
 
 ```typescript
 // services/*/src/interceptors/inbound-context.interceptor.ts
@@ -191,7 +191,7 @@ export class InboundContextInterceptor implements NestInterceptor {
 
     if (!isUuid(tenantId)) {
       throw new RpcException({ code: Status.INVALID_ARGUMENT,
-        message: 'x-tenant-id tidak valid atau tidak ada' });
+        message: 'x-tenant-id is missing or invalid' });
     }
 
     return new Observable((subscriber) => {
@@ -207,7 +207,7 @@ export class InboundContextInterceptor implements NestInterceptor {
 }
 ```
 
-**Penegakan jaringan yang wajib menyertainya:** service domain **tidak boleh** dapat dijangkau dari luar klaster. NetworkPolicy Kubernetes hanya mengizinkan ingress dari `api-gateway` dan service internal lain. Tanpa ini, siapa pun yang bisa menjangkau `payroll-service` langsung dapat mengirim `x-tenant-id` apa pun.
+**The network enforcement that must accompany it:** a domain service **must not** be reachable from outside the cluster. A Kubernetes NetworkPolicy allows ingress only from `api-gateway` and other internal services. Without this, anyone who can reach `payroll-service` directly can send any `x-tenant-id` they like.
 
 ```yaml
 # k8s/network-policies/payroll-service.yaml
@@ -226,11 +226,11 @@ spec:
     - from:
         - namespaceSelector: { matchLabels: { name: monitoring } }
       ports:
-        - { protocol: TCP, port: 9090 }    # metrik
-  # Semua sumber lain ditolak secara default
+        - { protocol: TCP, port: 9090 }    # metrics
+  # Every other source is denied by default
 ```
 
-### 2.6 Penerapan RLS di Service
+### 2.6 Applying RLS Inside a Service
 
 ```typescript
 // packages/shared/src/db/tenant-transaction.ts
@@ -242,8 +242,8 @@ export async function withTenant<T>(
   if (!isUuid(tenantId)) throw new Error('INVALID_TENANT_ID');
 
   return prisma.$transaction(async (tx) => {
-    // SET LOCAL — bukan SET. Nilai hilang saat transaksi selesai,
-    // sehingga aman pada PgBouncer transaction pooling.
+    // SET LOCAL — not SET. The value disappears when the transaction ends,
+    // which makes it safe under PgBouncer transaction pooling.
     await tx.$executeRawUnsafe(`SET LOCAL app.tenant_id = '${tenantId}'`);
     await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = '30s'`);
     return fn(tx);
@@ -251,102 +251,102 @@ export async function withTenant<T>(
 }
 ```
 
-> **Jebakan yang paling sering fatal:** dalam mode transaction pooling, `SET` (tanpa `LOCAL`) bertahan di koneksi dan terbawa ke request tenant berikutnya. Ini adalah jalur kebocoran lintas-tenant yang paling mungkin terjadi dalam praktik. Mitigasinya: aturan lint kustom yang menggagalkan CI bila menemukan `SET app.` tanpa `LOCAL`, ditambah pemeriksaan runtime di lingkungan non-produksi.
+> **The trap that is most often fatal:** in transaction pooling mode, `SET` (without `LOCAL`) persists on the connection and carries over into the next tenant's request. This is the most likely cross-tenant leak path in practice. The mitigation: a custom lint rule that fails CI when it finds `SET app.` without `LOCAL`, plus a runtime check in non-production environments.
 
 ```typescript
-// Guard runtime, aktif di dev & staging
+// A runtime guard, active in dev and staging
 export async function assertTenantContext(tx: Prisma.TransactionClient, expected: string) {
   const [{ current }] = await tx.$queryRaw<[{ current: string | null }]>`
     SELECT current_setting('app.tenant_id', true) AS current`;
   if (current !== expected) {
-    throw new Error(`TENANT_CONTEXT_LEAK: sesi menunjuk ${current}, diharapkan ${expected}`);
+    throw new Error(`TENANT_CONTEXT_LEAK: the session points at ${current}, expected ${expected}`);
   }
 }
 ```
 
 ---
 
-## 3. Autentikasi Fase Awal
+## 3. Early-Phase Authentication
 
-### 3.1 Keputusan & Batasannya
+### 3.1 The Decision and Its Limits
 
-SSO/OIDC ditunda. Autentikasi ditangani `auth-service` sendiri dengan email + kata sandi, dan tenant diidentifikasi saat login.
+SSO/OIDC is deferred. Authentication is handled by `auth-service` itself with email plus password, and the tenant is identified at login time.
 
-Ini keputusan yang wajar untuk fase awal, dengan catatan yang perlu direncanakan sejak sekarang:
+This is a reasonable decision for the early phases, with caveats that need planning from now:
 
-| Yang ditunda | Kapan menjadi kebutuhan | Kesiapan desain |
-|--------------|------------------------|-----------------|
-| SSO korporat (SAML/Azure AD) | Pelanggan > 500 karyawan hampir selalu memintanya | `users.external_id` disiapkan; `auth-service` dapat menambah provider tanpa mengubah service lain |
-| MFA | Setelah ada pelanggan dengan data payroll signifikan | Kolom & alur disiapkan di Fase 2 |
-| SCIM provisioning | Fase enterprise | — |
+| What is deferred | When it becomes a requirement | Design readiness |
+|------------------|-------------------------------|------------------|
+| Corporate SSO (SAML/Azure AD) | A customer with more than 500 employees almost always asks for it | `users.external_id` is prepared; `auth-service` can add a provider without changing any other service |
+| MFA | Once there is a customer with significant payroll data | The columns and flow are prepared in Phase 2 |
+| SCIM provisioning | The enterprise phase | — |
 
-Karena `auth-service` terisolasi di balik gateway dan service lain hanya melihat JWT, mengganti mekanisme autentikasi nanti **tidak menyentuh 13 service lainnya**. Inilah satu keuntungan nyata microservices yang relevan di sini.
+Because `auth-service` is isolated behind the gateway and other services only ever see a JWT, changing the authentication mechanism later **does not touch the other 13 services**. That is one genuine microservices benefit that is relevant here.
 
-### 3.2 Alur Login
+### 3.2 The Login Flow
 
 ```mermaid
 sequenceDiagram
-    actor U as Pengguna
+    actor U as User
     participant W as Web App
     participant GW as api-gateway
     participant AUTH as auth-service
     participant TEN as tenant-service
     participant IAM as iam-service
 
-    U->>W: Isi kode perusahaan, email, kata sandi
+    U->>W: Enter company code, email, password
     W->>GW: POST /api/auth/login {tenantCode, email, password}
-    Note over GW: Endpoint publik — belum ada X-Tenant-ID
+    Note over GW: A public endpoint — there is no X-Tenant-ID yet
     GW->>AUTH: gRPC Login
     AUTH->>TEN: gRPC ResolveTenantByCode("ACME")
     TEN-->>AUTH: {tenantId, status: ACTIVE}
 
-    alt Tenant tidak ada / ditangguhkan
-        AUTH-->>W: 401 (pesan generik, tidak membocorkan tenant mana yang ada)
+    alt Tenant missing / suspended
+        AUTH-->>W: 401 (a generic message that does not reveal which tenants exist)
     end
 
-    AUTH->>AUTH: cari users(tenant_id, email)
-    AUTH->>AUTH: verifikasi Argon2id
-    AUTH->>AUTH: cek failed_attempts & locked_until
+    AUTH->>AUTH: look up users(tenant_id, email)
+    AUTH->>AUTH: verify with Argon2id
+    AUTH->>AUTH: check failed_attempts & locked_until
 
-    alt Kredensial salah
-        AUTH->>AUTH: failed_attempts += 1; kunci 15 mnt setelah 5×
+    alt Wrong credentials
+        AUTH->>AUTH: failed_attempts += 1; lock for 15 min after 5 tries
         AUTH-->>W: 401 INVALID_CREDENTIALS
     end
 
-    AUTH->>AUTH: buat sessions + refresh token
+    AUTH->>AUTH: create the session + refresh token
     AUTH-->>GW: {accessToken, refreshToken, tenantId, userId}
     GW-->>W: 200 + Set-Cookie(refresh, HttpOnly, Secure, SameSite=Strict)
 
-    W->>W: simpan tenantId → dipakai sebagai X-Tenant-ID di semua request
+    W->>W: store tenantId → used as X-Tenant-ID on every request
     W->>GW: GET /api/me/bootstrap<br/>Authorization + X-Tenant-ID
-    GW->>TEN: langganan & modul aktif
-    GW->>IAM: permission & menu efektif
+    GW->>TEN: subscription & enabled modules
+    GW->>IAM: effective permissions & menus
     GW-->>W: {user, tenant, subscription, menus, lockedModules, permissions}
-    W->>U: Render shell + sidebar sesuai langganan
+    W->>U: Render the shell plus a sidebar matching the subscription
 ```
 
-### 3.3 Identifikasi Tenant Saat Login
+### 3.3 Identifying the Tenant at Login
 
-Tiga cara, dapat digunakan bersamaan:
+Three ways, usable together:
 
-| Cara | Pengalaman pengguna | Kapan dipakai |
-|------|--------------------|--------------|
-| **Kode perusahaan eksplisit** | Tiga kolom: kode perusahaan, email, kata sandi | Default fase awal — sederhana dan tanpa ambiguitas |
-| **Subdomain** | `acme.hrms.id` → kode terisi otomatis | Ditambahkan setelah domain siap; hanya mengisi kolom, bukan menggantikan verifikasi |
-| **Penemuan lewat email** | Pengguna mengetik email; sistem mencari tenant | Hanya bila email unik global. Bila ganda, tampilkan pemilih tenant |
+| Way | User experience | When it is used |
+|-----|-----------------|-----------------|
+| **An explicit company code** | Three fields: company code, email, password | The early-phase default — simple and unambiguous |
+| **A subdomain** | `acme.hrms.id` → the code is filled in automatically | Added once the domains are ready; it only fills the field, it does not replace verification |
+| **Discovery from the email** | The user types their email; the system finds the tenant | Only when the email is globally unique. If there are several, show a tenant picker |
 
 ```typescript
 // services/auth-service/src/application/login.usecase.ts
 async login(cmd: LoginCommand): Promise<LoginResult> {
-  // Rate limit per IP dan per (tenantCode + email)
+  // Rate limit per IP and per (tenantCode + email)
   await this.rateLimiter.consume(`login:ip:${cmd.ip}`, 20, 900);
   await this.rateLimiter.consume(`login:user:${cmd.tenantCode}:${cmd.email}`, 5, 900);
 
   const tenant = await this.tenantClient.resolveByCode({ code: cmd.tenantCode })
     .catch(() => null);
 
-  // Pesan galat SELALU sama, apa pun penyebabnya. Membedakan
-  // "tenant tidak ada" dari "kata sandi salah" membocorkan daftar pelanggan.
+  // The error message is ALWAYS the same, whatever the cause. Distinguishing
+  // "no such tenant" from "wrong password" leaks the customer list.
   const genericError = new UnauthorizedException({
     code: 'INVALID_CREDENTIALS',
     message: 'Kode perusahaan, email, atau kata sandi tidak sesuai.',
@@ -359,7 +359,7 @@ async login(cmd: LoginCommand): Promise<LoginResult> {
 
   const user = await this.repo.findByEmail(tenant.id, cmd.email);
   if (!user || !user.isActive) {
-    // Verifikasi dummy agar waktu respons sama — mencegah user enumeration lewat timing
+    // A dummy verification keeps the response time the same — it prevents user enumeration by timing
     await argon2.verify(DUMMY_HASH, cmd.password).catch(() => {});
     await this.recordAttempt(cmd, false, 'USER_NOT_FOUND');
     throw genericError;
@@ -395,42 +395,42 @@ async login(cmd: LoginCommand): Promise<LoginResult> {
   return {
     accessToken:  this.signAccessToken(user, tenant, session),
     refreshToken: session.rawRefreshToken,
-    tenantId:     tenant.id,          // klien memakainya sebagai X-Tenant-ID
+    tenantId:     tenant.id,          // the client uses this as its X-Tenant-ID
     tenantCode:   tenant.code,
     mustChangePassword: user.mustChangePassword,
   };
 }
 ```
 
-### 3.4 Bentuk Token
+### 3.4 Token Shape
 
 ```typescript
-// Access token — masa hidup pendek, dikirim di header Authorization
+// Access token — short-lived, sent in the Authorization header
 {
   "iss": "hrms-auth",
   "aud": "hrms-api",
   "sub": "018f2c...",              // userId
-  "tenantId": "018f-acme...",      // WAJIB — dibandingkan dengan X-Tenant-ID
+  "tenantId": "018f-acme...",      // MANDATORY — compared against X-Tenant-ID
   "tenantCode": "ACME",
-  "employeeId": "018f9a...",       // null bila pengguna bukan karyawan
-  "sessionId": "018fab...",        // untuk pencabutan sesi
+  "employeeId": "018f9a...",       // null when the user is not an employee
+  "sessionId": "018fab...",        // for session revocation
   "iat": 1755400000,
-  "exp": 1755400900                // 15 menit
+  "exp": 1755400900                // 15 minutes
 }
 ```
 
-**Yang sengaja tidak dimasukkan ke token:**
+**What is deliberately kept out of the token:**
 
-| Data | Alasan |
+| Data | Reason |
 |------|--------|
-| Daftar permission | Pengguna dengan 10 modul memiliki 150+ izin — token membengkak melewati batas header 8 KB pada beberapa proxy. Lebih penting: pencabutan izin tidak akan berlaku sampai token kedaluwarsa |
-| Daftar modul aktif | Berhenti berlangganan harus berlaku seketika, bukan menunggu 15 menit |
-| Menu | Berubah lebih sering daripada sesi |
-| Peran | Cukup di sisi server; menyimpannya di token menciptakan dua sumber kebenaran |
+| The permission list | A user with 10 modules holds 150+ permissions — the token swells past the 8 KB header limit some proxies impose. More importantly, a revoked permission would not take effect until the token expires |
+| The list of enabled modules | Cancelling a subscription has to take effect immediately, not after 15 minutes |
+| Menus | They change more often than sessions do |
+| Roles | They are enough on the server side; putting them in the token creates two sources of truth |
 
-Semua itu diambil gateway dari `iam-service` dan `tenant-service`, di-cache di Redis, dan **diinvalidasi oleh event** (`iam.access.changed`, `tenant.module.disabled`) sehingga perubahan berlaku dalam hitungan detik.
+All of it is fetched by the gateway from `iam-service` and `tenant-service`, cached in Redis, and **invalidated by events** (`iam.access.changed`, `tenant.module.disabled`) so a change takes effect within seconds.
 
-### 3.5 Refresh Token dengan Rotasi & Deteksi Pencurian
+### 3.5 Refresh Tokens with Rotation & Theft Detection
 
 ```typescript
 // services/auth-service/src/application/refresh.usecase.ts
@@ -440,8 +440,8 @@ async refresh(rawToken: string, ip: string): Promise<TokenPair> {
 
   if (!session) throw new UnauthorizedException('INVALID_REFRESH_TOKEN');
 
-  // Token yang sudah dirotasi tetapi dipakai lagi = indikasi kuat token dicuri.
-  // Respons: cabut SELURUH sesi pengguna, bukan hanya yang ini.
+  // A token that was already rotated and then used again strongly indicates theft.
+  // The response: revoke ALL of the user's sessions, not just this one.
   if (session.revokedAt) {
     this.securityLog.error({ event: 'REFRESH_TOKEN_REUSE', userId: session.userId,
                              tenantId: session.tenantId, ip });
@@ -452,57 +452,57 @@ async refresh(rawToken: string, ip: string): Promise<TokenPair> {
 
   if (session.expiresAt < new Date()) throw new UnauthorizedException('SESSION_EXPIRED');
 
-  // Rotasi: token lama ditandai dipakai, token baru diterbitkan
+  // Rotation: the old token is marked used and a new one is issued
   const next = await this.repo.rotate(session.id, ip);
   return { accessToken: this.signAccessToken(session, next), refreshToken: next.rawToken };
 }
 ```
 
-Masa hidup: access token 15 menit, refresh token 7 hari (mobile 30 hari), maksimum 10 sesi aktif per pengguna.
+Lifetimes: access token 15 minutes, refresh token 7 days (30 on mobile), a maximum of 10 active sessions per user.
 
-### 3.6 Kebijakan Kata Sandi
+### 3.6 Password Policy
 
-| Aturan | Nilai |
-|--------|-------|
-| Algoritma hash | Argon2id (memory 64 MB, iterations 3, parallelism 4) |
-| Panjang minimum | 10 karakter |
-| Pemeriksaan | Ditolak bila ada di daftar 10.000 kata sandi paling umum, atau mengandung nama/email pengguna |
-| Kompleksitas karakter wajib | **Tidak diterapkan** — mendorong pola `Password1!` yang justru lebih lemah dari frasa panjang |
-| Kedaluwarsa berkala | **Tidak diterapkan** — rotasi paksa mendorong `Januari2026` → `Februari2026`. Ganti paksa hanya saat ada indikasi kebocoran |
-| Percobaan gagal | Kunci 15 menit setelah 5 kali |
-| Kata sandi pertama | Sementara, wajib diganti saat login pertama, berlaku 7 hari |
+| Rule | Value |
+|------|-------|
+| Hash algorithm | Argon2id (64 MB memory, 3 iterations, parallelism 4) |
+| Minimum length | 10 characters |
+| Checks | Refused if it appears in the 10,000 most common passwords, or contains the user's name or email |
+| Mandatory character complexity | **Not applied** — it encourages the `Password1!` pattern, which is weaker than a long phrase |
+| Periodic expiry | **Not applied** — forced rotation encourages `Januari2026` → `Februari2026`. A forced change happens only when there is an indication of a leak |
+| Failed attempts | A 15-minute lock after 5 tries |
+| The first password | Temporary, must be changed at first login, valid for 7 days |
 
 ---
 
-## 4. Siklus Hidup Tenant
+## 4. The Tenant Lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PROVISIONING: pendaftaran
-    PROVISIONING --> TRIAL: seed selesai
-    TRIAL --> ACTIVE: pembayaran pertama
-    TRIAL --> CHURNED: trial berakhir
-    ACTIVE --> SUSPENDED: pembayaran gagal
-    SUSPENDED --> ACTIVE: dipulihkan
-    SUSPENDED --> CHURNED: > 60 hari
-    CHURNED --> PURGED: > 90 hari, setelah ekspor
+    [*] --> PROVISIONING: registration
+    PROVISIONING --> TRIAL: seeding finished
+    TRIAL --> ACTIVE: first payment
+    TRIAL --> CHURNED: the trial ended
+    ACTIVE --> SUSPENDED: payment failed
+    SUSPENDED --> ACTIVE: restored
+    SUSPENDED --> CHURNED: > 60 days
+    CHURNED --> PURGED: > 90 days, after the export
     PURGED --> [*]
 ```
 
-| Status | Login | Baca | Tulis | Job terjadwal | Data |
-|--------|-------|------|-------|---------------|------|
+| Status | Login | Read | Write | Scheduled jobs | Data |
+|--------|-------|------|-------|----------------|------|
 | `PROVISIONING` | ✗ | ✗ | ✗ | ✗ | — |
-| `TRIAL` | ✓ | ✓ | ✓ | ✓ | Utuh |
-| `ACTIVE` | ✓ | ✓ | ✓ | ✓ | Utuh |
-| `SUSPENDED` | Owner saja | ✓ | ✗ | ✗ | **Utuh** |
-| `CHURNED` | Ekspor saja, 90 hari | ✓ | ✗ | ✗ | **Utuh** |
-| `PURGED` | ✗ | ✗ | ✗ | ✗ | Hanya audit & catatan hukum |
+| `TRIAL` | ✓ | ✓ | ✓ | ✓ | Intact |
+| `ACTIVE` | ✓ | ✓ | ✓ | ✓ | Intact |
+| `SUSPENDED` | Owner only | ✓ | ✗ | ✗ | **Intact** |
+| `CHURNED` | Export only, 90 days | ✓ | ✗ | ✗ | **Intact** |
+| `PURGED` | ✗ | ✗ | ✗ | ✗ | Audit and legal records only |
 
-**Prinsip yang mengikat:** penangguhan tidak pernah menghapus data. Perusahaan yang telat bayar dua minggu tidak boleh kehilangan riwayat payroll lima tahun.
+**The binding principle:** suspension never deletes data. A company two weeks late on payment must not lose five years of payroll history.
 
-### 4.1 Provisioning sebagai Saga
+### 4.1 Provisioning as a Saga
 
-Pada microservices, provisioning menyentuh minimal empat service, sehingga tidak dapat dilakukan dalam satu transaksi:
+Under microservices, provisioning touches at least four services, so it cannot be done in a single transaction:
 
 ```typescript
 // services/tenant-service/src/application/provision-tenant.saga.ts
@@ -535,12 +535,12 @@ const steps: SagaStep[] = [
 
   { name: 'SEED_MASTER_DATA',
     execute: async (s) => {
-      // Jenis cuti sesuai UU, hari libur nasional, komponen gaji dasar
+      // Statutory leave types, national holidays, the basic salary components
       await this.employeeClient.seedDefaults({ tenantId: s.tenantId });
       await this.leaveClient.seedDefaults({ tenantId: s.tenantId, year: currentYear() });
       await this.payrollClient.seedDefaults({ tenantId: s.tenantId });
     },
-    compensate: async (s) => { /* data seed dibuang bersama purge tenant */ } },
+    compensate: async (s) => { /* seeded data is discarded along with the tenant purge */ } },
 
   { name: 'ACTIVATE',
     execute: async (s) => {
@@ -549,28 +549,28 @@ const steps: SagaStep[] = [
         aggregateType: 'Tenant', aggregateId: s.tenantId,
         payload: { code: s.code, plan: s.plan, ownerUserId: s.userId } });
     },
-    compensate: async () => { /* langkah terakhir; tidak ada yang perlu dibatalkan */ } },
+    compensate: async () => { /* the last step; there is nothing to undo */ } },
 ];
 ```
 
-Tenant hanya berpindah ke `TRIAL` setelah seluruh langkah berhasil. Tenant setengah jadi — punya karyawan tapi tanpa peran, atau punya modul tanpa menu — adalah keadaan yang jauh lebih sulit diperbaiki daripada kegagalan bersih.
+A tenant only moves to `TRIAL` once every step has succeeded. A half-built tenant — with employees but no roles, or with modules but no menus — is a far harder state to repair than a clean failure.
 
-### 4.2 Offboarding & Portabilitas Data (UU PDP)
+### 4.2 Offboarding & Data Portability (Personal Data Protection Act)
 
 ```
-Hari 0    Tenant berhenti → status CHURNED
-Hari 0    Saga ekspor: setiap service mengekspor datanya → arsip .zip
-          (xlsx per modul + PDF slip gaji + manifest)
-Hari 1    Tautan unduh dikirim, berlaku 90 hari
-Hari 90   Saga purge: setiap service menghapus data tenant di basis datanya
-Selamanya Disimpan: audit_logs, catatan penagihan, data payroll dalam
-          periode wajib simpan pajak (10 tahun)
+Day 0     The tenant leaves → status CHURNED
+Day 0     The export saga: every service exports its data → a .zip archive
+          (an xlsx per module + payslip PDFs + a manifest)
+Day 1     The download link is sent, valid for 90 days
+Day 90    The purge saga: every service deletes the tenant's data from its database
+Forever   Retained: audit_logs, billing records, and payroll data inside the
+          statutory tax retention period (10 years)
 ```
 
-> Purge tenant adalah **satu-satunya penghapusan data yang diizinkan di seluruh sistem** (dokumen `09`, M4). Setiap operasi destruktif lain — `DROP TABLE`, `TRUNCATE`, `DROP DATABASE` — dilarang mutlak dan diblokir linter migrasi di CI. Pengecualian ini ada karena diwajibkan hak penghapusan data pada UU PDP, dan karena itu prasyaratnya dibuat sangat ketat.
+> A tenant purge is **the only data deletion permitted anywhere in the system** (document `09`, M4). Every other destructive operation — `DROP TABLE`, `TRUNCATE`, `DROP DATABASE` — is absolutely forbidden and blocked by the migration linter in CI. This exception exists because the right to erasure under the Personal Data Protection Act requires it, and that is precisely why its preconditions are made so strict.
 
 ```typescript
-// Purge adalah saga lintas service dengan urutan terbalik dari dependensi
+// The purge is a cross-service saga in the reverse order of the dependencies
 const PURGE_ORDER = [
   'planning', 'recruitment', 'relation', 'performance',
   'payroll', 'leave', 'attendance', 'employee',
@@ -578,11 +578,11 @@ const PURGE_ORDER = [
 ];
 
 async purgeTenant(tenantId: string, confirmations: PurgeConfirmation[]) {
-  // Tiga prasyarat keras — kesulitan menjalankan ini adalah fitur, bukan gangguan
+  // Three hard preconditions — the difficulty of running this is a feature, not friction
   const tenant = await this.repo.findById(tenantId);
-  if (tenant.status !== 'CHURNED')          throw new Error('PURGE_DENIED: status bukan CHURNED');
-  if (!await this.exportCompleted(tenantId)) throw new Error('PURGE_DENIED: ekspor belum selesai');
-  if (confirmations.length < 2)              throw new Error('PURGE_DENIED: butuh 2 persetujuan');
+  if (tenant.status !== 'CHURNED')          throw new Error('PURGE_DENIED: status is not CHURNED');
+  if (!await this.exportCompleted(tenantId)) throw new Error('PURGE_DENIED: the export is not finished');
+  if (confirmations.length < 2)              throw new Error('PURGE_DENIED: two approvals are required');
 
   for (const service of PURGE_ORDER) {
     const result = await this.clients[service].purgeTenant({ tenantId, dryRun: false });
@@ -594,24 +594,24 @@ async purgeTenant(tenantId: string, confirmations: PurgeConfirmation[]) {
 
 ---
 
-## 5. Noisy Neighbor: Keadilan Sumber Daya
+## 5. Noisy Neighbours: Resource Fairness
 
-Isolasi data bukan satu-satunya isolasi yang penting. Satu tenant dengan 10.000 karyawan yang menjalankan payroll tidak boleh membuat dashboard tenant lain melambat.
+Data isolation is not the only isolation that matters. One tenant with 10,000 employees running payroll must not slow down another tenant's dashboard.
 
-| Sumber daya | Mekanisme | Konfigurasi |
-|-------------|-----------|-------------|
-| Request API | Token bucket per tenant di Redis (gateway) | Basic 60 rpm, Advanced 300 rpm, Ultimate 1.200 rpm |
-| Query basis data | `SET LOCAL statement_timeout` | 30 dtk request, 300 dtk worker |
-| Antrean job | Penjadwalan adil per tenant | Lihat di bawah |
-| Koneksi WebSocket | Batas per pengguna (8) dan per tenant (500) | Dok. 03, §3.6 |
-| Object storage | Kuota per paket | Basic 5 GB, Ultimate 100 GB |
-| Job terjadwal | Jitter acak per tenant | ± 0–15 menit |
+| Resource | Mechanism | Configuration |
+|----------|-----------|---------------|
+| API requests | A per-tenant token bucket in Redis (at the gateway) | Basic 60 rpm, Advanced 300 rpm, Ultimate 1,200 rpm |
+| Database queries | `SET LOCAL statement_timeout` | 30 s for requests, 300 s for workers |
+| Job queue | Fair scheduling per tenant | See below |
+| WebSocket connections | A limit per user (8) and per tenant (500) | Doc. 03, §3.6 |
+| Object storage | A quota per plan | Basic 5 GB, Ultimate 100 GB |
+| Scheduled jobs | Random jitter per tenant | ± 0–15 minutes |
 
 ```typescript
 // services/*/src/scheduling/fair-scheduler.ts
-// Job payroll besar dipecah per-chunk dan diselang-seling antar tenant.
-// Tanpa ini, tenant 10.000 karyawan menahan seluruh worker 20 menit
-// dan tenant 50 karyawan menunggu di belakangnya.
+// A large payroll job is split into chunks and interleaved between tenants.
+// Without this, a 10,000-employee tenant holds every worker for 20 minutes
+// while a 50-employee tenant waits behind it.
 export class FairScheduler {
   async nextJob(): Promise<Job | null> {
     const tenants = await this.redis.zrange('queue:tenants:pending', 0, -1);
@@ -620,7 +620,7 @@ export class FairScheduler {
       tenantId: t,
       usage: Number(await this.redis.get(`queue:usage:${t}`) ?? 0),
     })));
-    scored.sort((a, b) => a.usage - b.usage);   // paling sedikit dilayani → giliran berikutnya
+    scored.sort((a, b) => a.usage - b.usage);   // the least-served goes next
 
     for (const { tenantId } of scored) {
       const job = await this.pop(`queue:jobs:${tenantId}`);
@@ -635,15 +635,15 @@ export class FairScheduler {
 }
 ```
 
-Metrik yang dipantau: `tenant_queue_wait_seconds` per tenant. Bila p95 salah satu tenant menyimpang lebih dari 3× median armada, penjadwalan adil sedang gagal.
+The metric to watch: `tenant_queue_wait_seconds` per tenant. If one tenant's p95 deviates by more than 3× the fleet median, fair scheduling is failing.
 
 ---
 
-## 6. Akses Dukungan Lintas-Tenant
+## 6. Cross-Tenant Support Access
 
-Staf dukungan kadang perlu masuk ke tenant pelanggan. Ini lubang paling berbahaya di setiap sistem SaaS.
+Support staff sometimes need to enter a customer's tenant. This is the most dangerous hole in every SaaS system.
 
-> Identitas staf dukungan berada di realm terpisah (`platform_users` di `platform_db`), bukan di `auth_db`. Alur pengajuan, persetujuan, dan token impersonasi dijabarkan lengkap di dokumen `07`, §6. Bagian di bawah menjelaskan struktur datanya dari sisi tenant plane.
+> Support staff identities live in a separate realm (`platform_users` in `platform_db`), not in `auth_db`. The request, approval, and impersonation token flow is described in full in document `07`, §6. The section below explains its data structure from the tenant plane's side.
 
 ```sql
 -- auth_db
@@ -651,7 +651,7 @@ CREATE TABLE support_sessions (
   id            uuid PRIMARY KEY DEFAULT uuid_v7(),
   tenant_id     uuid NOT NULL,
   support_user  text NOT NULL,
-  approved_by   uuid,                  -- WAJIB: persetujuan dari pihak tenant
+  approved_by   uuid,                  -- MANDATORY: approval from the tenant's side
   ticket_ref    text NOT NULL,
   reason        text NOT NULL,
   is_read_only  boolean NOT NULL DEFAULT true,
@@ -664,91 +664,91 @@ CREATE TABLE support_sessions (
 );
 ```
 
-Alur:
+The flow:
 ```
-1. Staf dukungan mengajukan sesi dengan referensi tiket + alasan
-2. TENANT_OWNER atau HR_ADMIN menyetujui secara eksplisit di aplikasi
-3. Sesi berlaku maksimum 4 jam, baca-saja secara default
-4. Token impersonasi membawa klaim act.sub = staf dukungan
-5. Banner permanen di UI tenant: "Tim dukungan sedang mengakses akun Anda"
-6. Setiap aksi tercatat di audit_logs setiap service
-7. Ringkasan aktivitas dikirim ke tenant saat sesi berakhir
+1. A support staff member requests a session with a ticket reference plus a reason
+2. A TENANT_OWNER or HR_ADMIN approves it explicitly in the application
+3. The session lasts at most 4 hours and is read-only by default
+4. The impersonation token carries the claim act.sub = the support staff member
+5. A permanent banner in the tenant's UI: "Tim dukungan sedang mengakses akun Anda"
+6. Every action is recorded in each service's audit_logs
+7. An activity summary is sent to the tenant when the session ends
 ```
 
-Tidak ada jalur "akses darurat tanpa persetujuan". Bila tenant tidak dapat menyetujui, dukungan bekerja dari log dan reproduksi, bukan dari data produksi mereka.
+There is no "emergency access without approval" path. If the tenant cannot approve, support works from logs and reproduction, not from their production data.
 
 ---
 
-## 7. Pengujian: Gerbang CI
+## 7. Testing: The CI Gates
 
-Kebocoran tenant gagal secara senyap — tidak ada error, hanya data yang seharusnya tidak terlihat. Pengujiannya otomatis dan memblokir merge.
+A tenant leak fails silently — no error, just data that should not be visible. Its tests are automated and block merges.
 
 ```typescript
-// test/security/tenant-isolation.spec.ts  — dijalankan di SETIAP service
-describe('Isolasi tenant', () => {
-  it.each(ALL_MODELS)('%s tidak dapat diakses lintas tenant', async (model) => {
+// test/security/tenant-isolation.spec.ts  — run in EVERY service
+describe('Tenant isolation', () => {
+  it.each(ALL_MODELS)('%s cannot be accessed across tenants', async (model) => {
     const a = await seedTenant('acme');
     const b = await seedTenant('globex');
     const recordA = await seedRecord(model, a.id);
 
     await withTenant(prisma, b.id, async (tx) => {
       const found = await (tx as any)[model].findUnique({ where: { id: recordA.id } });
-      expect(found).toBeNull();               // RLS memblokir
+      expect(found).toBeNull();               // RLS blocks it
     });
   });
 
-  it('menolak penulisan dengan tenant_id yang dipalsukan', async () => {
+  it('refuses a write with a forged tenant_id', async () => {
     const a = await seedTenant('acme');
     const b = await seedTenant('globex');
     await expect(
       withTenant(prisma, b.id, (tx) =>
         tx.employee.create({ data: { ...validEmployee, tenantId: a.id } })),
-    ).rejects.toThrow(/row-level security/i);   // WITH CHECK menolak
+    ).rejects.toThrow(/row-level security/i);   // WITH CHECK refuses it
   });
 
-  it('tidak ada tabel ber-tenant_id yang luput dari RLS', async () => {
+  it('leaves no tenant_id table without RLS', async () => {
     const unprotected = await prisma.$queryRaw`
       SELECT c.table_name FROM information_schema.columns c
         JOIN pg_class pc ON pc.relname = c.table_name
        WHERE c.column_name = 'tenant_id' AND pc.relrowsecurity = false`;
-    expect(unprotected).toEqual([]);            // gerbang CI
+    expect(unprotected).toEqual([]);            // a CI gate
   });
 });
 
-// test/security/tenant-header.spec.ts  — dijalankan di api-gateway
+// test/security/tenant-header.spec.ts  — run in api-gateway
 describe('X-Tenant-ID', () => {
-  it('menolak request tanpa header', async () => {
+  it('refuses a request without the header', async () => {
     const { token } = await loginAs('acme', 'hr@acme.id');
     const res = await request(gw).get('/api/employees').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('MISSING_TENANT_HEADER');
   });
 
-  it('menolak header yang berbeda dari token', async () => {
+  it('refuses a header that differs from the token', async () => {
     const { token } = await loginAs('acme', 'hr@acme.id');
     const globex = await seedTenant('globex');
     const res = await request(gw).get('/api/employees')
       .set('Authorization', `Bearer ${token}`)
-      .set('X-Tenant-ID', globex.id);          // percobaan lintas tenant
+      .set('X-Tenant-ID', globex.id);          // a cross-tenant attempt
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
-  it('mencatat percobaan ketidakcocokan ke log keamanan', async () => {
+  it('records a mismatch attempt in the security log', async () => {
     const spy = jest.spyOn(securityLog, 'warn');
     await attemptCrossTenant();
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ event: 'TENANT_MISMATCH' }));
   });
 
-  it('menolak modul yang tidak dilanggan meski permission dimiliki', async () => {
-    const { token, tenantId } = await loginAs('acme', 'hr@acme.id');   // paket BASIC
+  it('refuses an unsubscribed module even when the permission is held', async () => {
+    const { token, tenantId } = await loginAs('acme', 'hr@acme.id');   // the BASIC plan
     const res = await request(gw).get('/api/recruitment/jobs')
       .set('Authorization', `Bearer ${token}`).set('X-Tenant-ID', tenantId);
     expect(res.status).toBe(402);
     expect(res.body.code).toBe('MODULE_NOT_SUBSCRIBED');
   });
 
-  it('penonaktifan modul berlaku tanpa login ulang', async () => {
+  it('applies a module being disabled without a new login', async () => {
     const { token, tenantId } = await loginAs('acme', 'hr@acme.id');
     expect((await get('/api/payroll/runs', token, tenantId)).status).toBe(200);
     await disableModule(tenantId, 'payroll');
@@ -758,8 +758,8 @@ describe('X-Tenant-ID', () => {
 });
 
 // test/security/service-boundary.spec.ts
-describe('Batas service', () => {
-  it('service tidak dapat terhubung ke basis data service lain', async () => {
+describe('Service boundaries', () => {
+  it('a service cannot connect to another service database', async () => {
     const payrollDbUrl = process.env.PAYROLL_DATABASE_URL!;
     const crossUrl = payrollDbUrl.replace('/payroll_db', '/attendance_db');
     await expect(new PrismaClient({ datasources: { db: { url: crossUrl } } }).$connect())
@@ -768,36 +768,36 @@ describe('Batas service', () => {
 });
 ```
 
-**Gerbang CI:** pipeline gagal bila (a) ada tabel ber-`tenant_id` tanpa RLS, (b) ada route gateway tanpa entri di `ROUTE_MANIFEST`, (c) ada `SET app.` tanpa `LOCAL` di kode, (d) uji lintas-basis-data berhasil terhubung.
+**The CI gate:** the pipeline fails when (a) a `tenant_id` table exists without RLS, (b) a gateway route has no `ROUTE_MANIFEST` entry, (c) `SET app.` appears in the code without `LOCAL`, or (d) the cross-database test manages to connect.
 
 ---
 
-## 8. Risiko
+## 8. Risks
 
-| # | Risiko | Prob. | Dampak | Mitigasi |
-|---|--------|-------|--------|----------|
-| R12 | `X-Tenant-ID` dipercaya tanpa verifikasi token di suatu jalur | Sedang | **Kritis** | Middleware terpusat di gateway, NetworkPolicy menutup akses langsung ke service, uji `TENANT_MISMATCH` sebagai gerbang CI |
-| R13 | Kebocoran konteks via connection pool (`SET` vs `SET LOCAL`) | Sedang | **Kritis** | Aturan lint kustom, `assertTenantContext` di non-produksi |
-| R14 | Service domain terekspos langsung ke internet | Rendah | **Kritis** | NetworkPolicy default-deny, ingress hanya ke gateway, audit konfigurasi berkala |
-| R15 | Cache entitlement basi setelah berhenti berlangganan | Sedang | Sedang | Invalidasi berbasis event + TTL 60 dtk sebagai batas atas |
-| R16 | Noisy neighbor: tenant besar melumpuhkan tenant kecil | Sedang | Tinggi | Penjadwalan adil, rate limit berjenjang, `statement_timeout` |
-| R17 | Penyalahgunaan akses dukungan lintas-tenant | Rendah | **Kritis** | Persetujuan tenant wajib, baca-saja, batas 4 jam, banner, laporan pasca-sesi |
-| R18 | Purge tenant terpicu tidak sengaja | Rendah | **Kritis** | Prasyarat status `CHURNED` + ekspor selesai + 2 persetujuan |
-| R19 | Tanpa MFA, kebocoran satu kata sandi membuka seluruh data HR perusahaan | Sedang | Tinggi | Kunci akun, deteksi penggunaan ulang refresh token, notifikasi login perangkat baru; MFA dijadwalkan Fase 2 |
-| R20 | Superuser mem-bypass isolasi tenant | Rendah | **Katastrofik** | Control plane terpisah tanpa kredensial ke basis data domain; NetworkPolicy egress; lihat dokumen `07` |
-| R21 | Data lokasi & foto presensi menjadi liabilitas UU PDP yang terus tumbuh | Sedang | Tinggi | Persetujuan terpisah yang dapat ditarik, retensi foto maksimum 365 hari ditegakkan `CHECK`, penghapusan EXIF, akses teraudit (dok. `10` §8) |
+| # | Risk | Prob. | Impact | Mitigation |
+|---|------|-------|--------|------------|
+| R12 | `X-Tenant-ID` is trusted without token verification somewhere | Medium | **Critical** | Centralised middleware at the gateway, a NetworkPolicy closing direct access to services, the `TENANT_MISMATCH` test as a CI gate |
+| R13 | Context leaking through the connection pool (`SET` vs `SET LOCAL`) | Medium | **Critical** | A custom lint rule, `assertTenantContext` outside production |
+| R14 | A domain service is exposed directly to the internet | Low | **Critical** | Default-deny NetworkPolicy, ingress only from the gateway, periodic configuration audits |
+| R15 | A stale entitlement cache after a cancellation | Medium | Medium | Event-based invalidation plus a 60-second TTL as the upper bound |
+| R16 | Noisy neighbour: a large tenant cripples a small one | Medium | High | Fair scheduling, tiered rate limits, `statement_timeout` |
+| R17 | Cross-tenant support access is abused | Low | **Critical** | Tenant approval required, read-only, a 4-hour limit, a banner, a post-session report |
+| R18 | A tenant purge is triggered accidentally | Low | **Critical** | Preconditions of `CHURNED` status + a completed export + 2 approvals |
+| R19 | Without MFA, one leaked password opens a company's entire HR data | Medium | High | Account locking, refresh token reuse detection, a new-device login notification; MFA scheduled for Phase 2 |
+| R20 | A superuser bypasses tenant isolation | Low | **Catastrophic** | A separate control plane with no credentials to any domain database; an egress NetworkPolicy; see document `07` |
+| R21 | Location data and attendance photos become an ever-growing Personal Data Protection Act liability | Medium | High | Separate, withdrawable consent, a photo retention maximum of 365 days enforced by a `CHECK`, EXIF stripping, audited access (doc. `10` §8) |
 
 ---
 
-## 9. Metrik
+## 9. Metrics
 
-| Metrik | Target |
+| Metric | Target |
 |--------|--------|
-| Insiden kebocoran lintas-tenant | **0** (nol toleransi) |
-| Cakupan RLS pada tabel ber-`tenant_id` | 100%, diverifikasi CI di setiap service |
-| Route gateway tanpa entri manifest | 0, diverifikasi CI |
-| Kejadian `TENANT_MISMATCH` per minggu | Dipantau; lonjakan = investigasi keamanan |
-| Waktu propagasi pencabutan modul/izin | < 10 detik |
-| Latensi bootstrap (`/me/bootstrap`) p95 | < 400 ms |
-| Sesi dukungan tanpa persetujuan tenant | 0 |
-| Deviasi `tenant_queue_wait_seconds` p95 antar tenant | < 3× median |
+| Cross-tenant leak incidents | **0** (zero tolerance) |
+| RLS coverage on `tenant_id` tables | 100%, verified in CI in every service |
+| Gateway routes without a manifest entry | 0, verified in CI |
+| `TENANT_MISMATCH` occurrences per week | Monitored; a spike means a security investigation |
+| Propagation time of a module/permission revocation | < 10 seconds |
+| Bootstrap latency (`/me/bootstrap`) p95 | < 400 ms |
+| Support sessions without tenant approval | 0 |
+| `tenant_queue_wait_seconds` p95 deviation between tenants | < 3× the median |
