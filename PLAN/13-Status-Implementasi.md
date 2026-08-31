@@ -521,6 +521,22 @@ galat, dan seluruhnya akan lolos ke produksi tanpa uji ujung-ke-ujung.
     termasuk pemilik tenant, dengan pesan yang menyalahkan perannya alih-alih
     kodenya. Keduanya diverifikasi lewat mutasi.
 
+    Penjaga ketiga menyusul: `apps/web/test/api-call-coverage.test.ts`
+    membandingkan **setiap panggilan `api('/api/…')` dari layar** dengan manifes.
+    Ini kelas yang paling sunyi dari ketiganya — jalur yang salah ketik
+    menghasilkan 404 yang ditelan penanganan galat layarnya sendiri, dan yang
+    terlihat pengguna hanyalah daftar yang tidak pernah terisi. Penyisiran
+    pertamanya memeriksa 73 panggilan dan tidak menemukan satu pun yang yatim.
+
+    Dua positif palsu yang muncul saat menulisnya ikut diperbaiki dan dicatat di
+    kodenya, karena keduanya adalah pelajaran tentang uji semacam ini: pola
+    tangkap yang menerima ketiga jenis kutip berhenti pada kutip yang berada **di
+    dalam** `${...}`, dan interpolasi yang menempel pada segmen literal
+    (`documents${archived ? '?a=1' : ''}`) tidak boleh diperlakukan sama dengan
+    interpolasi yang mengisi satu segmen penuh. **Positif palsu lebih berbahaya
+    daripada negatif palsu**: uji yang menuduh kode yang benar akan dimatikan
+    orang, bersama seluruh penjagaannya.
+
 ### Tiga temuan dari penelusuran alur pilot
 
 Ketiganya ditemukan dengan menjalankan yang sebenarnya dilakukan pelanggan —
