@@ -1,270 +1,288 @@
 # HRMS — HR Management Suite
 
-Multi-tenant HRIS untuk UKM Indonesia. Monolit modular yang dirancang untuk dapat
-dipecah menjadi service bila — dan hanya bila — ada pemicu terukur.
+Multi-tenant HRIS for Indonesian SMEs. A modular monolith built to be split into
+services if — and only if — a measurable trigger appears.
 
-Cetak biru lengkap ada di [`PLAN/`](PLAN/). Yang paling menentukan sehari-hari:
-**[`PLAN/12-Rencana-Eksekusi-Tim-Kecil.md`](PLAN/12-Rencana-Eksekusi-Tim-Kecil.md)** —
-fase, gerbang, dan alasan setiap keputusan arsitektur.
+The full blueprint lives in [`PLAN/`](PLAN/). The one that decides day-to-day
+work: **[`PLAN/12-Rencana-Eksekusi-Tim-Kecil.md`](PLAN/12-Rencana-Eksekusi-Tim-Kecil.md)**
+— phases, gates, and the reasoning behind every architectural decision.
 
-**Status: Fase 1 (Platform Inti) selesai — backend dan UI shell.**
+Current state is tracked honestly, bugs included, in
+**[`PLAN/13-Status-Implementasi.md`](PLAN/13-Status-Implementasi.md)**.
+
+> The product interface is in Indonesian, because its users are Indonesian HR
+> staff. Code, comments, and documentation are in English. Do not translate
+> user-facing strings, error messages, seed data, or leave-type names.
 
 ---
 
-## Menjalankan secara lokal
+## Running locally
 
-Prasyarat: Node 24+, pnpm 11+, Docker.
+Prerequisites: Node 24+, pnpm 11+, Docker.
 
 ```bash
-cp .env.example .env          # kredensial dev sudah terisi
+cp .env.example .env          # dev credentials are pre-filled
 pnpm install
-pnpm db:up                    # PostgreSQL 16 di port 5433
+pnpm db:up                    # PostgreSQL 16 on port 5433
 pnpm db:migrate
 pnpm db:seed
 
-pnpm --filter @hrms/web dev       # API di :3000
-pnpm --filter @hrms/worker dev    # pompa outbox
+pnpm --filter @hrms/web dev       # API on :3000
+pnpm --filter @hrms/worker dev    # outbox pump
 ```
 
-**Tenant demo** — `tenantCode: demo`, `owner@demo.test`, `DemoPassword123`.
-Paketnya `starter` (**tanpa** payroll) supaya penegakan entitlement terlihat sejak
-hari pertama: menu Penggajian tidak dirender dan endpoint-nya menolak 402, meski
-TENANT_OWNER memegang seluruh permission.
+**Demo tenant** — `tenantCode: demo`, `owner@demo.test`, `DemoPassword123`.
+Its plan is `starter` (**no** payroll) so that entitlement enforcement is
+visible from day one: the Payroll menu is not rendered and its endpoints reject
+with 402, even though TENANT_OWNER holds every permission.
 
 ```bash
 curl -X POST localhost:3000/api/auth/login -H 'content-type: application/json' \
   -d '{"tenantCode":"demo","email":"owner@demo.test","password":"DemoPassword123"}'
 ```
 
-**Superuser demo** — `admin@hrms.test`, `AdminPassword123`, TOTP wajib.
-`pnpm db:seed` mencetak rahasia TOTP-nya; ubah menjadi kode berjalan dengan:
+**Demo superuser** — `admin@hrms.test`, `AdminPassword123`, TOTP required.
+`pnpm db:seed` prints the TOTP secret; turn it into a live code with:
 
 ```bash
-pnpm dev:totp <rahasia-base32>
+pnpm dev:totp <base32-secret>
 ```
 
-## Menjalankan sebagai kontainer
+## Running as containers
 
-Untuk pengembangan sehari-hari, cara di atas lebih baik — hot reload jauh lebih
-cepat daripada membangun ulang image. Tumpukan penuh dipakai saat memeriksa
-masalah yang hanya muncul di image, atau saat deploy.
+For day-to-day development the commands above are better — hot reload beats
+rebuilding images. The full stack is for reproducing problems that only appear
+in an image, and for deployment.
 
 ```bash
-cp ops/.env.compose.example ops/.env      # ganti kedua JWT secret sebelum produksi
+cp ops/.env.compose.example ops/.env      # replace both JWT secrets before production
 docker compose -f ops/docker-compose.yml --env-file ops/.env up --build
 ```
 
-Tiga kontainer, dan tidak lebih:
+Three containers, and no more:
 
-| Kontainer | Peran | Terbuka ke luar |
+| Container | Role | Exposed |
 |---|---|---|
-| `postgres` | Data, antrean pekerjaan (pg-boss), kunci terdistribusi (advisory lock) | port 5433 (dev) |
-| `web` | **Frontend** — UI dan seluruh REST API (`/api`, `/admin/api`) | port 3000 |
-| `worker` | **Backend** — pompa outbox, nanti payroll & impor Excel | tidak sama sekali |
+| `postgres` | Data, job queue (pg-boss), distributed locks (advisory locks) | port 5433 (dev) |
+| `web` | **Frontend** — UI and the whole REST API (`/api`, `/admin/api`) | port 3000 |
+| `worker` | **Backend** — outbox pump, payroll runs, scheduled jobs | nothing |
 
-PostgreSQL merangkap tiga peran, dan itu yang membuat tumpukan ini dapat
-dioperasikan satu orang: tidak ada RabbitMQ dan tidak ada Redis yang perlu
-dijaga hidup (PLAN/12 §3.2).
+PostgreSQL doing three jobs at once is what makes this stack operable by one
+person: there is no RabbitMQ and no Redis to keep alive (PLAN/12 §3.2).
 
-Layanan `migrate` berjalan sekali sampai selesai sebelum `web` dan `worker`
-dimulai, dan ia satu-satunya yang memakai kredensial owner.
+The `migrate` service runs to completion before `web` and `worker` start, and it
+is the only one using owner credentials.
 
-## Verifikasi
+## Verification
 
 ```bash
-pnpm verify        # linter migrasi + lint batas modul + typecheck + test + build
+pnpm verify        # migration linter + module boundary lint + typecheck + test + build
 ```
 
-> Jangan pakai `pnpm ci` — itu perintah bawaan pnpm (clean install), bukan skrip ini.
+> Do not use `pnpm ci` — that is pnpm's own command (clean install), not this
+> script.
 
 ---
 
-## Susunan
+## Layout
 
 ```
-apps/web         Next.js — UI shell dan route handler API bidang tenant (/api)
-                 serta control plane (/admin/api)
-apps/worker      Proses latar — pompa outbox, pg-boss
-packages/core    Modul domain: tenant, iam, auth
-packages/db      Prisma, migrasi, konteks tenant, audit, outbox
-packages/contracts  Skema Zod: API, token, event
-ops/             docker-compose, Dockerfile web & worker, linter migrasi
+apps/web            Next.js — UI and API route handlers for the tenant plane
+                    (/api) and the control plane (/admin/api)
+apps/worker         Background process — outbox pump, pg-boss, scheduled jobs
+packages/core       Domain modules: tenant, iam, auth, employee, attendance,
+                    leave, payroll, notification, reporting, platform
+packages/db         Prisma, migrations, tenant context, audit, outbox
+packages/contracts  Zod schemas: API, tokens, events, shared catalogues
+packages/observability  Structured logging and request context
+ops/                docker-compose, web & worker Dockerfiles, migration linter,
+                    backup/restore and point-in-time recovery scripts
 ```
 
-### Empat aturan yang membuat ini bukan sekadar monolit
+### Four rules that make this more than a monolith
 
-Keempatnya ditegakkan mesin, bukan kesepakatan. Bersama-sama, keempatnya yang
-membuat pemecahan satu modul menjadi service kelak memakan 4–6 minggu, bukan 4–6
-bulan (PLAN/12 §9).
+All four are machine-enforced, not agreements. Together they are what makes
+splitting one module into a service take 4–6 weeks rather than 4–6 months
+(PLAN/12 §9).
 
-1. **Modul hanya berkomunikasi lewat `index.ts`.** Ditegakkan `eslint-plugin-boundaries`.
-   Impor ke kedalaman modul lain menggagalkan build.
-2. **Event melewati tabel outbox**, bukan panggilan fungsi antar-domain. Bentuk
-   kodenya identik dengan versi terdistribusi.
-3. **Satu schema PostgreSQL per modul.** Memindahkan modul berarti memindahkan
-   schema, bukan membongkar tabel.
-4. **Setiap route terdaftar di `ROUTE_MANIFEST`** dengan modul dan permission-nya.
-   Route tak terdaftar tidak dapat dijalankan.
+1. **Modules only talk through `index.ts`.** Enforced by
+   `eslint-plugin-boundaries`. Importing into another module's internals fails
+   the build.
+2. **Events go through the outbox table**, not cross-domain function calls. The
+   code has the same shape it would have in a distributed version.
+3. **One PostgreSQL schema per module.** Moving a module means moving a schema,
+   not dismantling tables.
+4. **Every route is registered in `ROUTE_MANIFEST`** with its module and
+   permission. An unregistered route cannot run.
 
 ---
 
-## Yang perlu diketahui sebelum menulis kode
+## What to know before writing code
 
-### Setiap akses data tenant lewat `withTenant()`
+### Every tenant data access goes through `withTenant()`
 
 ```ts
 import { withTenant } from '@hrms/db';
 
 await withTenant(tenantId, async (tx) => {
-  return tx.user.findMany();   // RLS berlaku penuh
+  return tx.user.findMany();   // RLS fully in force
 });
 ```
 
-Tanpa konteks, query mengembalikan **nol baris** — bukan seluruh tabel. Sengaja
-gagal-tertutup: kebocoran lintas-tenant tidak melempar galat, ia hanya menampilkan
-data orang lain.
+Without context, queries return **zero rows** — not the whole table. Deliberately
+fail-closed: a cross-tenant leak does not throw, it just shows someone else's
+data.
 
-Aplikasi berjalan sebagai role `hrms_app` (`NOBYPASSRLS`, bukan pemilik tabel).
-Role owner hanya dipakai Prisma CLI saat migrasi.
+The application runs as the `hrms_app` role (`NOBYPASSRLS`, not the table
+owner). The owner role is only used by the Prisma CLI during migrations.
 
-### Jangan menulis efek samping di transaksi yang berakhir dengan `throw`
+### Do not write side effects in a transaction that ends in `throw`
 
-`throw` di dalam `withTenant()` mem-*rollback* transaksinya. Efek samping yang
-harus bertahan meski request ditolak — penghitung percobaan gagal, kunci akun,
-pencabutan token — ditulis di transaksi tersendiri **setelah** yang pertama commit.
+A `throw` inside `withTenant()` rolls its transaction back. Side effects that
+must survive a rejected request — failed-attempt counters, account locks, token
+revocation — belong in a separate transaction **after** the first one commits.
 
-Polanya ada di [`packages/core/src/auth/login.ts`](packages/core/src/auth/login.ts):
-transaksi mengembalikan *outcome*, pemanggil yang melempar.
+The pattern is in [`packages/core/src/auth/login.ts`](packages/core/src/auth/login.ts):
+the transaction returns an outcome, the caller throws.
 
-Ini bukan kehalusan gaya. Versi pertama melanggarnya, dan hasilnya: sepuluh
-percobaan kata sandi salah meninggalkan `failed_login_attempts = 0`. Kunci akun
-ada di kode, lulus review, dan tidak melakukan apa pun.
+This is not a matter of style. The first version broke it, and the result was
+that ten wrong passwords left `failed_login_attempts = 0`. Account locking
+existed in the code, passed review, and did nothing.
 
-### Token tidak pernah menyentuh penyimpanan yang bertahan
+### Tokens never touch persistent storage
 
-Access token hidup **hanya di memori JavaScript**. Refresh token hidup **hanya
-sebagai cookie httpOnly** — tidak dikembalikan di body login, sehingga skrip di
-halaman tidak pernah memegangnya (PLAN/11 §5.3).
+The access token lives **only in JavaScript memory**. The refresh token lives
+**only as an httpOnly cookie** — it is not returned in the login body, so page
+scripts never hold it (PLAN/11 §5.3).
 
-Konsekuensinya: muat ulang halaman menghilangkan access token, lalu aplikasi
-menukar cookie dengan yang baru saat dimuat. Yang dapat dicuri lewat XSS hanya
-token berumur 15 menit.
+The consequence: reloading the page discards the access token, and the app
+exchanges the cookie for a fresh one on load. What XSS can steal is a token that
+expires in 15 minutes.
 
-Klien non-browser (skrip, uji) harus ikut memakai cookie jar — `curl -c/-b`.
+Non-browser clients (scripts, tests) must use a cookie jar too — `curl -c/-b`.
 
-> `COOKIE_SECURE` sengaja tidak diturunkan dari `NODE_ENV`. `next start`
-> menyetel NODE_ENV ke production, sehingga menguji build produksi lewat HTTP
-> di mesin sendiri akan selalu mematahkan sesi — browser membuang cookie
-> `Secure` pada koneksi polos di setiap hostname kecuali localhost, tanpa satu
-> pun galat di sisi server. Defaultnya tetap aman; matikan hanya untuk uji lokal.
+> `COOKIE_SECURE` is deliberately not derived from `NODE_ENV`. `next start` sets
+> NODE_ENV to production, so testing a production build over HTTP on your own
+> machine would always break sessions — browsers drop `Secure` cookies on plain
+> connections for every hostname except localhost, with no server-side error at
+> all. The default stays safe; turn it off only for local testing.
 
-### Menu berasal dari basis data, bukan dari kode frontend
+### The menu comes from the database, not from frontend code
 
-Sidebar dirender sepenuhnya dari `/api/me/bootstrap`. Mengaktifkan modul di
-control plane langsung mengubah navigasi tenant tanpa deploy.
+The sidebar is rendered entirely from `/api/me/bootstrap`. Enabling a module in
+the control plane changes tenant navigation immediately, without a deploy.
 
-Karena menu memuat rute Fase 2–5 yang halamannya belum ada, `prefetch`
-dimatikan pada tautan menu — tanpa itu, satu kali muat beranda memicu 13
-request yang semuanya 404, dan konsol yang penuh akan menenggelamkan error
-sungguhan berikutnya. Dilepas kembali ketika halamannya ada.
+`apps/web/test/menu-coverage.test.ts` checks that every menu path has a page and
+that every permission code it names exists. Four menu entries once pointed at
+404s for months, because the menu is assembled from data and TypeScript cannot
+see the connection to a `page.tsx`.
 
-### Bedakan sesi yang dicabut dari token yang dicuri
+### Tell a revoked session apart from a stolen token
 
-Refresh token yang **sudah digantikan** lalu muncul lagi berarti dua pihak
-memegang token yang sama — itu indikasi pencurian, dicatat sebagai insiden, dan
-seluruh keluarga token dicabut.
+A refresh token that was **already rotated** and then shows up again means two
+parties hold the same token — that is a theft signal, recorded as an incident,
+and the whole token family is revoked.
 
-Refresh token yang **dicabut** hanya berarti sesinya diakhiri secara sah: logout,
-reset kata sandi, atau pembersihan setelah insiden. Keduanya menghasilkan 401 dan
-pengguna harus masuk lagi, tetapi hanya yang pertama yang boleh membunyikan alarm.
+A **revoked** refresh token only means the session ended legitimately: logout,
+password reset, or cleanup after an incident. Both produce a 401 and force a new
+login, but only the first should raise an alarm.
 
-Versi pertama menyatukan keduanya, dan akibatnya setiap orang yang lupa kata
-sandi memicu `auth.token.reuse_detected`. Alarm yang sering salah adalah alarm
-yang akan diabaikan saat berbunyi benar.
+The first version conflated them, so everyone who forgot their password
+triggered `auth.token.reuse_detected`. An alarm that is usually wrong is an
+alarm that gets ignored when it is right.
 
-### Migrasi hanya aditif
+### Migrations are additive only
 
-Tanpa `DROP`, `RENAME`, atau `TRUNCATE`. Ditegakkan `ops/scripts/lint-migrations.mjs`.
-Aturan lengkap dan tangga deprekasi ada di
-[`PLAN/09`](PLAN/09-Strategi-Migrasi-Non-Destruktif.md).
+No `DROP`, `RENAME`, or `TRUNCATE`. Enforced by
+`ops/scripts/lint-migrations.mjs`. The full rules and the deprecation ladder are
+in [`PLAN/09`](PLAN/09-Strategi-Migrasi-Non-Destruktif.md).
 
-RLS ditulis tangan di migrasi — Prisma tidak membangkitkannya. Setiap tabel
-ber-`tenant_id` **wajib** punya kebijakan; ada uji CI yang membaca katalog
-PostgreSQL dan gagal bila ada yang terlewat.
+RLS is written by hand in migrations — Prisma does not generate it. Every table
+with a `tenant_id` **must** have a policy; a CI test reads the PostgreSQL
+catalogue and fails if one is missing.
 
-### Empat principal basis data, masing-masing sesempit mungkin
+### Four database principals, each as narrow as possible
 
-| Role | Dipakai | Tidak dapat menjangkau |
+| Role | Used by | Cannot reach |
 |---|---|---|
-| `hrms_owner` | Prisma CLI saat migrasi | — |
-| `hrms_app` | Runtime web, bidang tenant | schema `platform` |
-| `hrms_worker` | Proses latar | schema `platform`; RLS berlaku penuh kecuali pada outbox |
+| `hrms_owner` | Prisma CLI during migrations | — |
+| `hrms_app` | Web runtime, tenant plane | `platform` schema |
+| `hrms_worker` | Background process | `platform` schema; RLS fully in force except on the outbox |
 | `hrms_platform` | Control plane | `auth.users`, `iam.*`, `audit.*` |
 
-Baris terakhir yang menanggung P11. Bila kelak ada yang menulis pembacaan
-`auth.users` di kode control plane, PostgreSQL yang menolaknya — bukan reviewer
-yang kebetulan sempat memperhatikan. Hibah ke schema `tenant` diberikan **per
-tabel**, bukan menyapu, sehingga modul domain berikutnya tidak akan pernah
-terbuka ke control plane tanpa ada yang memutuskannya.
+That last row is what carries P11. If someone later writes a read of
+`auth.users` into control-plane code, PostgreSQL refuses it — not a reviewer who
+happened to be paying attention. Grants into the `tenant` schema are given **per
+table**, not by sweep, so the next domain module will never be exposed to the
+control plane without someone deciding it.
 
-### Empat pengecualian RLS, dan hanya empat
+The control plane can suspend a tenant, and that grant is narrow in the same
+way: `UPDATE` on **four columns**, not on the table.
 
-Semuanya berdaftar, berkomentar di migrasinya, dan dihitung uji CI:
+### Four RLS exceptions, and only four
 
-| Pengecualian | Alasan |
+All of them are listed, commented in their migration, and counted by a CI test:
+
+| Exception | Reason |
 |---|---|
-| `resolve_tenant_by_code` | Jalur login butuh tenantId sebelum konteks dapat dipasang |
-| `resolve_refresh_token_owner` | Masalah yang sama pada alur refresh |
-| `platform.tenant_user_counts` | Dashboard global butuh angka; SELECT pada `auth.users` akan memberi isinya |
-| Kebijakan `outbox_publisher` | Pompa event adalah infrastruktur; hanya role `hrms_worker`, hanya satu tabel |
+| `resolve_tenant_by_code` | The login path needs a tenantId before context can be set |
+| `resolve_refresh_token_owner` | The same problem on the refresh path |
+| `platform.tenant_user_counts` | The global dashboard needs a count; SELECT on `auth.users` would hand over its contents |
+| `outbox_publisher` policy | The event pump is infrastructure; `hrms_worker` only, one table only |
 
-Uji `rls-coverage.test.ts` gagal saat pengecualian berikutnya muncul — memaksa
-penambahnya menjelaskan alasannya di PR, bukan menyelipkannya.
+`rls-coverage.test.ts` fails when a fifth exception appears — forcing whoever
+adds it to justify it in the PR rather than slipping it in.
 
-### Dua bidang, dua guard, tidak pernah bercampur
+### Two planes, two guards, never mixed
 
-`defineRoute` untuk `/api/**`, `defineAdminRoute` untuk `/admin/api/**`. Sengaja
-dua fungsi terpisah, bukan satu dengan parameter `isAdmin`: sejak ada parameter
-semacam itu, satu kekeliruan boolean memisahkan metadata seluruh pelanggan dari
-orang yang tidak berhak.
+`defineRoute` for `/api/**`, `defineAdminRoute` for `/admin/api/**`. Two separate
+functions on purpose, not one with an `isAdmin` parameter: the moment such a
+parameter exists, a single boolean mistake is all that separates every
+customer's metadata from someone who should not have it.
 
-Uji CI memeriksa keduanya ke dua arah — handler admin yang memakai guard tenant
-(atau sebaliknya) menggagalkan build.
+A CI test checks both directions — an admin handler using the tenant guard (or
+the reverse) fails the build.
 
-> Catatan Next.js: folder route admin **tidak boleh** diawali garis bawah.
-> `_admin` adalah *private folder* yang dikeluarkan dari routing, dan gejalanya
-> hanyalah route yang diam-diam tidak ada di keluaran build.
+> Next.js note: the admin route folder **must not** start with an underscore.
+> `_admin` is a private folder excluded from routing, and the only symptom is a
+> route quietly missing from the build output.
 
 ---
 
-## Yang sudah berjalan
+## What works
 
-- Multi-tenancy dengan RLS gagal-tertutup, terverifikasi uji lintas-tenant
-- Login `tenantCode + email + password`, argon2id, kunci akun setelah 8 percobaan
-- Refresh token dengan rotasi dan **pencabutan seluruh keluarga** saat pemakaian ulang terdeteksi
-- Peran, permission, menu, grant/deny per pengguna, resolusi akses efektif
-- Entitlement modul: permission dari modul tak dilanggan gugur otomatis (402, bukan 403)
-- `/api/me/bootstrap` — sumber tunggal sidebar dan penjagaan rute
-- Jejak audit append-only (trigger + hak akses)
-- Outbox transaksional + pompa ke pg-boss
-- Pendaftaran tenant mandiri — satu transaksi ACID, tanpa saga dan tanpa kompensasi
-- Control plane `/admin/api`: login superuser (kata sandi + TOTP), daftar tenant,
-  ringkasan platform, aktivasi/penonaktifan modul, jejak audit terpisah
-- Undangan pengguna & reset kata sandi lewat token sekali pakai; reset mencabut
-  seluruh sesi berjalan
-- Pengelolaan peran dan hak akses khusus per pengguna — versi akses naik di
-  transaksi yang sama, sehingga pencabutan berlaku seketika
-- UI shell: halaman masuk, sidebar dinamis dari bootstrap, penjagaan rute,
-  halaman modul terkunci — sesi bertahan lintas muat ulang tanpa token pernah
-  disimpan JavaScript
+Tracked in detail, with every bug found and how it was proven, in
+[`PLAN/13`](PLAN/13-Status-Implementasi.md). In outline:
 
-## Yang belum
+- **Platform** — multi-tenancy with fail-closed RLS, self-service registration,
+  roles and permissions, per-user grant/deny, audit trail, transactional outbox,
+  control plane with tenant suspension and module toggles
+- **Employees** — records with encrypted PII (AES-256-GCM, blind index, stored
+  masked columns), documents, contracts with expiry reminders, Excel import and
+  export
+- **Attendance** — punches with geofence and photo evidence, trust scoring,
+  review queue, shifts and schedules, holidays and joint leave, device import,
+  manual correction, tenant-configurable policy
+- **Leave** — balances with a hold/consume/release ledger, accrual methods,
+  carry-over, file attachments, approval with separation of duties
+- **Payroll** — components and formulas, salary structures, runs calculated in
+  the worker as committed batches, payslips
+- **Cross-cutting** — `.xlsx` export in every module, monthly attendance recap,
+  Web Push, structured logging with correlation IDs, backups and point-in-time
+  recovery
 
-Modul karyawan/presensi/cuti/payroll (Fase 2+), pengiriman email sungguhan
-(event `auth.password.reset_requested` dan `iam.user.invited` sudah terbit ke
-outbox, konsumernya belum ada), support session (PLAN/07 §6).
+## What does not
 
-Sampai support session dibangun, jawaban atas "bagaimana tim dukungan melihat
-data pelanggan?" adalah **tidak bisa** — bukan pintu belakang sementara.
+- **PPh21 and BPJS are not calculated.** Payroll computes only the components a
+  tenant configures. This is Gate C: it needs a payroll expert and 30 real
+  payslips as regression cases before it can be trusted. The payroll screen says
+  so in a banner.
+- **Billing** — subscription model, entitlement, trials, and suspension all
+  work; the payment gateway integration needs Midtrans/Xendit sandbox
+  credentials.
+- **WhatsApp notifications** — the third tier for urgent messages, needs a
+  WhatsApp Business API account.
+- **Support sessions** (PLAN/07 §6). Until they exist, the answer to "how does
+  support look at customer data?" is **they cannot** — not a temporary back door.
 
-Urutan dan gerbangnya di [`PLAN/12`](PLAN/12-Rencana-Eksekusi-Tim-Kecil.md) §6.
+Order and gates are in [`PLAN/12`](PLAN/12-Rencana-Eksekusi-Tim-Kecil.md) §6.

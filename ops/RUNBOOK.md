@@ -1,84 +1,83 @@
-# Runbook Insiden
+# Incident Runbook
 
-Lima insiden yang paling mungkin terjadi, beserta cara mengenali dan
-menanganinya. Ditulis untuk dibaca pada pukul dua pagi oleh orang yang tidak
-menulis kodenya.
+The five incidents most likely to happen, how to recognise them, and what to do.
+Written to be read at two in the morning by someone who did not write the code.
 
-Aturan yang berlaku pada seluruh prosedur di bawah:
+Rules that apply to every procedure below:
 
-- **Jangan menghapus data untuk memulihkan layanan.** Aturan M4 dokumen `09`.
-  Hampir setiap insiden di sini punya jalan keluar yang tidak menghapus apa pun.
-- **Jangan memberi `BYPASSRLS` kepada peran aplikasi**, bahkan sementara. Job
-  drift harian akan menemukannya, tetapi di antara dua pemeriksaan itu seluruh
-  isolasi tenant berhenti berlaku.
-- **Catat apa yang Anda lakukan** di kanal insiden sambil melakukannya, bukan
-  sesudahnya. Yang menyelesaikan insiden biasanya bukan yang menulis laporannya.
+- **Do not delete data to restore service.** Rule M4 of document `09`. Almost
+  every incident here has a way out that deletes nothing.
+- **Do not grant `BYPASSRLS` to an application role**, not even temporarily. The
+  daily drift job will find it, but between two checks the whole tenant
+  isolation stops applying.
+- **Write down what you are doing** in the incident channel as you do it, not
+  afterwards. The person who resolves an incident is usually not the one who
+  writes the report.
 
 ---
 
-## 1. Aplikasi lambat atau menggantung
+## 1. The application is slow or hanging
 
-**Gejala.** Halaman lama dimuat. Log memuat `{"scope":"overload"}` atau balasan
-503. Pengguna melaporkan "sistem lemot", bukan galat.
+**Symptoms.** Pages take a long time to load. Logs contain `{"scope":"overload"}`
+or 503 responses. Users report "the system is slow", not an error.
 
-**Periksa lebih dulu, sebelum apa pun:**
+**Check this first, before anything else:**
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}
-' http://<host>/api/health   # proses hidup?
-curl -s http://<host>/api/ready                                     # basis data terjangkau?
+curl -s -o /dev/null -w '%{http_code}\n' http://<host>/api/health   # process alive?
+curl -s http://<host>/api/ready                                     # database reachable?
 ```
 
-`health` 200 tetapi `ready` 503 berarti aplikasinya hidup dan basis datanya
-yang bermasalah — dan pada keadaan itu **jangan merestart aplikasi**. Restart
-tidak memperbaiki basis data, dan setiap instance yang menyala kembali langsung
-membuka pool koneksi baru ke basis data yang sudah kewalahan.
+`health` 200 but `ready` 503 means the application is alive and the database is
+the problem — and in that state **do not restart the application**. A restart
+does not fix the database, and every instance coming back up immediately opens a
+fresh connection pool against a database that is already overwhelmed.
 
-**Penyebab paling sering.** Pool transaksi habis — biasanya satu tenant
-menjalankan impor besar, atau satu query menyapu tabel tanpa indeks.
+**Most common cause.** The transaction pool is exhausted — usually one tenant
+running a large import, or one query scanning a table without an index.
 
 **Diagnosis.**
 
 ```sql
--- Query yang sedang berjalan, terlama dahulu.
-SELECT pid, usename, state, now() - query_start AS lama, left(query, 120)
+-- Running queries, longest first.
+SELECT pid, usename, state, now() - query_start AS duration, left(query, 120)
 FROM pg_stat_activity
 WHERE state <> 'idle' AND query NOT LIKE '%pg_stat_activity%'
 ORDER BY query_start;
 
--- Transaksi menganggur yang menahan lock.
-SELECT pid, usename, now() - state_change AS menganggur, left(query, 80)
+-- Idle transactions holding locks.
+SELECT pid, usename, now() - state_change AS idle_for, left(query, 80)
 FROM pg_stat_activity
 WHERE state = 'idle in transaction'
 ORDER BY state_change;
 ```
 
-**Tindakan.**
+**Actions.**
 
-1. `statement_timeout` peran `hrms_app` adalah 15 detik, sehingga query pengguna
-   memotong dirinya sendiri. Query yang berjalan lebih lama hampir pasti milik
-   `hrms_worker` (batas 5 menit) atau `hrms_owner` (tanpa batas).
-2. Bila satu query jelas menjadi penyebabnya, hentikan **query**-nya saja:
-   `SELECT pg_cancel_backend(<pid>)`. Pakai `pg_terminate_backend` hanya bila
-   `pg_cancel_backend` tidak berhasil — ia memutus koneksinya, dan transaksi
-   yang sedang berjalan di-rollback.
-3. Bila penyebabnya satu tenant yang membanjiri, kuotanya (600 permintaan per
-   menit) sudah menahan sebagian. Log `{"scope":"tenant-quota"}` menyebut
-   `tenantId`-nya.
-4. Setelah pulih: cari query yang lambat itu di log dan **tambahkan indeksnya**.
-   Insiden yang sama akan berulang pada hari kerja berikutnya.
+1. The `hrms_app` role has a 15-second `statement_timeout`, so user queries cut
+   themselves off. Anything running longer almost certainly belongs to
+   `hrms_worker` (5-minute limit) or `hrms_owner` (no limit).
+2. If one query is clearly the cause, cancel the **query** only:
+   `SELECT pg_cancel_backend(<pid>)`. Use `pg_terminate_backend` only when
+   `pg_cancel_backend` does not work — it drops the connection, and any running
+   transaction is rolled back.
+3. If the cause is one tenant flooding, its quota (600 requests per minute)
+   already holds part of it back. The `{"scope":"tenant-quota"}` log names the
+   `tenantId`.
+4. After recovery: find that slow query in the logs and **add its index**. The
+   same incident will return on the next working day.
 
 ---
 
-## 2. Job latar berhenti — presensi bertanda tidak sampai, email tidak terkirim
+## 2. Background jobs stopped — flagged punches never arrive, email is not sent
 
-**Gejala.** Log worker memuat `{"scope":"outbox","stuck":N}` dengan N naik, atau
-worker sama sekali tidak mengeluarkan log.
+**Symptoms.** Worker logs contain `{"scope":"outbox","stuck":N}` with N rising,
+or the worker produces no logs at all.
 
 **Diagnosis.**
 
 ```bash
-pnpm --filter @hrms/worker outbox:retry     # menampilkan yang tertahan, tanpa mengubah apa pun
+pnpm --filter @hrms/worker outbox:retry     # lists what is stuck, changes nothing
 ```
 
 ```sql
@@ -88,26 +87,27 @@ WHERE published_at IS NULL AND attempts >= 10
 GROUP BY topic;
 ```
 
-**Tindakan.**
+**Actions.**
 
-1. Baca `last_error`. Penyebab yang pernah terjadi: **antrean pg-boss belum
-   dibuat** untuk sebuah topik. Itu berarti topiknya tidak ada di katalog
-   `EventTopic` — sekarang mustahil karena tipenya, tetapi periksa tetap.
-2. Perbaiki penyebabnya lebih dulu. Mengembalikan pesan ke antrean sebelum
-   penyebabnya hilang hanya menghabiskan sepuluh percobaan lagi.
-3. Setelah penyebabnya hilang:
-   `pnpm --filter @hrms/worker outbox:retry <topik>`
-4. **Jangan menghapus baris outbox.** Pesan yang hilang berarti presensi yang
-   tidak pernah ditinjau atau email yang tidak pernah terkirim, tanpa jejak.
+1. Read `last_error`. A cause that has actually happened: **the pg-boss queue
+   was never created** for a topic. That means the topic is missing from the
+   `EventTopic` catalogue — now impossible because of its type, but check
+   anyway.
+2. Fix the cause first. Returning messages to the queue before the cause is gone
+   just burns another ten attempts.
+3. Once the cause is gone:
+   `pnpm --filter @hrms/worker outbox:retry <topic>`
+4. **Do not delete outbox rows.** A lost message means a punch that was never
+   reviewed or an email that was never sent, with no trace.
 
 ---
 
-## 3. Isolasi tenant bocor
+## 3. Tenant isolation has leaked
 
-**Gejala.** Seseorang melaporkan melihat data yang bukan miliknya. Atau job
-drift harian melaporkan `{"scope":"schema-drift","severity":"critical"}`.
+**Symptoms.** Someone reports seeing data that is not theirs. Or the daily drift
+job reports `{"scope":"schema-drift","severity":"critical"}`.
 
-**Ini insiden paling berat dalam daftar ini.** Perlakukan sebagai kebocoran data.
+**This is the most serious incident on this list.** Treat it as a data breach.
 
 **Diagnosis.**
 
@@ -115,61 +115,61 @@ drift harian melaporkan `{"scope":"schema-drift","severity":"critical"}`.
 SELECT * FROM public.schema_drift_report();
 ```
 
-Tiga temuan yang mungkin muncul:
+Three findings can appear:
 
-| `kind` | Artinya | Akibat |
+| `kind` | Meaning | Consequence |
 |---|---|---|
-| `rls_missing` | Tabel ber-`tenant_id` tanpa RLS | **Setiap tenant membaca data seluruh tenant lain** |
-| `policy_missing` | RLS aktif tanpa kebijakan | Tabelnya menolak semua — modul mati total |
-| `bypass_rls` | Peran aplikasi dapat menembus RLS | Seluruh isolasi berhenti berlaku |
+| `rls_missing` | A table with `tenant_id` and no RLS | **Every tenant reads every other tenant's data** |
+| `policy_missing` | RLS enabled with no policy | The table denies everything — the module is dead |
+| `bypass_rls` | An application role can bypass RLS | All isolation stops applying |
 
-**Tindakan.**
+**Actions.**
 
-1. Untuk `bypass_rls`, segera: `ALTER ROLE hrms_app NOBYPASSRLS;`
-2. Untuk `rls_missing`, pasang kebijakannya dengan pola yang sama seperti tabel
-   lain — lihat migrasi mana pun yang membuat tabel bertenant.
-3. Jangan berhenti di perbaikan. **Cari tahu bagaimana tabel itu bisa ada tanpa
-   RLS**: hampir pasti ia dibuat lewat psql di luar migrasi, atau sebuah migrasi
-   gagal separuh jalan.
-4. Tentukan cakupan kebocorannya dari `audit.audit_logs` dan log akses. UU PDP
-   No. 27/2022 mewajibkan pemberitahuan kepada subjek data.
+1. For `bypass_rls`, immediately: `ALTER ROLE hrms_app NOBYPASSRLS;`
+2. For `rls_missing`, install the policy using the same pattern as every other
+   table — see any migration that creates a tenant-scoped table.
+3. Do not stop at the fix. **Find out how that table came to exist without RLS**:
+   almost certainly it was created through psql outside a migration, or a
+   migration failed halfway.
+4. Determine the scope of the leak from `audit.audit_logs` and the access logs.
+   Indonesian Law 27/2022 (UU PDP) requires notifying data subjects.
 
 ---
 
-## 4. Migrasi gagal separuh jalan
+## 4. A migration failed halfway
 
-**Gejala.** `prisma migrate deploy` gagal dengan `P3009`, dan penerapan
-berikutnya menolak berjalan.
+**Symptoms.** `prisma migrate deploy` fails with `P3009`, and the next deploy
+refuses to run.
 
-**Tindakan.**
+**Actions.**
 
-1. Baca galat aslinya:
-   `pnpm --filter @hrms/db exec prisma migrate deploy` — pesannya menyebut
-   migrasi mana yang gagal dan pada pernyataan apa.
-2. Periksa apa yang SUDAH terlanjur diterapkan. Migrasi bukan atomik bila memuat
-   `CREATE INDEX CONCURRENTLY` atau beberapa pernyataan DDL.
-3. Perbaiki berkas migrasinya, lalu:
+1. Read the original error:
+   `pnpm --filter @hrms/db exec prisma migrate deploy` — the message names which
+   migration failed and on which statement.
+2. Check what was ALREADY applied. A migration is not atomic when it contains
+   `CREATE INDEX CONCURRENTLY` or several DDL statements.
+3. Fix the migration file, then:
    ```bash
-   pnpm --filter @hrms/db exec prisma migrate resolve --rolled-back <nama_migrasi>
+   pnpm --filter @hrms/db exec prisma migrate resolve --rolled-back <migration_name>
    pnpm --filter @hrms/db exec prisma migrate deploy
    ```
-4. **Jangan pakai `--applied`** untuk melewatinya, kecuali Anda sudah memastikan
-   seluruh isi migrasi itu memang sudah ada di basis data. Menandainya
-   "diterapkan" padahal belum akan membuat migrasi berikutnya gagal dengan cara
-   yang jauh lebih membingungkan.
-5. Ingat aturan P12: migrasi hanya aditif. Bila perbaikannya menuntut `DROP`,
-   perbaikannya salah.
+4. **Do not use `--applied`** to skip it, unless you have confirmed that
+   everything in that migration is genuinely already in the database. Marking it
+   "applied" when it is not makes the next migration fail in a far more
+   confusing way.
+5. Remember rule P12: migrations are additive only. If the fix requires a
+   `DROP`, the fix is wrong.
 
 ---
 
-## 5. Foto presensi tidak terhapus setelah masa retensi
+## 5. Attendance photos are not deleted after their retention period
 
-**Gejala.** Log memuat `{"scope":"photo-retention","failed":N}`, atau berkas
-menumpuk di `.storage/attendance-photos`.
+**Symptoms.** Logs contain `{"scope":"photo-retention","failed":N}`, or files
+pile up in `.storage/attendance-photos`.
 
-**Mengapa ini insiden.** UU PDP No. 27/2022 mensyaratkan data pribadi tidak
-disimpan lebih lama dari keperluannya. Foto wajah yang bertahan melewati 90 hari
-adalah pelanggaran yang berjalan, bukan kerapian penyimpanan.
+**Why this is an incident.** Indonesian Law 27/2022 (UU PDP) requires that
+personal data is not kept longer than needed. A face photo that outlives its
+retention period is an ongoing violation, not a housekeeping issue.
 
 **Diagnosis.**
 
@@ -178,207 +178,362 @@ SELECT count(*) FROM attendance.punch_logs
 WHERE photo_key IS NOT NULL AND photo_expires_at < now();
 ```
 
-**Tindakan.**
+**Actions.**
 
-1. Baca galat pada log. Yang paling mungkin: izin berkas, disk penuh, atau
-   `PHOTO_STORAGE_DIR` menunjuk tempat yang salah.
-2. Periksa akar penyimpanannya benar-benar sama untuk `apps/web` dan
-   `apps/worker`. Path relatif diselesaikan terhadap akar repositori, bukan
-   direktori kerja proses — bila `PHOTO_STORAGE_DIR` diisi path relatif pada
-   salah satunya saja, keduanya menunjuk tempat berbeda.
-3. Rujukan basis data **sengaja tidak dihapus** ketika penghapusan berkas gagal.
-   Selama ia bertahan, putaran berikutnya akan menemukan berkas itu lagi.
-4. Setelah penyebabnya hilang, job berjalan sendiri pada putaran berikutnya —
-   tidak ada yang perlu dijalankan manual.
+1. Read the error in the logs. Most likely: file permissions, a full disk, or
+   `PHOTO_STORAGE_DIR` pointing somewhere wrong.
+2. Check that the storage root really is the same for `apps/web` and
+   `apps/worker`. Relative paths resolve against the repository root, not the
+   process working directory — if `PHOTO_STORAGE_DIR` holds a relative path in
+   only one of them, the two point at different places.
+3. The database reference is **deliberately not cleared** when file deletion
+   fails. As long as it survives, the next run finds that file again.
+4. Once the cause is gone the job recovers on its own next run — nothing needs
+   to be triggered by hand.
+
+Note that the retention period is now a tenant setting
+(`attendance_policies.photo_retention_days`, default 90). The expiry is computed
+**when the photo is stored**, so changing the setting does not move the deadline
+for photos already taken.
 
 ---
 
-## 6. Pemulihan dari cadangan
+## 6. Restoring from backup
 
-**Prosedur ini sudah dijalankan dan diverifikasi**, bukan disusun dari dokumentasi.
-Hasil uji terakhir dicatat di bawah.
+**This procedure has been run and verified**, not assembled from documentation.
+The most recent test results are recorded below.
 
-### Mencadangkan
+### Taking a backup
 
 ```bash
 bash ops/scripts/backup.sh ./backups
 ```
 
-Skrip memverifikasi isinya, bukan hanya keberadaan berkasnya — cadangan yang
-gagal separuh jalan tetap meninggalkan berkas, dan yang membedakannya dari
-cadangan yang dapat dipakai adalah apakah daftar isinya dapat dibaca.
+The script verifies the contents, not just that a file exists — a backup that
+failed halfway still leaves a file behind, and what separates it from a usable
+one is whether its table of contents can be read.
 
-Menghasilkan **dua** berkas dengan stempel waktu yang sama:
+It produces **two** files sharing a timestamp:
 
-| Berkas | Isi |
+| File | Contents |
 |---|---|
-| `hrms-<stamp>.dump` | Basis data |
-| `hrms-<stamp>-storage.tar.gz` | Foto presensi dan dokumen karyawan |
+| `hrms-<stamp>.dump` | The database |
+| `hrms-<stamp>-storage.tar.gz` | Attendance photos and employee documents |
 
-Keduanya harus dipulihkan sebagai pasangan. Cadangan basis data tanpa berkasnya
-akan terlihat lengkap — seluruh tabel ada, seluruh baris ada, dan
-`punch_logs.photo_key` menunjuk berkas yang sudah tidak ada. Kegagalannya baru
-terlihat saat seseorang membuka foto presensi untuk menyelesaikan sengketa upah.
+Both must be restored as a pair. A database backup without its files will look
+complete — every table present, every row present, and `punch_logs.photo_key`
+pointing at files that no longer exist. The failure only surfaces when someone
+opens an attendance photo to settle a wage dispute.
 
-Retensi 14 cadangan terakhir, dihitung per **jumlah** bukan umur: retensi
-berbasis umur akan menghapus semuanya sekaligus bila job-nya berhenti dua pekan
-lalu berjalan lagi. Arsip berkas ikut terhapus bersama dump pasangannya.
+Retention keeps the last 14 backups, counted by **number** rather than age:
+age-based retention would delete everything at once if the job stopped for two
+weeks and then ran again. File archives are removed alongside their paired dump.
 
-### Memulihkan
+### Restoring
 
-**Selalu pulihkan ke basis data BARU lebih dulu**, bukan langsung menimpa
-produksi. Memulihkan cadangan lama ke atas basis data yang masih baik adalah
-satu-satunya hal yang lebih buruk daripada tidak punya cadangan.
+**Always restore into a NEW database first**, never straight over production.
+Restoring an old backup on top of a database that is still healthy is the one
+thing worse than having no backup.
 
 ```bash
 bash ops/scripts/restore.sh backups/hrms-20260828T090736Z.dump hrms_restore
 ```
 
-Skrip menuntut konfirmasi berupa **nama basis datanya**, bukan sekadar "y".
+The script demands confirmation in the form of **the database name**, not just
+"y".
 
-Berkas penyimpanan dipulihkan terpisah, dari arsip berstempel waktu SAMA:
+Storage files are restored separately, from the archive with the SAME timestamp:
 
 ```bash
-tar -xzf backups/hrms-20260828T090736Z-storage.tar.gz -C /path/tujuan
+tar -xzf backups/hrms-20260828T090736Z-storage.tar.gz -C /path/to/target
 ```
 
-**Diuji ujung-ke-ujung:** berkas hasil ekstraksi identik sampai hash SHA-256,
-struktur direktorinya utuh, dan `storage_key` pada `employee_documents` resolve
-ke path yang benar. Arsip yang belum pernah dibuka bukan cadangan.
+**Tested end to end:** extracted files are identical down to their SHA-256
+hashes, the directory structure is intact, and `storage_key` on
+`employee_documents` resolves to the correct path. An archive that has never
+been opened is not a backup.
 
-### Menjadwalkan cadangan
+### Scheduling backups
 
-Dua cara. Pilih satu — menjalankan keduanya menghasilkan dua rangkaian cadangan
-yang retensinya saling tidak tahu, dan salah satunya akan menghapus berkas yang
-dianggap milik yang lain.
+Two ways. Pick one — running both produces two backup series whose retention
+policies know nothing about each other, and one of them will delete files it
+believes belong to the other.
 
-#### A. Layanan compose — untuk deployment satu VPS
+#### A. Compose service — for a single-VPS deployment
 
 ```bash
 docker compose --profile backup up -d
 ```
 
-Berada di balik profil, sehingga tidak ikut menyala pada `docker compose up`
-biasa. **Tidak memasang socket Docker**: memasang `/var/run/docker.sock`
-memberi kontainer kendali penuh atas mesin — setara root di host — dan
-menukarnya demi kenyamanan penjadwalan adalah pertukaran yang buruk. Layanan ini
-memakai `pg_dump` di dalam image PostgreSQL dan terhubung lewat jaringan seperti
-klien biasa.
+It sits behind a profile, so it does not start with a plain `docker compose up`.
+**It does not mount the Docker socket**: mounting `/var/run/docker.sock` gives
+the container full control of the machine — equivalent to root on the host — and
+trading that for scheduling convenience is a bad bargain. The service uses
+`pg_dump` from inside the PostgreSQL image and connects over the network like
+any other client.
 
-| Variabel | Bawaan | Arti |
+| Variable | Default | Meaning |
 |---|---|---|
-| `BACKUP_INTERVAL_SECONDS` | 86400 | Jarak antar-cadangan — **ini RPO nyata Anda**, karena belum ada PITR |
-| `BACKUP_KEEP` | 14 | Berapa cadangan disimpan |
+| `BACKUP_INTERVAL_SECONDS` | 86400 | Gap between backups |
+| `BACKUP_KEEP` | 14 | How many backups to keep |
 
-**Batasnya:** penjadwalnya gelung tidur, bukan cron, karena cron di dalam
-kontainer menuntut proses init tersendiri dan wadah berproses ganda membuat
-`docker logs` serta sinyal berhenti berperilaku aneh. Konsekuensinya, jadwalnya
-**bergeser**: bila cadangan memakan lima menit, yang berikutnya mundur lima
-menit, dan setelah sebulan waktunya sudah jauh dari yang dimaksud.
+**Its limitation:** the scheduler is a sleep loop rather than cron, because cron
+inside a container needs its own init process, and a container with two
+processes makes `docker logs` and stop signals behave strangely. The consequence
+is that the schedule **drifts**: if a backup takes five minutes, the next one
+starts five minutes later, and after a month it runs nowhere near the intended
+time.
 
-Untuk penjadwalan yang harus tepat waktu, pakai cara B.
+For scheduling that has to be punctual, use option B.
 
-#### B. Cron di host — untuk jadwal yang harus tepat
+#### B. Host cron — for schedules that must be exact
 
 ```cron
-# Setiap hari pukul 02:15 waktu setempat.
+# Every day at 02:15 local time.
 15 2 * * * cd /opt/hrms && bash ops/scripts/backup.sh /var/backups/hrms >> /var/log/hrms-backup.log 2>&1
 ```
 
-`backup.sh` memilih modenya sendiri: `pg_dump` langsung bila klien PostgreSQL
-ada di PATH dan `PGHOST`/`DATABASE_URL` terisi, `docker exec` bila tidak.
-Modenya dicetak di baris pertama keluaran — skrip cadangan yang diam-diam
-berpindah mode adalah skrip yang berhasil di laptop dan gagal di server.
+`backup.sh` picks its own mode: direct `pg_dump` when a PostgreSQL client is on
+PATH and `PGHOST`/`DATABASE_URL` are set, `docker exec` otherwise. The mode is
+printed on the first line of output — a backup script that silently switches
+modes is one that works on a laptop and fails on the server.
 
-**Cadangan yang tidak pernah diperiksa bukan cadangan.** Jadwalkan pemulihan uji
-ke basis data terpisah sekurangnya sebulan sekali; prosedurnya di bawah, dan
-pada ukuran 160 MB ia selesai dalam lima detik.
+**A backup that is never checked is not a backup.** Schedule a test restore into
+a separate database at least monthly; the procedure is below, and at 160 MB it
+finishes in five seconds.
 
-### Yang WAJIB diperiksa setelah pemulihan
+### What MUST be checked after a restore
 
-Data yang pulih tanpa RLS bukan pemulihan yang berhasil — ia kebocoran yang
-menunggu permintaan pertama. Skripnya memeriksa ini otomatis, tetapi periksa
-sendiri sebelum mengarahkan aplikasi ke sana:
+Data restored without RLS is not a successful restore — it is a leak waiting for
+the first request. The script checks this automatically, but check it yourself
+before pointing the application at it:
 
 ```sql
--- 1. Nol temuan drift.
+-- 1. Zero drift findings.
 SELECT * FROM public.schema_drift_report();
 
--- 2. Jumlah kebijakan sama dengan basis data asal.
+-- 2. Policy count matches the source database.
 SELECT count(*) FROM pg_policies
 WHERE schemaname NOT IN ('pg_catalog','information_schema');
 
--- 3. Isolasi benar-benar bekerja. Dijalankan sebagai hrms_app, BUKAN owner —
---    owner menembus RLS, sehingga mengujinya sebagai owner tidak menguji apa pun.
+-- 3. Isolation actually works. Run as hrms_app, NOT as owner — the owner
+--    bypasses RLS, so testing as owner tests nothing.
 SET ROLE hrms_app;
-SELECT count(*) FROM employee.employees;                      -- harus 0
-SELECT set_config('app.tenant_id', '<uuid-tenant>', false);
-SELECT count(*) FROM employee.employees;                      -- harus sesuai
+SELECT count(*) FROM employee.employees;                      -- must be 0
+SELECT set_config('app.tenant_id', '<tenant-uuid>', false);
+SELECT count(*) FROM employee.employees;                      -- must match
 ```
 
-Bila drift tidak nol, jalankan migrasi terhadap basis data hasil pulih sebelum
-memakainya:
+If drift is not zero, run migrations against the restored database before using
+it:
 
 ```bash
-DATABASE_URL=<url-ke-basis-data-pulih> pnpm --filter @hrms/db exec prisma migrate deploy
+DATABASE_URL=<url-of-restored-database> pnpm --filter @hrms/db exec prisma migrate deploy
 ```
 
-Migrasi bersifat idempoten dan aditif; ia hanya melengkapi yang belum ada.
+Migrations are idempotent and additive; they only fill in what is missing.
 
-### Hasil uji — 28 Agustus 2026
+### Test results — 28 August 2026
 
-Dua uji: satu pada data pengembangan, satu pada data seukuran tenant menengah.
+Two tests: one on development data, one on data the size of a mid-sized tenant.
 
-#### Pada ukuran nyata — 500 karyawan, satu tahun presensi
+#### At realistic size — 500 employees, one year of attendance
 
 | | |
 |---|---|
-| Basis data | 160 MB — 261.000 ketukan, 130.500 rekap harian, 500 karyawan |
-| **Waktu cadangan** | **2 detik** → dump 11 MB (terkompresi dari 160 MB) |
-| **Waktu pemulihan** | **5 detik**, termasuk membuat ulang basis data dan memeriksa drift |
-| Kelengkapan | 261.000 / 130.500 / 500 — identik baris demi baris |
-| Kebijakan RLS | 47 pada asal, 47 pada hasil pulih |
-| Laporan drift | 0 temuan |
+| Database | 160 MB — 261,000 punches, 130,500 daily records, 500 employees |
+| **Backup time** | **2 seconds** → an 11 MB dump (compressed from 160 MB) |
+| **Restore time** | **5 seconds**, including recreating the database and checking drift |
+| Completeness | 261,000 / 130,500 / 500 — identical row for row |
+| RLS policies | 47 on the source, 47 on the restore |
+| Drift report | 0 findings |
 
-Angka ini yang menentukan target pemulihan: **pemulihan penuh tenant berukuran
-500 karyawan selesai di bawah sepuluh detik**, sehingga jendela pemadaman pada
-insiden pemulihan ditentukan oleh keputusan manusia, bukan oleh mesin.
+These numbers set the recovery target: **a full restore of a 500-employee tenant
+completes in under ten seconds**, so the outage window during a recovery
+incident is decided by human judgement, not by the machine.
 
-Ekstrapolasi kasar untuk tenant lebih besar: waktunya hampir linear terhadap
-jumlah baris. 5.000 karyawan dengan riwayat yang sama ≈ 1,6 GB, dan pemulihannya
-di kisaran satu menit — masih jauh di bawah ambang yang menuntut PITR.
+A rough extrapolation for larger tenants: time is close to linear in row count.
+5,000 employees with the same history ≈ 1.6 GB, restoring in about a minute.
 
-#### Pada data pengembangan
+#### On development data
 
-| Yang diperiksa | Hasil |
+| Checked | Result |
 |---|---|
-| Ukuran cadangan | 272 KB, 62 tabel berisi data |
-| Jumlah baris per tabel | Identik: audit 272, punch 32, cuti 6, slip 3, jejak hitung 15, karyawan 3, tenant 2 |
-| Kebijakan RLS | 47 pada asal, 47 pada hasil pulih |
-| Laporan drift | 0 temuan |
-| Isolasi tanpa konteks tenant | 0 baris terbaca — fail-closed |
-| Isolasi dengan konteks demo | 3 karyawan, 32 punch — sesuai |
-| Isolasi dengan konteks tenant lain | 0 karyawan, 0 punch, 0 slip |
+| Backup size | 272 KB, 62 tables with data |
+| Row counts per table | Identical: audit 272, punches 32, leave 6, payslips 3, calculation traces 15, employees 3, tenants 2 |
+| RLS policies | 47 on the source, 47 on the restore |
+| Drift report | 0 findings |
+| Isolation with no tenant context | 0 rows readable — fail-closed |
+| Isolation with the demo context | 3 employees, 32 punches — correct |
+| Isolation with another tenant's context | 0 employees, 0 punches, 0 payslips |
 
-### Batasnya, dinyatakan terus terang
+### Its limitations, stated plainly
 
-- **Belum ada PITR.** Yang ada cadangan berkala, sehingga kehilangan data
-  maksimum adalah `BACKUP_INTERVAL_SECONDS` — bawaannya 24 jam. PITR menuntut
-  WAL archiving yang belum dikonfigurasi.
-- **Jadwal layanan compose bergeser.** Lihat catatan pada cara A di atas.
-- **Belum diuji di atas 160 MB.** Angka di atas linear pada rentang yang diuji,
-  tetapi ekstrapolasi bukan pengukuran. Tenant pertama yang melewati satu
-  gigabita layak diukur ulang.
-- **Berkas penyimpanan pada uji skala hanya satu berkas.** Waktu pengarsipan
-  puluhan ribu foto presensi belum diukur, dan `tar` atas banyak berkas kecil
-  berperilaku berbeda dari `tar` atas satu berkas besar.
+- **Not tested above 160 MB.** The numbers above are linear across the tested
+  range, but extrapolation is not measurement. The first tenant to pass one
+  gigabyte deserves a fresh measurement.
+- **The compose schedule drifts.** See the note on option A above.
+- **The scale test used a single storage file.** Archiving tens of thousands of
+  attendance photos has not been measured, and `tar` over many small files
+  behaves differently from `tar` over one large one.
 
 ---
 
-## Yang belum ada di runbook ini
+## 7. Point-in-time recovery
 
-Ditulis terus terang supaya tidak dicari saat dibutuhkan:
+Section 6 answers "restore yesterday's backup". This one answers a question that
+backup cannot: **"restore the database to 14:32:07, just before that `DELETE`
+without a `WHERE` ran."**
 
-- **Insiden penagihan** — modulnya belum ada.
-- **Kegagalan payment gateway** — belum terintegrasi.
-- **Cadangan berkas penyimpanan** — lihat batasnya di §6.
+Two mechanisms exist because they answer different questions, and neither
+replaces the other:
+
+| | `backup.sh` (pg_dump) | `basebackup.sh` + WAL |
+|---|---|---|
+| Answers | "restore one table", "move to another server" | "restore everything to a specific second" |
+| Form | Logical, portable, selective | Physical, version-locked, all or nothing |
+| Usable for PITR | **No** | Yes |
+
+Logical dumps and WAL archives **cannot be combined**. WAL describes changes at
+the physical block level and only means anything on top of a matching physical
+copy.
+
+### How it is configured
+
+`ops/docker-compose.yml` sets `archive_mode=on` and archives WAL segments to a
+volume separate from the data volume — an archive sitting on the same volume as
+the data would be lost by the same failure that made it necessary.
+
+A `wal-init` service hands that volume to the postgres user before postgres
+starts. **This step is not optional and its absence is silent:** a named Docker
+volume is owned by root, PostgreSQL runs as uid 70, and `archive_command`
+therefore fails without archiving anything. `archive_mode=on` is still set, the
+configuration looks correct everywhere anyone checks, and only
+`pg_stat_archiver.failed_count` rises.
+
+### Checking that archiving actually works
+
+Do this after any change to the postgres service, and periodically:
+
+```sql
+SELECT archived_count, failed_count, last_archived_time, last_failed_wal
+FROM pg_stat_archiver;
+```
+
+`failed_count` rising with `archived_count` flat means nothing is being
+archived. That is the failure mode described above, and PostgreSQL will
+**retain** unarchived segments and keep retrying — so the disk fills slowly with
+no visible cause.
+
+### Taking a base backup
+
+```bash
+bash ops/scripts/basebackup.sh ./backups
+```
+
+It writes `backups/base-<timestamp>/` containing `base.tar.gz`,
+`pg_wal.tar.gz`, and an `INFO.txt` recording the PostgreSQL version and the LSN.
+That file matters: someone restoring six months from now has to know which base
+backup precedes their target time, and guessing wrong produces a message about
+"requested timeline" that explains nothing at 3am.
+
+Weekly is a reasonable cadence. Two base backups are kept by default
+(`HRMS_KEEP_BASE`).
+
+**WAL segments older than the oldest retained base backup can be pruned** —
+there is no starting point before them. Segments newer than it must not be
+touched; removing them destroys the ability to recover, with no warning.
+
+### Recovering to a point in time
+
+```bash
+bash ops/scripts/pitr-restore.sh \
+  ./backups/base-20260831T060000Z \
+  ./wal \
+  "2026-08-31 14:32:07+07"
+```
+
+**The target time must carry a timezone.** Without one it is read in the
+server's `timezone`, and a server running in UTC restores to a point seven hours
+away from what someone in Jakarta meant.
+
+The script builds a **new instance** in its own container and volume on port
+5434. It never touches the running database: a restore that overwrites
+production cannot be undone, and whether it hit the right point can only be
+judged by looking at the result.
+
+```bash
+psql -h localhost -p 5434 -U postgres
+```
+
+Inspect the data. If the point is wrong, remove the instance and try another
+target time — that costs nothing:
+
+```bash
+docker rm -f hrms-pitr && docker volume rm hrms-pitr-data
+```
+
+### Swapping the recovered instance into production
+
+Only after inspecting the data.
+
+1. **Stop the application**, not just the database. Requests arriving during the
+   swap would be written to a database about to be replaced.
+   ```bash
+   docker compose -f ops/docker-compose.yml stop web worker
+   ```
+2. **Take a logical backup of the current (damaged) database anyway.**
+   ```bash
+   bash ops/scripts/backup.sh ./backups
+   ```
+   This is the step that gets skipped under pressure, and the one that matters
+   most: if the recovery point turns out to be wrong tomorrow, this file is the
+   only remaining copy of what was lost between the target time and now.
+3. **Dump from the recovered instance and load into a fresh database**, rather
+   than swapping volumes. Swapping volumes carries the recovery configuration
+   along with the data, and an instance that starts in recovery mode with no
+   archive to read will refuse to come up.
+   ```bash
+   pg_dump -h localhost -p 5434 -U postgres -Fc hrms > recovered.dump
+   bash ops/scripts/restore.sh recovered.dump hrms_recovered
+   ```
+4. **Run the post-restore checks in §6** against `hrms_recovered`. Data restored
+   without RLS is a leak waiting for the first request.
+5. Point `DATABASE_URL` at the recovered database and start the application.
+6. **Take a fresh base backup immediately.** The old WAL archive describes a
+   timeline that no longer applies.
+
+### Verified
+
+Proven end to end on a throwaway instance, not assembled from documentation:
+
+| Step | Result |
+|---|---|
+| 500 rows written, base backup taken | base backup created |
+| 200 more rows written | 700 rows total, timestamp recorded |
+| All 700 deleted | 0 rows — the damage to be undone |
+| WAL segments archived | 5 |
+| Restored to the second before the delete | **700 rows returned, the deletion did not** |
+
+### Its limitations, stated plainly
+
+- **Maximum data loss is now one WAL segment**, or `archive_timeout` (300
+  seconds) on a quiet system — not the 24 hours it was before. It is not zero:
+  the last segment is still in flight when the machine dies.
+- **The archive is on the same host as the database.** A disk failure takes
+  both. Copying `hrms-wal` off-host is the next step and is not yet scripted.
+- **Base backups are version-locked.** They can only be restored by the same
+  major PostgreSQL version. Moving between versions needs a logical dump.
+- **The swap procedure above has not been rehearsed end to end** — only the
+  recovery itself has. The steps are written from what the recovery test proved
+  plus standard practice, and deserve one rehearsal before they are needed.
+
+---
+
+## What is not in this runbook
+
+Stated plainly so nobody goes looking for it when they need it:
+
+- **Billing incidents** — the module does not exist.
+- **Payment gateway failures** — not integrated.
+- **Off-host backup replication** — see the limitation in §7.
