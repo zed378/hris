@@ -3,16 +3,16 @@ import { localMinutesToInstant, tenantTimeZone } from './workdate.ts';
 import { leaveOnDate } from '../leave/index.ts';
 
 /**
- * Kalkulasi presensi harian.
+ * The daily attendance calculation.
  *
- * Diturunkan dari `punch_logs` dan selalu dapat dihitung ulang. Hasilnya
- * disimpan karena dua alasan: rekap bulanan atas jutaan ketukan terlalu mahal
- * untuk dihitung setiap kali layar dibuka, dan payroll membutuhkan angka yang
- * berhenti berubah setelah periode ditutup.
+ * Derived from `punch_logs` and always recomputable. Its result is stored for
+ * two reasons: a monthly recap over millions of punches is too expensive to
+ * compute every time a screen opens, and payroll needs figures that stop
+ * changing once a period is closed.
  *
- * Sifat yang dijaga: **menghitung ulang hari yang sama harus menghasilkan angka
- * yang sama.** Tanpa itu, dua orang yang membuka rekap yang sama pada waktu
- * berbeda akan melihat gaji yang berbeda.
+ * The property maintained: **recomputing the same day must give the same
+ * figure.** Without it, two people opening the same recap at different times
+ * would see different salaries.
  */
 
 export type DayStatus = 'PRESENT' | 'LATE' | 'ABSENT' | 'LEAVE' | 'HOLIDAY' | 'DAY_OFF';
@@ -29,12 +29,12 @@ export interface DailyResult {
 }
 
 /**
- * Menghitung satu hari untuk satu karyawan.
+ * Computes one day for one employee.
  *
- * Ketukan yang DITOLAK peninjau dikecualikan; yang masih menunggu tinjauan tetap
- * dihitung. Itu pilihan sadar: menahan perhitungan sampai HR sempat meninjau
- * berarti rekap kosong pada hari-hari tersibuk, dan orang yang benar-benar hadir
- * terlihat tidak hadir sampai ada yang menekan tombol.
+ * Punches REFUSED by a reviewer are excluded; those still awaiting review are
+ * still counted. That is a conscious choice: holding the calculation until HR
+ * finds time to review means an empty recap on the busiest days, and someone who
+ * genuinely attended looks absent until somebody presses a button.
  */
 export async function calculateDay(
   tx: TenantClient,
@@ -73,15 +73,15 @@ export async function calculateDay(
       where: { tenantId_date: { tenantId, date: dateOnly } },
       select: { name: true },
     }),
-    // Cuti dibaca lewat pintu depan modul cuti, bukan dengan query langsung ke
-    // tabelnya: presensi tidak boleh tahu bentuk tabel cuti.
+    // Leave is read through the leave module's front door rather than by querying
+    // its tables directly: attendance must not know the shape of the leave tables.
     leaveOnDate(tx, tenantId, employeeId, dateOnly),
   ]);
 
   const checkIn = punches.find((p) => p.type === 'IN')?.punchedAt ?? null;
-  // Ketukan keluar TERAKHIR, bukan yang pertama. Orang yang keluar makan siang
-  // lalu kembali menghasilkan dua ketukan OUT, dan yang menentukan jam pulang
-  // adalah yang terakhir.
+  // The LAST clock-out, not the first. Someone who leaves for lunch and comes
+  // back produces two OUT punches, and what decides their leaving time is the
+  // last one.
   const outs = punches.filter((p) => p.type === 'OUT');
   const checkOut = outs.length > 0 ? outs[outs.length - 1]!.punchedAt : null;
 
@@ -95,30 +95,30 @@ export async function calculateDay(
     overtimeMinutes: 0,
   };
 
-  // Urutan pemeriksaan menentukan hasilnya. Hari libur diperiksa lebih dulu
-  // daripada jadwal: orang yang tetap masuk saat libur nasional tidak "terlambat",
-  // ia lembur.
+  // The order of checks decides the result. A holiday is checked before the
+  // schedule: someone who comes in on a national holiday is not "late", they are
+  // working overtime.
   if (holiday && !checkIn) return { ...base, status: 'HOLIDAY' };
   if (schedule?.isDayOff && !checkIn) return { ...base, status: 'DAY_OFF' };
 
   /**
-   * Tanpa baris jadwal, akhir pekan tetap akhir pekan.
+   * With no schedule row, a weekend is still a weekend.
    *
-   * Anggapan yang sama dipakai `countWorkingDays` pada modul cuti, dan
-   * kesamaannya bukan kerapian: sebelum ini keduanya berbeda pendapat tentang
-   * hari mana yang hari kerja. Cuti menganggap Sabtu dan Minggu bukan hari
-   * kerja; presensi tidak menganggap apa pun, sehingga **setiap Minggu tercatat
-   * ALFA** bagi tenant yang belum menjadwalkan siapa pun.
+   * The leave module's `countWorkingDays` uses the same assumption, and that
+   * sameness is not tidiness: before this the two disagreed about which days are
+   * working days. Leave treated Saturday and Sunday as non-working; attendance
+   * assumed nothing, so **every Sunday was recorded ABSENT** for a tenant who had
+   * scheduled nobody.
    *
-   * Akibatnya tidak berhenti di layar rekap. `buildSnapshot` menghitung
-   * `hariAlfa` dari status ALFA, dan formula gaji memotong berdasarkan angka
-   * itu — sehingga akhir pekan menjadi potongan gaji. Kegagalannya tidak
-   * menghasilkan galat apa pun; ia muncul sebagai slip gaji yang lebih kecil
-   * dari yang seharusnya, pada orang yang tidak punya cara membuktikannya.
+   * The consequence did not stop at the recap screen. `buildSnapshot` computes
+   * `hariAlfa` from the ABSENT status, and the salary formula deducts from that
+   * figure — so weekends became salary deductions. The failure produced no error
+   * at all; it appeared as a payslip smaller than it should be, for someone with
+   * no way of proving it.
    *
-   * Jadwal tetap menang bila ada — pabrik enam hari yang menjadwalkan Sabtu
-   * masuk tidak terpengaruh anggapan ini, karena baris jadwalnya menjawab lebih
-   * dulu di atas.
+   * A schedule still wins where one exists — a six-day factory scheduling
+   * Saturdays on is unaffected by this assumption, because its schedule row
+   * answers first above.
    */
   if (!schedule && !checkIn) {
     const weekday = dateOnly.getUTCDay();
@@ -126,15 +126,15 @@ export async function calculateDay(
   }
 
   /**
-   * Cuti yang disetujui diperiksa SEBELUM alfa.
+   * Approved leave is checked BEFORE absence.
    *
-   * Tanpa pemeriksaan ini, status `LEAVE` yang ada di tipe tidak pernah
-   * dihasilkan siapa pun, dan karyawan yang cutinya sudah disetujui manajernya
-   * tetap tercatat ABSENT — lalu dipotong gajinya sebagai mangkir. Kegagalannya
-   * tidak menghasilkan galat apa pun; ia muncul sebagai slip gaji yang salah.
+   * Without this check, the `LEAVE` status present in the type is never produced
+   * by anyone, and an employee whose leave their manager approved is still
+   * recorded ABSENT — and then docked pay as absent. The failure produces no
+   * error at all; it appears as a wrong payslip.
    *
-   * Diletakkan setelah hari libur karena cuti yang jatuh pada hari libur bukan
-   * cuti — jatahnya memang tidak dipotong untuk hari itu.
+   * Placed after the holiday check because leave falling on a holiday is not
+   * leave — its allowance genuinely is not deducted for that day.
    */
   if (leave && !checkIn) return { ...base, status: 'LEAVE' };
 
@@ -148,14 +148,14 @@ export async function calculateDay(
   const shift = schedule?.shift;
 
   if (!shift) {
-    // Tanpa jadwal, tidak ada acuan untuk menilai terlambat atau lembur. Yang
-    // dapat dikatakan hanyalah: orang ini hadir sekian menit.
+    // With no schedule there is no reference for judging lateness or overtime.
+    // All that can be said is: this person was present for so many minutes.
     return { ...base, status: 'PRESENT', workMinutes };
   }
 
-  // Menit jadwal adalah menit LOKAL. Menambahkannya ke tengah malam UTC akan
-  // menggeser seluruh shift sebesar offset zona — untuk WIB, shift pagi menjadi
-  // pukul 15:00, dan tidak ada seorang pun yang pernah tercatat terlambat.
+  // Schedule minutes are LOCAL minutes. Adding them to UTC midnight would shift
+  // the whole shift by the zone offset — for WIB, the morning shift becomes
+  // 15:00, and nobody is ever recorded late.
   const scheduledStart = localMinutesToInstant(dateOnly, shift.startMinute, timeZone);
   const scheduledEnd = localMinutesToInstant(dateOnly, shift.endMinute, timeZone);
 
@@ -185,7 +185,7 @@ export async function calculateDay(
   };
 }
 
-/** Menyimpan hasil kalkulasi, kecuali hari itu sudah terkunci penutupan periode. */
+/** Stores the calculation, unless that day is already locked by a period close. */
 export async function persistDay(
   tx: TenantClient,
   tenantId: string,
@@ -200,9 +200,9 @@ export async function persistDay(
     select: { id: true, isLocked: true },
   });
 
-  // Hari yang terkunci tidak dihitung ulang. Setelah periode ditutup, angkanya
-  // sudah masuk ke slip gaji — mengubahnya berarti slip yang terbit dan data
-  // yang tersimpan tidak lagi cocok.
+  // A locked day is not recomputed. Once a period is closed its figures have
+  // entered a payslip — changing them means the issued payslip and the stored
+  // data no longer agree.
   if (existing?.isLocked) return { saved: false };
 
   const data = {
@@ -228,7 +228,7 @@ export async function persistDay(
   return { saved: true };
 }
 
-/** Menghitung ulang seluruh karyawan pada satu tanggal. */
+/** Recomputes every employee for one date. */
 export async function recalculateDate(
   tx: TenantClient,
   tenantId: string,
@@ -252,17 +252,16 @@ export async function recalculateDate(
 }
 
 /**
- * Menghitung ulang satu karyawan pada satu tanggal.
+ * Recomputes one employee on one date.
  *
- * Dipisahkan karena koreksi manual menyentuh tepat satu orang pada tepat satu
- * hari, sementara `recalculateDate` menyapu seluruh karyawan. Menjalankan sapuan
- * penuh setelah HR memperbaiki satu ketukan berarti menghitung ulang ribuan hari
- * yang tidak berubah — dan melakukannya di dalam request yang sedang ditunggu
+ * Separated because a manual correction touches exactly one person on exactly
+ * one day, while `recalculateDate` sweeps every employee. Running the full sweep
+ * after HR fixes one punch means recomputing thousands of days that did not
+ * change — and doing it inside a request somebody is waiting on.
  * orang.
- *
- * Mengembalikan `{ saved: false }` bila harinya terkunci penutupan periode.
- * Nilai itu wajib diteruskan ke pemanggil: koreksi yang tidak mengubah rekap
- * tidak boleh dilaporkan sebagai berhasil.
+ * Returns `{ saved: false }` when the day is locked by a period close. That value
+ * must be passed on to the caller: a correction that does not change the recap
+ * must not be reported as a success.
  */
 export async function recalculateEmployeeDate(
   tx: TenantClient,
@@ -285,12 +284,12 @@ export async function recalculateEmployeeDate(
 }
 
 /**
- * Menutup periode presensi.
+ * Closing an attendance period.
  *
- * Mengunci seluruh hari dalam rentang dan menyimpan ringkasannya. Setelah ini,
- * koreksi presensi yang masuk tidak lagi mengubah angka yang dipakai payroll —
- * dan itulah gunanya: slip gaji yang sudah terbit tidak boleh berubah karena
- * seseorang memperbaiki absensi bulan lalu.
+ * Locks every day in the range and stores its summary. After this, an incoming
+ * attendance correction no longer changes the figures payroll uses — and that is
+ * the point: a payslip already issued must not change because someone corrected
+ * last month's attendance.
  */
 export async function closePeriod(
   tx: TenantClient,

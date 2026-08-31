@@ -2,37 +2,37 @@ import { writeAudit, type TenantClient } from '@hrms/db';
 import { revealPii } from '../employee/index.ts';
 
 /**
- * Ekspor seluruh data tenant (PLAN/12 F6 DoD, UU PDP No. 27/2022).
+ * Exporting all of a tenant's data (PLAN/12 P6 DoD, Personal Data Protection Act No. 27/2022).
  *
- * Bukan fitur kenyamanan. UU PDP menjamin hak portabilitas data: subjek data —
- * dan dalam konteks ini perusahaan yang mewakili karyawannya — berhak menerima
- * datanya dalam format yang dapat dibaca mesin dan dipindahkan ke sistem lain.
+ * Not a convenience feature. The Act guarantees a right to data portability: the
+ * data subject — and in this context the company representing its employees — is
+ * entitled to receive its data in a machine-readable format that can be moved to
+ * another system.
  *
- * Yang menentukan apakah ekspor ini memenuhi haknya atau hanya terlihat
- * memenuhi:
+ * What decides whether this export fulfils that right or merely appears to:
  *
- * **Lengkap, bukan sebagian — termasuk modul yang TIDAK sedang dilanggan.**
+ * **Complete, not partial — including modules NOT currently subscribed.**
  *
- * Versi pertama hanya mengekspor modul aktif, dan itu salah persis pada kasus
- * yang paling penting: pelanggan yang menurunkan paketnya lalu ingin pindah
- * sistem tidak akan menerima data penggajiannya. Datanya masih ada — modul yang
- * nonaktif tidak menghapus apa pun — tetapi ia tidak dapat mengambilnya.
+ * The first version exported only enabled modules, and that is wrong in
+ * precisely the case that matters most: a customer who downgrades and then wants
+ * to move systems would not receive their payroll data. The data is still there
+ * — a disabled module deletes nothing — but they cannot retrieve it.
  *
- * Itu penguncian yang dibungkus kepatuhan, dan bertentangan dengan hak yang
- * hendak dipenuhi ekspor ini. Portabilitas data adalah hak menurut undang-undang;
- * ia tidak bergantung pada apa yang sedang dibayar seseorang bulan ini.
+ * That is lock-in dressed as compliance, and it contradicts the very right this
+ * export exists to fulfil. Data portability is a statutory right; it does not
+ * depend on what someone is paying for this month.
  *
- * Daftar tabelnya ditulis eksplisit supaya modul baru yang lupa ditambahkan
- * terlihat sebagai kolom yang hilang di berkasnya, bukan diam-diam tidak ikut.
+ * The table list is written out explicitly so a new module that is forgotten
+ * shows up as a missing key in the file rather than quietly not being included.
  *
- * **PII dalam bentuk aslinya, dan itu keputusan sadar.** Ekspor tersamar tidak
- * dapat dipakai memindahkan data — NIK "3201********9012" tidak berguna bagi
- * sistem mana pun. Karena itu endpoint yang memanggilnya menuntut izin
- * `employee.pii.unmask`, dan setiap pemanggilan diaudit.
+ * **PII in its original form, and that is a conscious decision.** A masked export
+ * cannot be used to move data — a national ID of "3201********9012" is useless to
+ * any system. So the endpoint calling it demands the `employee.pii.unmask`
+ * permission, and every call is audited.
  *
- * **Format JSON, bukan Excel.** Portabilitas menuntut format yang dapat dibaca
- * mesin lain; Excel dengan sel bergabung dan format tanggal lokal bukan itu.
- * Ekspor Excel per modul tetap ada untuk keperluan sehari-hari.
+ * **JSON, not Excel.** Portability demands a format another machine can read;
+ * Excel with merged cells and locale date formats is not that. The per-module
+ * Excel export stays for everyday use.
  */
 
 export interface TenantExport {
@@ -40,9 +40,9 @@ export interface TenantExport {
     tenantCode: string;
     tenantName: string;
     exportedAt: string;
-    /** Versi bentuk berkas. Dinaikkan bila strukturnya berubah tak kompatibel. */
+    /** The file shape version. Raised when the structure changes incompatibly. */
     formatVersion: 1;
-    /** Modul yang datanya disertakan. */
+    /** The modules whose data is included. */
     modules: string[];
   };
   employees: unknown[];
@@ -73,52 +73,52 @@ export interface TenantExport {
 }
 
 /**
- * Batas baris per tabel.
+ * The row limit per table.
  *
- * Ekspor yang menghabiskan memori proses akan menjatuhkan aplikasi untuk
- * seluruh tenant, dan itu harga yang terlalu mahal untuk satu permintaan
- * portabilitas. Bila sebuah tenant melewati batas ini, ekspor per rentang
- * tanggal adalah jawabannya — dan pemotongan DINYATAKAN di berkasnya, bukan
+ * An export that exhausts process memory would bring the application down for
+ * every tenant, and that is too high a price for one portability request. If a
+ * tenant crosses this limit, a per-date-range export is the answer — and the
+ * truncation is STATED in the file rather than done silently.
  * dilakukan diam-diam.
  */
 const MAX_ROWS_PER_TABLE = 100_000;
 
 export interface ExportOptions {
-  /** Menyertakan PII dalam bentuk asli. Menuntut izin unmask di pemanggil. */
+  /** Include PII in its original form. Demands the unmask permission in the caller. */
   includePii: boolean;
   /**
-   * Modul yang sedang aktif. Dicatat pada `meta`, TIDAK dipakai menyaring isi.
+   * The modules currently enabled. Recorded in `meta`, NOT used to filter contents.
    *
-   * Lihat penjelasan di kepala berkas: data modul yang nonaktif tetap ikut,
-   * karena portabilitas tidak bergantung pada langganan yang sedang berjalan.
+   * See the explanation at the head of this file: a disabled module's data is
+   * still included, because portability does not depend on a running subscription.
    */
   modules: ReadonlySet<string>;
 }
 
 /**
- * Membuat seluruh nilai dapat diserialkan ke JSON.
+ * Makes every value JSON-serialisable.
  *
- * `BigInt` tidak punya representasi JSON — `JSON.stringify` melemparnya dengan
- * "Do not know how to serialize a BigInt", dan galat itu menjatuhkan SELURUH
- * ekspor, bukan satu kolomnya.
+ * `BigInt` has no JSON representation — `JSON.stringify` throws "Do not know how
+ * to serialize a BigInt", and that error brings down the WHOLE export, not one
+ * column of it.
  *
- * Yang memakainya adalah kunci pada tabel bervolume tinggi: buku besar saldo
- * cuti dan jejak akses. Keduanya justru yang paling perlu ikut terbawa saat
- * pelanggan pindah sistem — buku besar adalah satu-satunya penjelasan mengapa
- * saldo cuti seseorang bernilai sekian.
+ * What uses it are the keys on the high-volume tables: the leave balance ledger
+ * and the access trail. Both are exactly what most needs carrying along when a
+ * customer moves systems — the ledger is the only explanation of why someone's
+ * leave balance is what it is.
  *
- * Diubah menjadi string, bukan number: id `BIGSERIAL` dapat melewati
- * `Number.MAX_SAFE_INTEGER`, dan angka yang dibulatkan diam-diam pada ekspor
- * portabilitas akan menghasilkan dua baris berbeda dengan id yang sama di
- * sistem tujuan.
+ * Converted to a string, not a number: a `BIGSERIAL` id can exceed
+ * `Number.MAX_SAFE_INTEGER`, and a number silently rounded in a portability
+ * export would produce two different rows with the same id in the destination
+ * system.
  */
 function serializable(value: unknown): unknown {
   if (typeof value === 'bigint') return value.toString();
   if (Array.isArray(value)) return value.map(serializable);
   if (value instanceof Date) return value.toISOString();
   if (value !== null && typeof value === 'object') {
-    // Prisma.Decimal punya `toJSON`-nya sendiri dan tidak boleh dibongkar
-    // menjadi properti internalnya.
+    // Prisma.Decimal has a `toJSON` of its own and must not be unpacked into its
+    // internal properties.
     if (typeof (value as { toJSON?: unknown }).toJSON === 'function') return value;
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, item]) => [
@@ -144,7 +144,7 @@ export async function exportTenantData(
   const take = MAX_ROWS_PER_TABLE;
   const truncated: string[] = [];
 
-  /** Menjalankan query dan mencatat bila hasilnya terpotong batas. */
+  /** Runs the query and records when its result was truncated by the limit. */
   const collect = async <T>(name: string, run: () => Promise<T[]>): Promise<T[]> => {
     const rows = await run();
     if (rows.length >= take) truncated.push(name);
@@ -187,9 +187,9 @@ export async function exportTenantData(
           tx.employeeDocument.findMany({
             where: { tenantId },
             take,
-            // `storageKey` DIBUANG. Berkas fisiknya tidak ikut dalam JSON, dan
-            // kunci penyimpanan tanpa berkasnya hanya membocorkan pola nama
-            // objek tanpa memberi manfaat apa pun kepada penerimanya.
+            // `storageKey` is DROPPED. The physical file is not part of the JSON,
+            // and a storage key with no file only leaks the object naming pattern
+            // while giving its recipient nothing.
             select: {
               id: true,
               employeeId: true,
@@ -239,14 +239,14 @@ export async function exportTenantData(
     collect('payslips', () => tx.payslip.findMany({ where: { tenantId }, take })),
     collect('payslipLines', () => tx.payslipLine.findMany({ where: { tenantId }, take })),
 
-    // Pengguna dan peran selalu disertakan: tanpa keduanya, data karyawan tidak
-    // dapat dihubungkan kembali ke siapa yang boleh melihatnya di sistem tujuan.
+    // Users and roles are always included: without both, employee data cannot be
+    // connected back to who may see it in the destination system.
     collect('users', () =>
       tx.user.findMany({
         where: { tenantId },
         take,
-        // Hash kata sandi TIDAK diekspor. Ia tidak berguna di sistem lain, dan
-        // berkas ekspor yang memuatnya menjadi target yang jauh lebih berharga.
+        // Password hashes are NOT exported. They are useless in another system, and
+        // an export file containing them becomes a far more valuable target.
         select: {
           id: true,
           email: true,
@@ -261,16 +261,16 @@ export async function exportTenantData(
   ]);
 
   /**
-   * PII dibuka atau tetap tersamar sesuai izin pemanggil.
+   * PII is unmasked or left masked according to the caller's permission.
    *
-   * `revealPii` membaca kolom tersamar yang sudah tersimpan ketika tidak
-   * berizin — ia tidak pernah menyentuh kunci enkripsi pada jalur itu.
+   * `revealPii` reads the stored masked column when there is no permission — on
+   * that path it never touches the encryption key.
    */
   const employeesOut = (employees as Array<Record<string, unknown>>).map((row) => {
     const rest: Record<string, unknown> = { ...row };
-    // Ciphertext dibuang dari keluaran. Ia tidak dapat dibaca sistem lain, dan
-    // berkas ekspor yang memuatnya menjadi target yang jauh lebih berharga
-    // tanpa memberi manfaat apa pun kepada penerimanya.
+    // The ciphertext is dropped from the output. Another system cannot read it,
+    // and an export file containing it becomes a far more valuable target while
+    // giving its recipient nothing.
     for (const column of [
       'nationalIdEncrypted',
       'nationalIdIndex',

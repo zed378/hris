@@ -3,40 +3,40 @@ import { withTenant, catalog, writeAudit, publishEvent, Prisma } from '@hrms/db'
 import { DEFAULT_LEAVE_TYPES, DEFAULT_PAYROLL_COMPONENTS, EventTopic } from '@hrms/contracts';
 
 /**
- * Provisioning tenant baru.
+ * Provisioning a new tenant.
  *
- * Pada arsitektur microservices ini adalah saga lintas empat service dengan
- * kompensasi di setiap langkah (PLAN/06 §4.1): tenant-service membuat tenant,
- * auth-service membuat pengguna, iam-service membuat peran — dan bila langkah
- * ketiga gagal, dua langkah pertama harus dibatalkan lewat event kompensasi yang
- * ditulis, diuji, dan dipantau.
+ * Under a microservices architecture this is a saga across four services with
+ * compensation at every step (PLAN/06 §4.1): tenant-service creates the tenant,
+ * auth-service creates the user, iam-service creates the roles — and if the
+ * third step fails, the first two have to be undone through compensation events
+ * that are written, tested, and monitored.
  *
- * Di sini ia satu transaksi ACID. Bila apa pun gagal, semuanya batal, dan tidak
- * ada tenant separuh jadi yang perlu dibersihkan manual.
+ * Here it is one ACID transaction. If anything fails, everything is rolled back,
+ * and there is no half-built tenant needing manual cleanup.
  *
- * Ini keuntungan monolit yang paling nyata dan paling jarang dihitung: bukan
- * kode saga yang tidak perlu ditulis, melainkan kategori kegagalan yang tidak
- * perlu dipantau seumur produk (PLAN/12 §10.1, R12).
+ * This is the most concrete and least often counted benefit of a monolith: not
+ * the saga code that need not be written, but the category of failure that need
+ * not be monitored for the life of the product (PLAN/12 §10.1, R12).
  *
- * Satu detail yang membuatnya benar-benar satu transaksi: **id tenant
- * dibangkitkan di aplikasi, bukan oleh basis data.** Kebijakan RLS pada
- * `tenant.tenants` berbunyi `id = app_current_tenant()`, sehingga baris tenant
- * baru tidak dapat disisipkan tanpa konteks — dan konteksnya tidak dapat dipasang
- * sebelum barisnya ada. Membangkitkan id lebih dulu memutus lingkaran itu: kita
- * pasang konteks ke id yang belum ada, lalu menyisipkan baris yang tepat
+ * One detail is what makes it genuinely one transaction: **the tenant id is
+ * generated in the application, not by the database.** The RLS policy on
+ * `tenant.tenants` reads `id = app_current_tenant()`, so a new tenant row cannot
+ * be inserted without a context — and the context cannot be set before the row
+ * exists. Generating the id first breaks that circle: we set the context to an id
+ * that does not exist yet, then insert the row that satisfies the policy exactly.
  * memenuhi kebijakannya.
  *
- * Versi pertama memecahnya dengan menyisipkan baris tenant di luar transaksi
- * lalu menghapusnya kembali bila langkah berikutnya gagal — satu langkah
- * kompensasi, persis jenis kode yang seharusnya tidak perlu ada pada monolit.
+ * The first version broke it by inserting the tenant row outside the transaction
+ * and deleting it again if a later step failed — one compensation step, precisely
+ * the kind of code that should not need to exist in a monolith.
  */
 
 /**
- * Peran sistem yang dibuat untuk setiap tenant baru.
+ * The system roles created for every new tenant.
  *
- * Definisinya sengaja hidup di sini, bukan di seed: seed adalah data
- * pengembangan, sedangkan ini adalah bagian dari produk. Tenant yang mendaftar
- * pukul tiga pagi harus mendapat peran yang sama persis dengan tenant demo.
+ * Their definitions deliberately live here rather than in the seed: the seed is
+ * development data, while this is part of the product. A tenant registering at
+ * three in the morning must get exactly the same roles as the demo tenant.
  */
 const SYSTEM_ROLES = [
   { code: 'TENANT_OWNER', name: 'Pemilik Akun', scope: 'all' as const },
@@ -46,7 +46,7 @@ const SYSTEM_ROLES = [
   { code: 'EMPLOYEE', name: 'Karyawan', scope: 'self' as const },
 ];
 
-/** Permission yang dipegang tiap cakupan peran, sebagai pola atas kode permission. */
+/** The permissions each role scope holds, as patterns over permission codes. */
 const SCOPE_MATCHERS: Record<string, (code: string) => boolean> = {
   all: () => true,
   hr: (code) =>
@@ -76,16 +76,16 @@ export interface ProvisionInput {
   ownerEmail: string;
   ownerFullName: string;
   /**
-   * Sudah di-hash oleh pemanggil, bukan kata sandi mentah.
+   * Already hashed by the caller, not a raw password.
    *
-   * Dua alasan. Pertama, `auth` sudah mengimpor `tenant` untuk resolusi kode saat
-   * login; bila `tenant` mengimpor `auth` untuk hashing, keduanya menjadi siklus —
-   * dapat berjalan di ESM, tetapi rapuh, dan pada saat pemecahan nanti berarti dua
-   * service yang saling memanggil. Lapisan aplikasi adalah composition root, dan
-   * di situlah keduanya seharusnya bertemu.
+   * Two reasons. First, `auth` already imports `tenant` to resolve the code at
+   * login; if `tenant` imported `auth` for hashing, the two would be a cycle —
+   * workable in ESM, but fragile, and at a future split it would mean two
+   * services calling each other. The application layer is the composition root,
+   * and that is where the two should meet.
    *
-   * Kedua, dan lebih penting: fungsi ini karenanya tidak pernah memegang kata
-   * sandi mentah sama sekali.
+   * Second, and more important: this function therefore never holds a raw
+   * password at all.
    */
   ownerPasswordHash: string;
   planCode?: string;
@@ -108,7 +108,7 @@ export async function provisionTenant(
   const planCode = input.planCode ?? 'trial';
   const db = catalog();
 
-  // Katalog dibaca di luar konteks tenant: tabel-tabel ini global dan tidak ber-RLS.
+  // The catalogue is read outside the tenant context: these tables are global and carry no RLS.
   const [plan, permissions] = await Promise.all([
     db.plan.findUnique({
       where: { code: planCode },
@@ -122,11 +122,11 @@ export async function provisionTenant(
   const trialEndsAt = planCode === 'trial' ? new Date(Date.now() + TRIAL_DAYS * 86_400_000) : null;
   const tenantId = randomUUID();
 
-  // Keunikan kode tenant tidak diperiksa lebih dulu dengan SELECT, dan itu
-  // disengaja. Pemeriksaan semacam itu tidak dapat melihat menembus RLS, dan
-  // seandainya bisa pun ia tetap menyisakan celah balapan antara pemeriksaan dan
-  // penyisipan. Constraint unique adalah satu-satunya pemeriksaan yang benar;
-  // yang perlu kita lakukan adalah menerjemahkan galatnya.
+  // The tenant code's uniqueness is not checked first with a SELECT, and that is
+  // deliberate. Such a check cannot see through RLS, and even if it could it
+  // would still leave a race between the check and the insert. The unique
+  // constraint is the only correct check; what we need to do is translate its
+  // error.
   try {
     return await withTenant(tenantId, async (tx) => {
       const tenant = await tx.tenant.create({
@@ -190,19 +190,18 @@ export async function provisionTenant(
       });
 
       /**
-       * Konfigurasi bawaan modul cuti dan payroll.
+       * The default configuration of the leave and payroll modules.
        *
-       * Tanpa ini, tenant baru mendapati modul cuti aktif dengan daftar jenis
-       * cuti KOSONG — tidak ada seorang pun yang dapat mengajukan cuti, dan yang
-       * terlihat hanya dropdown tanpa pilihan — serta modul payroll yang setiap
-       * slipnya bernilai nol rupiah karena tidak ada satu pun komponen.
-       * Keduanya gagal tanpa galat, dan keduanya memblokir onboarding mandiri
-       * pada hari pertama.
+       * Without it, a new tenant finds the leave module active with an EMPTY list
+       * of leave types — nobody can request leave at all, and all that is visible
+       * is a dropdown with no options — and a payroll module where every payslip
+       * is zero rupiah because there is not one component. Both fail without an
+       * error, and both block self-service onboarding on day one.
        *
-       * Dibuat di dalam transaksi provisioning yang sama: tenant yang lahir
-       * setengah terkonfigurasi adalah tenant yang tidak dapat dipakai, dan
-       * memperbaikinya kemudian menuntut seseorang mengetahui bahwa ia perlu
-       * diperbaiki.
+       * Created inside the same provisioning transaction: a tenant born half
+       * configured is a tenant that cannot be used, and fixing it later requires
+       * somebody to know that it needs fixing.
+       */
        */
       await tx.leaveType.createMany({
         data: DEFAULT_LEAVE_TYPES.map((type) => ({ tenantId: tenant.id, ...type })),
@@ -245,14 +244,14 @@ export async function provisionTenant(
       };
     });
   } catch (error) {
-    // Prisma 7 dengan driver adapter tidak mengisi `meta.target` — nama
-    // constraint-nya dilaporkan sebagai "(not available)". Jadi pencocokan
-    // dilakukan lewat model, dan itu tetap tepat di sini: `tenant.tenants` hanya
-    // punya dua indeks unique, yaitu `tenants_pkey` (id) dan `tenants_code_key`,
-    // sedangkan id-nya adalah UUID yang baru saja kita bangkitkan sendiri.
+    // Prisma 7 with a driver adapter does not fill in `meta.target` — the
+    // constraint name is reported as "(not available)". So matching is done by
+    // model, and that is still exact here: `tenant.tenants` has only two unique
+    // indexes, `tenants_pkey` (id) and `tenants_code_key`, and its id is a UUID
+    // we generated ourselves a moment ago.
     //
-    // Bila kelak ada indeks unique ketiga pada tabel ini, pencocokan ini
-    // menjadi salah. Uji pendaftaran ganda adalah yang akan menangkapnya.
+    // If a third unique index is ever added to this table, this matching becomes
+    // wrong. The duplicate registration test is what will catch it.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002' &&

@@ -13,22 +13,22 @@ import {
 } from '@/lib/offline-queue.ts';
 
 /**
- * Layar presensi (dokumen 10).
+ * The attendance screen (document 10).
  *
- * Tiga hal yang membentuk layar ini, dan ketiganya berasal dari prinsip yang
- * sama — bahwa presensi tidak boleh gagal karena hal-hal di luar kendali
- * karyawan:
+ * Three things shape this screen, and all three come from the same principle —
+ * that punching in must not fail because of things outside an employee's
+ * control:
  *
- * 1. **Izin lokasi yang ditolak tidak merusak apa pun.** Presensi tetap dapat
- *    dikirim, hanya dengan skor kepercayaan lebih rendah dan ditandai untuk
- *    ditinjau HR (P14). Memaksa izin akan membuat orang yang menolak — dengan
- *    alasan yang sah — tidak dapat bekerja.
+ * 1. **A denied location permission breaks nothing.** The punch can still be
+ *    sent, only with a lower trust score and flagged for HR review (P14).
+ *    Forcing the permission would leave someone who refuses — for a legitimate
+ *    reason — unable to work.
  *
- * 2. **Tanpa sinyal, presensi masuk antrean.** Bukan gagal, bukan hilang.
+ * 2. **With no signal, the punch is queued.** Not failed, not lost.
  *
- * 3. **Alasan penilaian ditampilkan.** Karyawan melihat jarak, akurasi, dan
- *    skornya sendiri. Sistem yang menilai orang tanpa menunjukkan dasarnya
- *    adalah sistem yang tidak dapat dibantah.
+ * 3. **The reason for the score is shown.** The employee sees the distance, the
+ *    accuracy, and their own score. A system that judges people without showing
+ *    its basis is a system that cannot be argued with.
  */
 
 interface GeoState {
@@ -58,7 +58,7 @@ export default function PunchPage() {
   });
   const [online, setOnline] = useState(true);
   const [queued, setQueued] = useState(0);
-  /** Ketukan milik pengguna lain di perangkat ini. Ditampilkan, bukan disembunyikan. */
+  /** Punches belonging to another user on this device. Shown, not hidden. */
   const [otherUsersQueued, setOtherUsersQueued] = useState(0);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<PunchOutcome | null>(null);
@@ -67,11 +67,11 @@ export default function PunchPage() {
   const [photoBusy, setPhotoBusy] = useState(false);
 
   /**
-   * Persetujuan UU PDP yang berlaku untuk pengguna ini.
+   * The Personal Data Protection Act consent in force for this user.
    *
-   * `null` selama belum terbaca. Selama itu, tombol lokasi dan kamera tidak
-   * ditampilkan — arah bawaan yang benar untuk data pribadi adalah tidak
-   * mengambilnya sampai jelas boleh, bukan sebaliknya.
+   * `null` until it has been read. Until then the location and camera buttons
+   * are not shown — the correct default for personal data is not to collect it
+   * until it is clearly allowed, not the reverse.
    */
   const [consent, setConsent] = useState<{
     location: boolean;
@@ -114,9 +114,9 @@ export default function PunchPage() {
     }
   }, [send, bootstrap?.user.id]);
 
-  // Pemicu sinkronisasi BERLAPIS, bukan Background Sync (dokumen 11 §6.1).
-  // Background Sync tidak ada di iOS sama sekali; membangun keandalan di atasnya
-  // berarti keandalan yang hanya terlihat bekerja saat diuji di Android.
+  // LAYERED sync triggers, not Background Sync (document 11 §6.1). Background
+  // Sync does not exist on iOS at all; building reliability on it means
+  // reliability that only appears to work when tested on Android.
   useEffect(() => {
     mounted.current = true;
     void refreshQueue();
@@ -151,9 +151,9 @@ export default function PunchPage() {
     void (async () => {
       const response = await api('/api/attendance/consent');
       if (!response.ok) {
-        // Gagal membaca persetujuan diperlakukan sebagai belum menyetujui.
-        // Presensinya tetap bisa dilakukan; yang tidak dilakukan adalah
-        // mengambil data pribadi berdasarkan tebakan.
+        // A failure to read the consent is treated as no consent. The punch can
+        // still be made; what is not done is collecting personal data on a
+        // guess.
         setConsent({ location: false, photo: false, pending: [] });
         return;
       }
@@ -195,23 +195,23 @@ export default function PunchPage() {
               ? 'Izin lokasi ditolak'
               : 'Lokasi tidak dapat dibaca saat ini',
         }),
-      // `enableHighAccuracy` menyalakan GPS, bukan sekadar lokasi jaringan.
-      // Timeout 15 detik: GPS dingin di dalam gedung memang selambat itu, dan
-      // menyerah lebih cepat berarti selalu memakai lokasi menara seluler.
+      // `enableHighAccuracy` turns on GPS rather than network location alone.
+      // A 15-second timeout: a cold GPS fix indoors really is that slow, and
+      // giving up sooner means always using the cell tower location.
       { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
     );
   }, []);
 
   /**
-   * Mengambil dan mengunggah foto swafoto.
+   * Captures and uploads the selfie.
    *
-   * Diunggah SEBELUM ketukan dikirim, dan itu disengaja: yang disimpan pada
-   * ketukan hanyalah kunci foto, sehingga ketukan tetap kecil dan tetap dapat
-   * masuk antrean luring tanpa membawa muatan biner.
+   * Uploaded BEFORE the punch is sent, and that is deliberate: what the punch
+   * stores is only the photo key, so the punch stays small and can still enter
+   * the offline queue without carrying a binary payload.
    *
-   * Konsekuensinya, foto TIDAK dapat diambil saat luring. Itu batas yang
-   * diterima: presensi tanpa foto tetap tercatat, hanya dengan skor lebih
-   * rendah dan tinjauan HR.
+   * The consequence is that a photo CANNOT be taken while offline. That is an
+   * accepted limit: a punch with no photo is still recorded, only with a lower
+   * score and an HR review.
    */
   const takePhoto = useCallback(async () => {
     setPhotoBusy(true);
@@ -228,9 +228,9 @@ export default function PunchPage() {
         setPhoto({ key, preview: URL.createObjectURL(compressed) });
       }
     } catch {
-      // Dialog kamera ditutup atau gambar tidak terbaca. Bukan galat yang
-      // perlu ditampilkan — pengguna dapat mencoba lagi atau melanjutkan
-      // tanpa foto.
+      // The camera dialog was closed or the image could not be read. Not an
+      // error worth showing — the user can try again or carry on without a
+      // photo.
     }
     setPhotoBusy(false);
   }, [api]);
@@ -241,12 +241,12 @@ export default function PunchPage() {
       setOutcome(null);
 
       const item: QueuedPunch = {
-        // Penanda pemilik. Antrean bertahan setelah logout, dan tanpa ini
-        // ketukan seseorang dapat terkirim atas nama pengguna berikutnya yang
-        // masuk di perangkat yang sama — lihat `offline-queue.ts`.
+        // The owner marker. The queue survives a logout, and without this
+        // someone's punch could be sent on behalf of the next user to log in on
+        // the same device — see `offline-queue.ts`.
         ownerUserId: bootstrap?.user.id ?? 'anonim',
-        // Dibangkitkan di klien SEBELUM pengiriman. Inilah yang membuat
-        // pengiriman ulang dari antrean tidak menggandakan ketukan.
+        // Generated on the client BEFORE sending. This is what stops a resend
+        // from the queue duplicating the punch.
         dedupeKey: crypto.randomUUID(),
         type,
         punchedAt: new Date().toISOString(),
@@ -277,8 +277,8 @@ export default function PunchPage() {
           };
           setOutcome({ queued: false, ...body });
         } else {
-          // Gagal saat online tetap masuk antrean. Server yang sedang bermasalah
-          // bukan alasan untuk kehilangan presensi seseorang.
+          // A failure while online still enters the queue. A server having
+          // trouble is no reason to lose somebody's attendance.
           await enqueuePunch(item);
           await refreshQueue();
           setOutcome({ queued: true });
@@ -289,9 +289,9 @@ export default function PunchPage() {
         setOutcome({ queued: true });
       }
 
-      // Foto dilepas setelah dipakai. Menyisakannya berarti ketukan berikutnya
-      // memakai foto lama — bukti kehadiran yang menunjukkan orang yang benar
-      // pada waktu yang salah.
+      // The photo is released once used. Keeping it would make the next punch
+      // use the old photo — evidence of attendance showing the right person at
+      // the wrong time.
       setPhoto(null);
       setBusy(false);
     },
@@ -337,8 +337,8 @@ export default function PunchPage() {
         )}
 
         {storageWarning && (
-          // Peringatan jujur untuk iOS (risiko R48). Menyembunyikannya berarti
-          // membiarkan orang mengandalkan antrean yang dapat lenyap.
+          // An honest warning for iOS (risk R48). Hiding it means letting people
+          // rely on a queue that can disappear.
           <p className="mt-3 rounded-md bg-slate-100 px-4 py-3 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             Peramban tidak menjamin penyimpanan permanen. Bila Anda sering bekerja
             tanpa sinyal, pasang aplikasi ini ke layar utama agar antrean presensi
@@ -356,10 +356,10 @@ export default function PunchPage() {
           )}
 
           {consent !== null && !consent.location && (
-            // Persetujuan lokasi tidak diberikan: tombolnya tidak ditampilkan
-            // sama sekali. Menampilkannya lalu menolak di server akan membuat
-            // peramban tetap meminta izin GPS — permintaan yang sudah dijawab
-            // "tidak" di layar persetujuan.
+            // Location consent was not given: the button is not shown at all.
+            // Showing it and then refusing on the server would still make the
+            // browser ask for GPS permission — a request already answered "no"
+            // on the consent screen.
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Lokasi tidak diambil sesuai pilihan Anda pada{' '}
               <a href="/attendance/consent" className="text-brand-600 underline">
@@ -386,9 +386,9 @@ export default function PunchPage() {
           )}
 
           {consent?.location && (geo.status === 'denied' || geo.status === 'unavailable') && (
-            // Izin ditolak TIDAK memblokir presensi. Yang terjadi hanya skor
-            // kepercayaan lebih rendah dan tinjauan HR — dan itu dikatakan
-            // terus terang, bukan disembunyikan.
+            // A denied permission does NOT block the punch. All that happens is a
+            // lower trust score and an HR review — and that is said plainly
+            // rather than hidden.
             <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
               {geo.message}. Anda tetap dapat melakukan presensi, tetapi catatannya
               akan ditandai untuk diperiksa HR.
@@ -400,9 +400,9 @@ export default function PunchPage() {
           <p className="text-sm font-medium">Foto swafoto</p>
 
           {consent !== null && !consent.photo && (
-            // Kamera tidak diminta sama sekali. Ini janji yang paling konkret
-            // di layar persetujuan, dan satu-satunya cara menepatinya adalah
-            // tidak pernah memanggil getUserMedia.
+            // The camera is not requested at all. This is the most concrete
+            // promise on the consent screen, and the only way to keep it is never
+            // to call getUserMedia.
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Foto tidak diambil sesuai pilihan Anda pada{' '}
               <a href="/attendance/consent" className="text-brand-600 underline">
@@ -448,8 +448,8 @@ export default function PunchPage() {
         </section>
 
         {consent && consent.pending.length > 0 && (
-          // Ditempatkan tepat di atas tombol presensi, bukan di bagian atas
-          // halaman: inilah titik ketika orang benar-benar membacanya.
+          // Placed directly above the punch button rather than at the top of the
+          // page: this is the moment people actually read it.
           <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
             Anda belum memutuskan apakah lokasi dan foto boleh diambil saat presensi.{' '}
             <a href="/attendance/consent" className="underline">
