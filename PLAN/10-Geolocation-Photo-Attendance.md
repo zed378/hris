@@ -113,7 +113,25 @@ This decision belongs to the tenant, not to the system — a construction firm a
 |--------|-----------|-----------|
 | `BLOCK` | Mobile punching is impossible; direct the user to the attendance machine or a manual correction request | Companies with fixed work sites and attendance machines available |
 | `ALLOW_FLAGGED` | The punch is still recorded, flagged `missing_evidence`, and enters the HR review queue | The recommended default — it does not obstruct work, but it does not paper over missing evidence either |
-| `FALLBACK_ONLY` | Punching only from the office network (IP allowlist) or a QR code on site | Offices with a managed Wi-Fi network |
+| `FALLBACK_ONLY` | A punch missing location AND photo is accepted **only from a registered office network**; everything else is recorded and flagged as under `ALLOW_FLAGGED` | Offices with a managed Wi-Fi network |
+
+**Implemented.** The allowlist lives in `work_sites.ip_ranges inet[]`, edited on
+`/attendance/sites`, and is matched with PostgreSQL's `<<=` containment operator.
+Per site rather than per tenant: a company with three branches has three networks,
+and a punch from the Bandung office should be recognised as a Bandung punch.
+
+The QR-code half of the original description is **not** built.
+
+Two rules that keep the policy honest:
+
+- **With no network registered anywhere, `FALLBACK_ONLY` degrades to
+  `ALLOW_FLAGGED`.** Refusing instead would lock out a whole company at 07:00 over
+  a list they may not know exists. The degradation is shown on the settings screen
+  — a policy quietly doing nothing is worse than one that does less than it says.
+- **A match removes the browser penalty; it never adds score, and it never
+  substitutes for the geofence.** The address proves the connection originated on
+  that network, not that the person is in the building — a VPN back to the office
+  satisfies it exactly.
 
 ```sql
 -- Added to attendance_db, following the additive migration rules (doc. 09)

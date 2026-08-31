@@ -275,6 +275,13 @@ export const ROUTE_MANIFEST = {
   'POST /api/attendance/records': { module: 'attendance', permission: 'attendance.record.correct' },
   'GET /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.record.read.own' },
   'POST /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.shift.manage' },
+  // Editing covers the office network list, which decides whose thin-evidence
+  // punch is accepted under FALLBACK_ONLY. It is the same authority as drawing
+  // the geofence, so it carries the same permission.
+  'PATCH /api/attendance/work-sites/[id]': {
+    module: 'attendance',
+    permission: 'attendance.shift.manage',
+  },
   'GET /api/attendance/policy': {
     module: 'attendance',
     // The attendance screen needs to know whether a photo is required BEFORE it asks for camera permission.

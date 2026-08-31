@@ -6,6 +6,11 @@ export {
   type TrustAssessment,
 } from './trust.ts';
 export {
+  checkOfficeNetwork,
+  normaliseClientIp,
+  type OfficeNetworkCheck,
+} from './office-network.ts';
+export {
   recordPunch,
   reviewPunch,
   PunchError,

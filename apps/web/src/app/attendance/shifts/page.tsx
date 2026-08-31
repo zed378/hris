@@ -54,6 +54,14 @@ interface Policy {
   onPermissionDenied: 'BLOCK' | 'ALLOW_FLAGGED' | 'FALLBACK_ONLY';
   autoApproveThreshold: number;
   photoRetentionDays: number;
+  /**
+   * Whether any work site has an office network registered.
+   *
+   * Sent with the policy because `FALLBACK_ONLY` silently means
+   * `ALLOW_FLAGGED` without one, and a setting that quietly does nothing is
+   * exactly what this screen must stop presenting as a choice.
+   */
+  officeNetworkConfigured: boolean;
 }
 
 interface GenerateResult {
@@ -379,12 +387,27 @@ export default function ShiftsPage() {
                   atau HR siap memasukkan koreksi manual.
                 </span>
               )}
-              {policy.onPermissionDenied === 'FALLBACK_ONLY' && (
-                <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">
-                  Daftar IP jaringan kantor belum dapat disetel — sampai itu ada,
-                  pilihan ini berperilaku sama dengan &ldquo;tetap catat, tandai&rdquo;.
-                </span>
-              )}
+              {policy.onPermissionDenied === 'FALLBACK_ONLY' &&
+                (policy.officeNetworkConfigured ? (
+                  <span className="mt-1 block text-xs text-slate-500">
+                    Presensi tanpa lokasi atau foto hanya diterima dari jaringan
+                    kantor yang terdaftar di{' '}
+                    <a className="underline" href="/attendance/sites">
+                      Lokasi Kerja
+                    </a>
+                    . Presensi yang buktinya lengkap tidak terpengaruh.
+                  </span>
+                ) : (
+                  <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">
+                    Belum ada lokasi kerja yang punya jaringan kantor terdaftar —
+                    sampai ada, pilihan ini berperilaku sama dengan &ldquo;tetap
+                    catat, tandai&rdquo;. Daftarkan jaringannya di{' '}
+                    <a className="underline" href="/attendance/sites">
+                      Lokasi Kerja
+                    </a>
+                    .
+                  </span>
+                ))}
             </label>
 
             <label className="block text-sm">

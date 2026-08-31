@@ -52,6 +52,19 @@ export interface TrustInput {
   /** The device reports a mock location. Only available in the native app. */
   mockLocationReported: boolean;
   /**
+   * The request arrived from one of the tenant's configured office networks.
+   *
+   * The compensation document 11 §2.2 asks for. A browser cannot fake the
+   * address its packets came from, so this is the one signal that survives the
+   * absence of mock GPS detection — and it is the reason the web penalty below
+   * is waived rather than merely reduced.
+   *
+   * It is never a bonus. Scoring above the baseline for being on the office
+   * network would make a browser punch from the office score higher than the
+   * same punch from a phone at the same desk, which is backwards.
+   */
+  officeIpVerified?: boolean | undefined;
+  /**
    * Evidence that is missing BECAUSE the employee withdrew their consent
    * (Personal Data Protection Act).
    *
@@ -96,11 +109,26 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     // is structurally weaker than native. Its penalty is small so it does not
     // trigger a review on its own — it becomes decisive only combined with
     // another signal.
-    flags.push({
-      code: 'WEB_UNVERIFIED_DEVICE',
-      penalty: 15,
-      message: 'Presensi dari peramban — keaslian lokasi tidak dapat diverifikasi',
-    });
+    //
+    // Unless the request came from the office network. That is the one claim a
+    // browser cannot forge (see `office-network.ts`), and it answers the exact
+    // doubt this penalty exists for: whether the location was invented. The flag
+    // stays on the record either way, because "we could not check" and "we
+    // checked and it came from the office" are different things and the reviewer
+    // needs to see which one happened.
+    flags.push(
+      input.officeIpVerified
+        ? {
+            code: 'OFFICE_IP_VERIFIED',
+            penalty: 0,
+            message: 'Presensi dari jaringan kantor yang terdaftar',
+          }
+        : {
+            code: 'WEB_UNVERIFIED_DEVICE',
+            penalty: 15,
+            message: 'Presensi dari peramban — keaslian lokasi tidak dapat diverifikasi',
+          },
+    );
   }
 
   if (input.source === 'MANUAL') {
@@ -243,7 +271,6 @@ function formatDistance(meters: number): string {
  * The earth is treated as a sphere, not an ellipsoid. The error reaches 0.5% —
  * on a 150-metre geofence radius that is under a metre, far below any GPS
  * imprecision. Vincenty is more accurate and offers nothing at all here.
- * di sini.
  */
 export function haversineMeters(
   a: { lat: number; lon: number },

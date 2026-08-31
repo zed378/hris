@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { ipRangesSchema } from '@/lib/cidr.ts';
 import { Prisma } from '@hrms/db';
 
 export const runtime = 'nodejs';
@@ -13,7 +14,7 @@ export const GET = defineRoute('GET /api/attendance/work-sites', async (_req, ct
     orderBy: { name: 'asc' },
     select: {
       id: true, code: true, name: true, latitude: true, longitude: true,
-      radiusM: true, maxAccuracyM: true,
+      radiusM: true, maxAccuracyM: true, ipRanges: true,
     },
   });
 
@@ -35,6 +36,7 @@ const schema = z.object({
   // kota, dan geofence yang menerima seluruh kota tidak menilai apa pun.
   radiusM: z.number().int().min(20).max(5000).default(150),
   maxAccuracyM: z.number().int().min(10).max(1000).default(100),
+  ipRanges: ipRangesSchema.default([]),
 });
 
 export const POST = defineRoute('POST /api/attendance/work-sites', async (req, ctx) => {
@@ -59,6 +61,7 @@ export const POST = defineRoute('POST /api/attendance/work-sites', async (req, c
         longitude: new Prisma.Decimal(parsed.data.longitude),
         radiusM: parsed.data.radiusM,
         maxAccuracyM: parsed.data.maxAccuracyM,
+        ipRanges: parsed.data.ipRanges,
       },
       select: { id: true },
     });

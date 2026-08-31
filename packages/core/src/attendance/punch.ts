@@ -4,6 +4,7 @@ import { readPolicy } from './policy.ts';
 import { assessTrust, haversineMeters, type TrustFlag } from './trust.ts';
 import { resolveWorkDate, tenantTimeZone } from './workdate.ts';
 import { punchPermissions } from './consent.ts';
+import { checkOfficeNetwork } from './office-network.ts';
 
 /**
  * Recording attendance punches (document 10).
@@ -256,6 +257,48 @@ export async function recordPunch(
     }
   }
 
+  /**
+   * `FALLBACK_ONLY`: evidence may be missing, but only from the office network.
+   *
+   * Until now this policy value did nothing at all. It could be chosen, it was
+   * stored, the settings screen offered it — and every punch behaved exactly as
+   * `ALLOW_FLAGGED`. A tenant who selected it believed they had tightened
+   * something and had in fact selected a synonym.
+   *
+   * What it means now: a punch missing its required evidence is accepted when it
+   * arrives from a network the tenant has registered, and refused otherwise. A
+   * punch that carries its evidence is unaffected — the policy is about what to
+   * do when a permission was denied, not a second geofence.
+   *
+   * **An unconfigured tenant degrades to `ALLOW_FLAGGED` instead of refusing.**
+   * Fail-closed is the wrong default here and this is the one place in the module
+   * where that is true: refusing would lock out an entire company at seven in the
+   * morning because nobody had filled in a network list they may not know exists.
+   * The settings screen says so rather than leaving it to be discovered.
+   */
+  const office = await checkOfficeNetwork(tx, tenantId, input.ip);
+
+  if (
+    policy.onPermissionDenied === 'FALLBACK_ONLY' &&
+    input.source !== 'DEVICE' &&
+    input.source !== 'MANUAL' &&
+    office.configured &&
+    !office.matched
+  ) {
+    const missing: string[] = [];
+    if (policy.requireLocation && distanceM === null) missing.push('lokasi');
+    if (policy.requirePhoto && !photoKey) missing.push('foto');
+
+    if (missing.length > 0) {
+      throw new PunchError(
+        `Presensi tanpa ${missing.join(' dan ')} hanya dapat dilakukan dari jaringan kantor. ` +
+          'Sambungkan perangkat ke jaringan kantor, aktifkan izinnya di setelan peramban, ' +
+          'gunakan mesin absensi, atau minta HR memasukkan koreksi manual.',
+        'blocked',
+      );
+    }
+  }
+
   // --- Trust scoring --------------------------------------------------------
   const serverNow = new Date();
   const clockSkewSeconds = Math.round(
@@ -273,6 +316,7 @@ export async function recordPunch(
     // a signal. Only a punch sent immediately is scored on it.
     clockSkewSeconds: input.source === 'DEVICE' ? null : clockSkewSeconds,
     mockLocationReported: input.mockLocationReported ?? false,
+    officeIpVerified: office.matched,
     consentWithheld: { location: !consent.location, photo: !consent.photo },
     policy: {
       requireLocation: policy.requireLocation,

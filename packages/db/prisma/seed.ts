@@ -169,6 +169,12 @@ const MENUS: MenuSeed[] = [
         permissionCode: 'attendance.review.handle', path: '/attendance/review', sortOrder: 20 },
       { code: 'attendance.shifts', label: 'Shift & Jadwal', moduleCode: 'attendance',
         permissionCode: 'attendance.shift.manage', path: '/attendance/shifts', sortOrder: 30 },
+      // Work sites had endpoints and no screen, which is bug #34 with its halves
+      // swapped — and invisible to menu-coverage.test.ts, because a menu leading
+      // nowhere is visible from the seed while a missing screen is visible from
+      // nothing at all.
+      { code: 'attendance.sites', label: 'Lokasi Kerja', moduleCode: 'attendance',
+        permissionCode: 'attendance.shift.manage', path: '/attendance/sites', sortOrder: 35 },
     ] },
   { code: 'leave', label: 'Cuti', moduleCode: 'leave', icon: 'calendar', sortOrder: 30,
     children: [

@@ -687,9 +687,73 @@ are worth knowing:
   raising it does not extend the life of existing photos, and lowering it does
   not shorten them. A photo is subject to the promise in force when it was taken.
 
-  `FALLBACK_ONLY` is accepted but **does not yet behave differently** from
-  `ALLOW_FLAGGED`: it demands an office network IP list that cannot be configured
-  yet. Stated on its screen rather than left unsaid.
+  ~~`FALLBACK_ONLY` is accepted but does not yet behave differently from
+  `ALLOW_FLAGGED`~~ — **done.** See the entry below.
+- **`FALLBACK_ONLY` now behaves differently from `ALLOW_FLAGGED`, and work sites
+  finally have a screen.** Two halves of one hole.
+
+  The policy could be selected, was stored, and passed the CHECK constraint while
+  doing **nothing**, because it demands an office network list that no endpoint
+  and no screen could write. And `attendance.work_sites` — read on every punch
+  since Phase 3 — had `GET` and `POST` and **no page at all**, so a self-service
+  tenant could not draw a geofence either. The permanent guard for a menu leading
+  nowhere (`menu-coverage.test.ts`, number 34) cannot see this shape: a menu
+  pointing at a missing page is visible from the seed, an endpoint nobody can
+  reach is visible from nothing.
+
+  What was added:
+
+  | Piece | Where |
+  |---|---|
+  | `work_sites.ip_ranges INET[] NOT NULL DEFAULT '{}'` | `20260901090000_work_site_networks` — additive, rule M4 |
+  | `checkOfficeNetwork()` — `<<=` containment, in SQL | `packages/core/src/attendance/office-network.ts` |
+  | `PATCH /api/attendance/work-sites/[id]` — audited before/after | first way to edit a site at all |
+  | `/attendance/sites` — geofence + network editor | menu `attendance.sites` |
+
+  The containment test is **raw SQL on purpose**. `<<=` already knows about
+  netmasks and both address families; a TypeScript reimplementation would be a
+  second definition of "inside the network", certain to disagree with the first
+  one day.
+
+  Verified against the running server, all three paths:
+
+  | Situation | Result |
+  |---|---|
+  | `FALLBACK_ONLY`, network configured, address **outside** it, no location/photo | **refused**, and the message names every remaining way to punch |
+  | same, address **inside** it | **201**, `OFFICE_IP_VERIFIED` at penalty 0, score 80 |
+  | `FALLBACK_ONLY`, **no** network configured | **201** — degrades to `ALLOW_FLAGGED` |
+
+  That last row is deliberate fail-open, and it is the only fail-open in the
+  policy. Refusing instead would lock out an entire company at 07:00 over a list
+  they may not know exists. The degradation is **shown on the settings screen**
+  through `officeNetworkConfigured`, because a policy that quietly does nothing is
+  the exact bug this change exists to remove.
+
+  A verified office network **removes the browser penalty; it never adds score**,
+  and it does not rescue a punch that failed the geofence. It proves where the
+  packets came from, not that anyone is in the building — a VPN satisfies it
+  exactly. If it could rescue a geofence failure, anyone on the company VPN could
+  punch from home unflagged and the whole fence layer would be optional.
+
+  Two defects were caught by writing the tests afterwards, both of the silent
+  kind this document keeps recording:
+
+  - **The address validator accepted `203.0.113.7:54321`** — one colon, digits
+    and dots only, so the "is it IPv6?" charset test waved it through. It would
+    have reached `::inet`, and the **cast raises**: a strange proxy header would
+    have failed the punch, the precise outcome the surrounding comment promised
+    could not happen. Both hand-written validators are now `node:net`'s `isIP`.
+  - **`PUT /api/attendance/policy` returned no `officeNetworkConfigured`** while
+    the settings screen replaces its state from that response. Choosing
+    `FALLBACK_ONLY` would have displayed the warning that says the setting does
+    nothing at the instant it started doing something — the same silent lie, one
+    layer up.
+
+  The IPv4-mapped form (`::ffff:203.0.113.7`) is unwrapped before the comparison.
+  Node reports it on a dual-stack listener, PostgreSQL treats it as a different
+  address family from `203.0.113.0/24`, and `<<=` is false — an office network
+  configured the obvious way would have matched **nobody, on the deployed server
+  only**, while every local test with a literal IPv4 passed.
 - **The punch dedupe key is now guarded at runtime**, not only by the type.
   `where: { dedupeKey: undefined }` in Prisma **ignores the condition** — it
   matches any row in that tenant, so a punch without a key was answered "already
