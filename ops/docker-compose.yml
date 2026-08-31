@@ -33,9 +33,39 @@ services:
   # ---------------------------------------------------------------------------
   # DATA
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # PENYIAP VOLUME ARSIP WAL
+  #
+  # Volume Docker bernama lahir dimiliki root. PostgreSQL berjalan sebagai
+  # pengguna `postgres` (uid 70 pada image alpine), sehingga `archive_command`
+  # yang menulis ke sana **gagal — dan gagal secara diam-diam.**
+  #
+  # Bentuk kegagalannya persis yang paling berbahaya: `archive_mode=on` terpasang,
+  # konfigurasinya terlihat benar di setiap tempat yang diperiksa orang, dan
+  # tidak satu pun segmen pernah terarsip. Yang naik hanyalah
+  # `pg_stat_archiver.failed_count`, dan tidak ada yang membacanya sampai ada
+  # yang benar-benar mencoba memulihkan.
+  #
+  # Lebih buruk lagi: PostgreSQL MENAHAN segmen yang gagal diarsipkan dan
+  # mencoba lagi selamanya. Disk penuh perlahan-lahan, dan penyebabnya tidak
+  # terlihat dari mana pun kecuali dari log yang sudah tergulung.
+  #
+  # Ditemukan saat menguji PITR, sebelum konfigurasi ini pernah dipakai.
+  wal-init:
+    image: postgres:16-alpine
+    container_name: hrms-wal-init
+    user: root
+    command: ['sh', '-c', 'mkdir -p /wal && chown 70:70 /wal && chmod 700 /wal']
+    volumes:
+      - hrms-wal:/wal
+    restart: 'no'
+
   postgres:
     image: postgres:16-alpine
     container_name: hrms-postgres-full
+    depends_on:
+      wal-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-hrms_owner}
@@ -47,6 +77,40 @@ services:
       # hanya berjalan pada volume kosong — pada volume yang sudah ada, role
       # dibuat oleh migrasi dan kata sandinya dipasang lewat runbook.
       - ./initdb:/docker-entrypoint-initdb.d:ro
+      # Arsip WAL. Volume TERPISAH dari data, dan itu bukan kerapian: arsip yang
+      # berada di volume yang sama dengan datanya akan ikut hilang bersama
+      # kerusakan yang membuatnya dibutuhkan.
+      - hrms-wal:/wal
+    # -------------------------------------------------------------------------
+    # Point-in-time recovery
+    #
+    # Tanpa arsip WAL, kehilangan data maksimum sama dengan jarak antar-cadangan
+    # — untuk cadangan harian, itu berarti sampai 24 jam pekerjaan hilang.
+    # Dengan arsip WAL, kehilangannya turun menjadi selisih satu segmen, dan
+    # pemulihan dapat diarahkan ke DETIK tertentu: tepat sebelum `DELETE` tanpa
+    # `WHERE`, tepat sebelum migrasi yang salah.
+    #
+    # `archive_command` memakai `test ! -f` lebih dulu. Menimpa segmen arsip yang
+    # sudah ada berarti menghancurkan rantai pemulihan tanpa satu pun galat —
+    # PostgreSQL menganggap arsipnya berhasil, dan yang rusak baru ketahuan saat
+    # pemulihan pertama yang sungguh-sungguh dibutuhkan.
+    #
+    # `archive_command` yang gagal membuat PostgreSQL MENAHAN segmennya dan
+    # mencoba lagi. Itu perilaku yang benar dan berbahaya sekaligus: disk penuh
+    # bila arsipnya tidak pernah berhasil. Runbook §7 menyebutkan cara
+    # memantaunya.
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=test ! -f /wal/%f && cp %p /wal/%f
+      - -c
+      - archive_timeout=300
+      - -c
+      - max_wal_senders=3
     ports:
       # Dipetakan ke 5433 supaya tidak bentrok dengan PostgreSQL yang mungkin
       # sudah berjalan di mesin pengembang.
@@ -243,3 +307,4 @@ volumes:
   hrms-pgdata:
   hrms-backups:
   hrms-storage:
+  hrms-wal:
