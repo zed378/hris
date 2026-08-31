@@ -1,0 +1,19 @@
+{
+  "name": "@hrms/cache",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@hrms/observability": "workspace:*",
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2",
+    "vitest": "^4.1.10"
+  }
+}

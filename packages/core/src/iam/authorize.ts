@@ -1,4 +1,10 @@
 import type { TenantClient } from '@hrms/db';
+import {
+  readAccess,
+  writeAccess,
+  readAccessVersion,
+  writeAccessVersion,
+} from '@hrms/cache';
 import { resolveEffectiveAccess, type EffectiveAccess } from './resolve-access.ts';
 
 /**
@@ -83,7 +89,7 @@ export async function decideAccess(
   tx: TenantClient,
   request: AccessRequest,
 ): Promise<AccessDecision> {
-  const access = await resolveEffectiveAccess(tx, request.tenantId, request.userId);
+  const access = await resolveAccessCached(tx, request);
 
   if (request.tokenAccessVersion !== access.accessVersion) {
     return { allowed: false, reason: 'stale', access };
@@ -98,4 +104,64 @@ export async function decideAccess(
   }
 
   return { allowed: true, access };
+}
+
+/**
+ * The same resolution, served from Redis when it can be (PLAN/14 §5 option C).
+ *
+ * Six queries per authenticated request is cheap in one process on one
+ * connection, and is the whole problem the moment authorization crosses a
+ * network. This is the third of the three answers §5 weighs: not a remote call
+ * per request (correct and slow), not a fat token (fast and unrevokable), but a
+ * shared cache invalidated by the access version.
+ *
+ * ## Two reads, not one, and the order matters
+ *
+ * The version comes FIRST and separately. A cache keyed by version is only safe
+ * if something establishes what the current version is — otherwise a revoked
+ * user's old token keeps finding its old entry, and the cache becomes the thing
+ * that defeats revocation. The version read is one indexed row; the resolution
+ * it guards is six queries and a set of joins.
+ *
+ * ## Every failure falls through to the database
+ *
+ * No Redis, a miss, a malformed entry, a timeout — all the same answer: resolve
+ * properly. The cache can make this faster and it can never make it wrong, which
+ * is the only acceptable arrangement for the layer that decides who may read
+ * whose salary.
+ *
+ * ## What remains for stage 6
+ *
+ * The version still falls back to `iam.access_versions`, and after the split the
+ * backend will have no grant on `iam` at all. At that point the fallback becomes
+ * a call to the auth service — the same shape, a different source — and it will
+ * be reached only on a cache miss rather than on every request.
+ */
+async function resolveAccessCached(
+  tx: TenantClient,
+  request: AccessRequest,
+): Promise<EffectiveAccess> {
+  const cachedVersion = await readAccessVersion(request.tenantId, request.userId);
+
+  if (cachedVersion !== null) {
+    const hit = await readAccess(request.tenantId, request.userId, cachedVersion);
+    if (hit) {
+      return {
+        modules: hit.modules,
+        permissions: hit.permissions,
+        accessVersion: hit.accessVersion,
+      };
+    }
+  }
+
+  const access = await resolveEffectiveAccess(tx, request.tenantId, request.userId);
+
+  // Written after the resolution, never before. Writing the version first would
+  // leave a window where the version says "current" and the resolution it points
+  // at does not yet exist — a miss, which is harmless, but the reverse ordering
+  // costs nothing and removes the question.
+  await writeAccess(request.tenantId, request.userId, access);
+  await writeAccessVersion(request.tenantId, request.userId, access.accessVersion);
+
+  return access;
 }

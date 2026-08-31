@@ -1,4 +1,5 @@
 import { platformClient } from '@hrms/db';
+import { bumpTenantGeneration } from '@hrms/cache';
 
 /**
  * Control plane operational capabilities (PLAN/07 §4.5).
@@ -185,6 +186,24 @@ export async function setTenantModule(input: {
       : { status: 'DISABLED' as const, disabledAt: now },
     select: { moduleCode: true, status: true },
   });
+
+  /**
+   * Every cached authorization decision for this tenant becomes unreachable
+   * (PLAN/14 §5).
+   *
+   * The permission cache is keyed by the USER's access version, and this change
+   * is per TENANT — it alters what everybody here may do. Worse, the control
+   * plane connects as `hrms_platform` and has no grant on `iam` at all (P11), so
+   * it could not bump anyone's access version even if the shape allowed it.
+   *
+   * Without this line, disabling a module would leave it usable for the lifetime
+   * of the cached resolutions: five minutes of a module the customer stopped
+   * paying for, or five minutes of one they were cut off from for a reason.
+   *
+   * Redis belongs to no plane, which is exactly why the invalidation can live
+   * there when the database boundary forbids it.
+   */
+  await bumpTenantGeneration(input.tenantId);
 
   // A superuser action is recorded in the platform trail, not the tenant audit:
   // its actor is not a tenant user, and mixing them would fill the tenant's audit

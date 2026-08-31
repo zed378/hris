@@ -1,7 +1,7 @@
 import { log } from '@hrms/observability';
 import { appClient } from '@hrms/db';
 import { definePublicRoute } from '@/lib/define-route.ts';
-import { rateLimitBackend } from '@/lib/rate-limit.ts';
+import { rateLimitBackend } from '@hrms/cache';
 import { signingMode } from '@hrms/core/auth';
 
 export const runtime = 'nodejs';

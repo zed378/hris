@@ -1,4 +1,5 @@
 import type { TenantClient } from '@hrms/db';
+import { forgetAccessVersion } from '@hrms/cache';
 import type { MenuNode } from '@hrms/contracts';
 
 export interface EffectiveAccess {
@@ -200,6 +201,25 @@ export async function bumpAccessVersion(
     update: { version: { increment: 1 } },
     select: { version: true },
   });
+
+  /**
+   * The cached version is DELETED, not overwritten (PLAN/14 §5).
+   *
+   * Writing the new number would mean a failed write leaves the OLD one in
+   * place, and a user whose access was just revoked keeps it until that entry
+   * expires. Deleting means a failed delete leaves nothing, the next read falls
+   * through to this table, and the answer is correct.
+   *
+   * Both writes can fail. Only one of the two failure modes is safe, and it is
+   * not the tidy-looking one.
+   *
+   * The RESOLUTIONS are deliberately left alone: they are keyed by version, so
+   * the new version simply does not find them. That lets a request already in
+   * flight under the previous token finish against the data it was authorized
+   * with, rather than failing halfway through.
+   */
+  await forgetAccessVersion(tenantId, userId);
+
   return row.version;
 }
 

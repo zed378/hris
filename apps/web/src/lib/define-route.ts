@@ -6,7 +6,7 @@ import { ErrorCode, type ApiError } from '@hrms/contracts';
 import { verifyAccessToken, TokenVerificationError } from '@hrms/core/auth';
 import { decideAccess, type EffectiveAccess } from '@hrms/core/iam';
 import { ROUTE_MANIFEST, type RouteId, type RouteRule } from './route-manifest.ts';
-import { consumeRateLimit, consumeTenantQuota, TENANT_QUOTA_MAX } from './rate-limit.ts';
+import { consumeRateLimit, consumeTenantQuota, TENANT_QUOTA_MAX } from '@hrms/cache';
 
 export interface RequestContext {
   correlationId: string;

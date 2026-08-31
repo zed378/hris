@@ -12,8 +12,8 @@ import {
   rateLimitBackend,
   resetRateLimits,
   TENANT_QUOTA_MAX,
-} from '../src/lib/rate-limit.ts';
-import { disconnectRedis, redis, redisReady } from '../src/lib/redis.ts';
+} from '../src/rate-limit.ts';
+import { disconnectRedis, redis, redisReady } from '../src/redis.ts';
 
 /**
  * Rate limiting against a real Redis (PLAN/14 stage 3).

@@ -22,6 +22,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@hrms/cache": "workspace:*",
     "@hrms/contracts": "workspace:*",
     "@hrms/db": "workspace:*",
     "@hrms/observability": "workspace:*",

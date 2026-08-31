@@ -8,7 +8,7 @@ import {
   type AdminRouteId,
   type AdminRouteRule,
 } from './route-manifest.ts';
-import { consumeRateLimit } from './rate-limit.ts';
+import { consumeRateLimit } from '@hrms/cache';
 
 /**
  * Gateway control plane — padanan `admin-gateway` (PLAN/07 §2).

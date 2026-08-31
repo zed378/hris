@@ -4,11 +4,12 @@ import { randomUUID } from 'node:crypto';
 import { config as loadEnv } from 'dotenv';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 loadEnv({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env'), quiet: true });
 
 import { disconnectAll } from '@hrms/db';
+import { resetAccessCache, disconnectRedis } from '@hrms/cache';
 import { issueAccessToken } from '@hrms/core/auth';
 import { defineRoute } from '../src/lib/define-route.ts';
 
@@ -132,10 +133,29 @@ beforeAll(async () => {
   await owner.userRole.create({ data: { tenantId: TENANT, userId: USER, roleId: role.id } });
 });
 
+/**
+ * Every case starts from a cold cache.
+ *
+ * These tests change roles, grants, and subscriptions by writing to the database
+ * directly — which is the right way to test the RESOLUTION, and is not how the
+ * application changes them. The application goes through `bumpAccessVersion` and
+ * `bumpTenantGeneration`, and those are what invalidate the cache; a direct write
+ * invalidates nothing, so without this the suite would be asserting against
+ * decisions cached before the change.
+ *
+ * The invalidation paths themselves are covered separately, in
+ * `packages/cache/test/access-cache.test.ts`. Mixing the two here would leave
+ * both half-tested.
+ */
+beforeEach(async () => {
+  await resetAccessCache(TENANT, USER);
+});
+
 afterAll(async () => {
   await owner.tenant.deleteMany({ where: { id: TENANT } });
   await owner.$disconnect();
   await disconnectAll();
+  await disconnectRedis();
 });
 
 describe('the gateway chain', () => {
@@ -374,6 +394,12 @@ describe('the access version (PLAN/14 stage 2)', () => {
       create: { userId: USER, tenantId: TENANT, version: before + 1 },
       update: { version: before + 1 },
     });
+    // What `bumpAccessVersion` does after its write, and the reason it does it:
+    // the cached version is DELETED rather than overwritten, so a failure leaves
+    // no value and the next read falls through to the database. Writing the row
+    // directly, as this test does, skips that — which is exactly why the cache
+    // has an invalidation path rather than relying on the row alone.
+    await resetAccessCache(TENANT, USER);
 
     expect((await handler(request(oldToken))).status).toBe(401);
     expect((await handler(request(await tokenFor(before + 1)))).status).toBe(200);

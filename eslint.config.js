@@ -63,6 +63,11 @@ export default tseslint.config(
         { type: 'db', mode: 'file', pattern: 'packages/db/src/**' },
         { type: 'contracts', mode: 'file', pattern: 'packages/contracts/src/**' },
         { type: 'observability', mode: 'file', pattern: 'packages/observability/src/**' },
+        // Shared Redis-backed state: rate-limit counters, and the permission
+        // cache the auth split needs. A leaf like observability — it depends on
+        // nothing above it, so both the backend and the auth service can hold it
+        // without either depending on the other.
+        { type: 'cache', mode: 'file', pattern: 'packages/cache/src/**' },
         { type: 'app', mode: 'file', pattern: 'apps/**' },
       ],
     },
@@ -81,6 +86,7 @@ export default tseslint.config(
                 { to: { element: { type: 'db' } } },
                 { to: { element: { type: 'contracts' } } },
                 { to: { element: { type: 'observability' } } },
+                { to: { element: { type: 'cache' } } },
                 { to: { element: { type: 'app' } } },
               ],
             },
@@ -92,6 +98,7 @@ export default tseslint.config(
               from: [{ element: { type: 'core-module-internal' } }],
               allow: [
                 { to: { element: { type: 'core-module-api' } } },
+                { to: { element: { type: 'cache' } } },
                 {
                   to: {
                     element: {
@@ -148,6 +155,15 @@ export default tseslint.config(
             {
               from: [{ element: { type: 'observability' } }],
               allow: [{ to: { element: { type: 'observability' } } }],
+            },
+
+            // Cache sits beside observability: it may log, and nothing else.
+            {
+              from: [{ element: { type: 'cache' } }],
+              allow: [
+                { to: { element: { type: 'cache' } } },
+                { to: { element: { type: 'observability' } } },
+              ],
             },
           ],
         },
