@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 #
-# Cadangan basis data HRMS.
+# HRMS database backup.
 #
-# Memakai format `custom` (-Fc), bukan SQL biasa. Alasannya bukan ukuran:
-# format custom dapat dipulihkan SEBAGIAN — satu tabel, satu skema — dan
-# kemampuan itu yang menentukan apakah sebuah insiden dapat diselesaikan dalam
-# sepuluh menit atau tiga jam. Berkas SQL hanya dapat dijalankan dari awal
-# sampai akhir.
+# Uses the `custom` format (-Fc) rather than plain SQL. The reason is not size:
+# the custom format can be restored PARTIALLY — one table, one schema — and that
+# capability decides whether an incident is resolved in ten minutes or three
+# hours. A SQL file can only be run from beginning to end.
 #
-# Peran `hrms_owner` dipakai dengan sengaja: ia satu-satunya yang dapat membaca
-# seluruh tabel tanpa terhalang RLS. Cadangan yang diambil peran aplikasi hanya
-# akan memuat baris milik tenant yang kebetulan aktif pada koneksinya — yaitu
-# tidak ada satu pun, karena `app_current_tenant()` mengembalikan NULL di luar
-# `withTenant`. Cadangan itu akan berhasil, berukuran wajar, dan kosong.
+#
+# The `hrms_owner` role is used deliberately: it is the only one that can read
+# every table without RLS in the way. A backup taken by the application role
+# would contain only the rows of whichever tenant happened to be active on its
+# connection — which is none at all, because `app_current_tenant()` returns NULL
+# outside `withTenant`. That backup would succeed, be a reasonable size, and be empty.
 #
 #   bash ops/scripts/backup.sh [direktori-tujuan]
 #
@@ -26,19 +26,19 @@ OUT_DIR="${1:-./backups}"
 mkdir -p "$OUT_DIR"
 
 # -----------------------------------------------------------------------------
-# Dua mode, dipilih dari apa yang tersedia
+# Two modes, chosen from what is available
 # -----------------------------------------------------------------------------
 #
-# `pg_dump` LANGSUNG bila ada di PATH — inilah mode yang dipakai saat skrip
-# berjalan di dalam kontainer atau di host yang punya klien PostgreSQL. Ia
-# menuntut `PGHOST`/`PGPASSWORD` atau `DATABASE_URL`.
+# `pg_dump` DIRECTLY when it is on the PATH — this is the mode used when the
+# script runs inside a container or on a host with the PostgreSQL client. It
+# needs `PGHOST`/`PGPASSWORD` or `DATABASE_URL`.
 #
-# `docker exec` sebagai cadangan — mode pengembangan, dan mode host yang hanya
-# punya Docker tanpa klien PostgreSQL.
+# `docker exec` as the fallback — the development mode, and the mode for a host
+# that has Docker but no PostgreSQL client.
 #
-# Pemilihannya otomatis, dan modenya DINYATAKAN di keluaran. Skrip cadangan yang
-# diam-diam berpindah mode adalah skrip yang berhasil di laptop dan gagal di
-# server dengan pesan yang tidak menjelaskan bedanya.
+# The choice is automatic, and the mode is STATED in the output. A backup script
+# that silently switches modes is one that succeeds on a laptop and fails on the
+# server with a message that does not explain the difference.
 if command -v pg_dump >/dev/null 2>&1 && [ -n "${PGHOST:-}${DATABASE_URL:-}" ]; then
   MODE="langsung"
   run_dump() { pg_dump "$@"; }
@@ -56,10 +56,10 @@ FILE="$OUT_DIR/hrms-$STAMP.dump"
 
 echo "Mencadangkan $DB dari kontainer $CONTAINER…"
 
-# `--no-owner` dan `--no-privileges` supaya dump dapat dipulihkan ke instance
-# yang perannya belum dibuat. Peran dan hak akses dibangun ulang oleh migrasi,
-# bukan oleh dump — dan mencampurnya membuat pemulihan gagal di lingkungan baru
-# dengan galat "role does not exist" yang tidak menjelaskan apa pun.
+# `--no-owner` and `--no-privileges` so the dump can be restored into an instance
+# whose roles do not exist yet. Roles and grants are rebuilt by the migrations,
+# not by the dump — and mixing them makes a restore fail in a new environment
+# with a "role does not exist" error that explains nothing.
 run_dump \
   -U "$DB_USER" \
   -d "$DB" \
@@ -72,12 +72,12 @@ run_dump \
 SIZE=$(du -h "$FILE" | cut -f1)
 echo "Selesai: $FILE ($SIZE)"
 
-# Verifikasi isi, bukan hanya keberadaan berkas.
+# Verify the contents, not merely that the file exists.
 #
-# Cadangan yang gagal separuh jalan tetap meninggalkan berkas. Yang membedakan
-# cadangan yang dapat dipakai dari berkas yang sekadar ada adalah apakah
-# daftar isinya dapat dibaca — dan memeriksanya sekarang jauh lebih murah
-# daripada menemukannya saat sedang memulihkan.
+# A backup that failed halfway still leaves a file behind. What separates a
+# usable backup from a file that merely exists is whether its table of contents
+# can be read — and checking that now is far cheaper than discovering it during
+# a restore.
 TABLES=$(run_restore_list --list < "$FILE" 2>/dev/null | grep -c "TABLE DATA" || true)
 echo "Berisi $TABLES tabel dengan data."
 
@@ -87,20 +87,20 @@ if [ "$TABLES" -lt 10 ]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Berkas penyimpanan
+# Storage files
 # -----------------------------------------------------------------------------
 #
-# Foto presensi dan dokumen karyawan TIDAK ada di dalam basis data — keduanya
-# berkas di disk, dan `pg_dump` tidak mengetahui keberadaannya.
+# Attendance photos and employee documents are NOT in the database — both are
+# files on disk, and `pg_dump` does not know they exist.
 #
-# Cadangan yang hanya memuat basis data akan terlihat lengkap: seluruh tabel
-# ada, seluruh baris ada, dan `punch_logs.photo_key` menunjuk berkas yang sudah
-# tidak ada. Kegagalannya baru terlihat saat seseorang membuka foto presensi
-# untuk menyelesaikan sengketa upah — yaitu satu-satunya saat foto itu penting.
+# A backup holding only the database would look complete: every table there,
+# every row there, and `punch_logs.photo_key` pointing at files that are gone.
+# The failure only appears when someone opens an attendance photo to settle a
+# wage dispute — the one moment that photo matters.
 #
-# Diarsipkan terpisah dan diberi stempel waktu yang SAMA dengan dump-nya,
-# supaya pasangan yang benar dapat dikenali saat memulihkan. Cadangan basis data
-# dan berkas dari waktu berbeda menghasilkan rujukan yang tidak cocok.
+# Archived separately and stamped with the SAME time as its dump, so the right
+# pair can be recognised at restore time. A database backup and a file archive
+# from different moments produce references that do not match.
 STORAGE_DIR="${HRMS_STORAGE_DIR:-./.storage}"
 
 if [ -d "$STORAGE_DIR" ]; then
@@ -112,23 +112,23 @@ if [ -d "$STORAGE_DIR" ]; then
   FILES=$(tar -tzf "$STORAGE_FILE" | grep -c -v '/$' || true)
   echo "Selesai: $STORAGE_FILE ($(du -h "$STORAGE_FILE" | cut -f1), $FILES berkas)"
 else
-  # Dinyatakan, bukan didiamkan. Direktori penyimpanan yang tidak ada bisa
-  # berarti belum ada foto yang diunggah — atau berarti skrip ini dijalankan
-  # dari direktori yang salah, dan cadangannya kehilangan seluruh berkas tanpa
+  # Stated, not left unsaid. A missing storage directory can mean no photos have
+  # been uploaded yet — or it can mean this script was run from the wrong
+  # directory, and its backup is missing every file with not one warning.
   # satu pun peringatan.
   echo "CATATAN: direktori penyimpanan \"$STORAGE_DIR\" tidak ada — tidak ada berkas yang diarsipkan."
   echo "         Bila seharusnya ada, periksa HRMS_STORAGE_DIR dan direktori kerja."
 fi
 
-# Retensi: simpan 14 cadangan terakhir.
+# Retention: keep the last 14 backups.
 #
-# Bukan berdasarkan umur, melainkan jumlah. Cadangan harian yang dihapus
-# berdasarkan umur akan menghapus semuanya sekaligus bila job-nya berhenti
+# By count, not by age. Daily backups deleted by age would all disappear at once
+# if the job stopped for two weeks and then ran again.
 # selama dua pekan lalu berjalan lagi.
 ls -1t "$OUT_DIR"/hrms-*.dump 2>/dev/null | tail -n +15 | while read -r old; do
   echo "Menghapus cadangan lama: $old"
   rm -f "$old"
-  # Arsip berkas pasangannya ikut dihapus. Membiarkannya menumpuk akan
-  # menghabiskan disk dengan foto yang basis datanya sudah tidak ada.
+  # The matching file archive is deleted with it. Letting those pile up would
+  # fill the disk with photos whose database is long gone.
   rm -f "${old%.dump}-storage.tar.gz"
 done

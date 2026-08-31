@@ -1,36 +1,36 @@
 import { Client } from 'pg';
 
 /**
- * Aliran peristiwa langsung lewat `LISTEN`/`NOTIFY` (PLAN/12 §3).
+ * The live event stream through `LISTEN`/`NOTIFY` (PLAN/12 §3).
  *
- * Dipilih menggantikan Socket.IO + Redis Streams yang ada di rancangan
- * microservices. Alasannya bukan kesederhanaan demi kesederhanaan: fanout lintas
- * node baru diperlukan ketika koneksi pengguna dipegang oleh salah satu dari
- * beberapa proses yang tidak saling tahu. Satu proses web tidak punya masalah
- * itu, dan PostgreSQL sudah memegang kedua ujungnya.
+ * Chosen in place of the Socket.IO + Redis Streams in the microservices design.
+ * The reason is not simplicity for its own sake: cross-node fan-out is only
+ * needed when a user's connection is held by one of several processes that do
+ * not know about each other. A single web process has no such problem, and
+ * PostgreSQL already holds both ends.
  *
- * Yang harus dipahami sebelum memakai berkas ini: **`LISTEN`/`NOTIFY` berada di
- * luar jangkauan Row-Level Security.** Setiap pendengar sebuah kanal menerima
- * setiap pesan di kanal itu. Karena itu kanalnya per tenant — isolasinya ada
- * pada nama kanal, bukan pada penyaringan setelah pesan diterima.
+ * What has to be understood before using this file: **`LISTEN`/`NOTIFY` sits
+ * outside the reach of Row-Level Security.** Every listener on a channel
+ * receives every message on it. So the channel is per tenant — its isolation is
+ * in the channel name, not in filtering after a message arrives.
  *
- * Konsekuensi lain yang tidak boleh dilupakan: `LISTEN` menuntut koneksi
- * tersendiri yang dipegang selama aliran hidup, sehingga ia tidak dapat memakai
- * pool Prisma. Itulah alasan batas jumlah aliran ada di bawah.
+ * Another consequence that must not be forgotten: `LISTEN` demands a dedicated
+ * connection held for the life of the stream, so it cannot use the Prisma pool.
+ * That is why the stream count limit exists below.
  */
 
-/** Nama kanal harus sama persis dengan yang dibangun pemicu di basis data. */
+/** The channel name must match exactly the one built by the database trigger. */
 export function tenantChannel(tenantId: string): string {
   return `att_${tenantId.replace(/-/g, '')}`;
 }
 
 /**
- * Batas jumlah aliran yang hidup bersamaan dalam satu proses.
+ * The limit on how many streams may live at once in one process.
  *
- * Setiap aliran memegang satu koneksi PostgreSQL sampai ditutup. Tanpa batas,
- * sebuah tab dasbor yang dibuka berulang kali — atau klien yang menyambung
- * ulang tanpa menutup yang lama — akan menghabiskan seluruh koneksi basis data,
- * dan yang berhenti bekerja bukan dasbornya melainkan SELURUH aplikasi.
+ * Every stream holds one PostgreSQL connection until it is closed. Without a
+ * limit, a dashboard tab opened repeatedly — or a client reconnecting without
+ * closing the old connection — would exhaust every database connection, and what
+ * stops working is not the dashboard but the WHOLE application.
  */
 const MAX_STREAMS = 32;
 let active = 0;
@@ -43,16 +43,16 @@ export class TooManyStreamsError extends Error {
 }
 
 export interface LiveStream {
-  /** Menghentikan langganan dan mengembalikan koneksinya. Aman dipanggil dua kali. */
+  /** Stops the subscription and returns its connection. Safe to call twice. */
   close: () => Promise<void>;
 }
 
 /**
- * Mendengarkan peristiwa satu tenant.
+ * Listens for one tenant's events.
  *
- * `onEvent` menerima muatan JSON apa adanya dari `pg_notify`. Muatan yang tidak
- * dapat diurai dibuang tanpa menghentikan aliran: satu pesan cacat tidak boleh
- * memutus dasbor yang sedang dilihat orang.
+ * `onEvent` receives the JSON payload from `pg_notify` as it is. An unparseable
+ * payload is discarded without stopping the stream: one malformed message must
+ * not cut off a dashboard somebody is watching.
  */
 export async function listenTenant(
   tenantId: string,
@@ -62,19 +62,18 @@ export async function listenTenant(
   if (active >= MAX_STREAMS) throw new TooManyStreamsError();
 
   /**
-   * Koneksi memakai peran APLIKASI, bukan pemilik basis data.
+   * The connection uses the APPLICATION role, not the database owner.
    *
-   * Versi pertama memakai `DATABASE_URL`, yang terhubung sebagai `hrms_owner` —
-   * satu-satunya peran yang dapat menembus RLS dan satu-satunya yang tidak
-   * terikat `statement_timeout`. Setiap dasbor langsung yang dibuka karenanya
-   * memegang koneksi tanpa batas waktu dengan hak penuh atas seluruh basis data,
-   * untuk pekerjaan yang hanya perlu mendengarkan satu kanal.
+   * The first version used `DATABASE_URL`, which connects as `hrms_owner` — the
+   * only role that can bypass RLS and the only one not bound by
+   * `statement_timeout`. Every open live dashboard therefore held a connection
+   * with no time limit and full rights over the whole database, for work that
+   * only needs to listen on one channel.
    *
-   * `LISTEN`/`NOTIFY` memang berada di luar jangkauan RLS, sehingga tidak ada
-   * kebocoran yang terjadi pada kasus ini. Tetapi hak yang tidak dibutuhkan
-   * tidak boleh diambil hanya karena kebetulan tidak berbahaya di jalur yang
-   * ada sekarang — jalur berikutnya yang ditambahkan orang lain di berkas ini
-   * akan mewarisinya tanpa ada yang memutuskan begitu.
+   * `LISTEN`/`NOTIFY` does sit outside the reach of RLS, so no leak occurred in
+   * this case. But a right that is not needed must not be taken merely because
+   * it happens to be harmless on the path that exists today — the next path
+   * somebody adds to this file would inherit it without anyone deciding so.
    */
   const connectionString = process.env['DATABASE_URL_APP'] ?? process.env['DATABASE_URL'];
   const client = new Client({ connectionString });
@@ -86,8 +85,8 @@ export async function listenTenant(
     if (closed) return;
     closed = true;
     active -= 1;
-    // `end()` dapat melempar bila koneksinya sudah putus dari sisi server.
-    // Yang penting di sini hitungannya turun, dan itu sudah terjadi di atas.
+    // `end()` can throw when the connection has already dropped on the server
+    // side. What matters here is that the count went down, and that happened above.
     await client.end().catch(() => undefined);
   };
 
@@ -101,13 +100,13 @@ export async function listenTenant(
     try {
       onEvent(JSON.parse(message.payload));
     } catch {
-      // Muatan cacat dibuang. Lihat alasannya di JSDoc.
+      // A malformed payload is discarded. Its reason is in the JSDoc.
     }
   });
 
-  // Nama kanal disisipkan lewat `format`, bukan parameter: `LISTEN` tidak
-  // menerima parameter terikat. Aman karena namanya dibangun dari UUID yang
-  // sudah divalidasi bentuknya, bukan dari masukan bebas.
+  // The channel name is interpolated through `format` rather than a parameter:
+  // `LISTEN` does not accept bound parameters. Safe because the name is built
+  // from a UUID whose shape has already been validated, not from free input.
   const channel = tenantChannel(tenantId);
   if (!/^att_[0-9a-f]{32}$/.test(channel)) {
     await close();
@@ -118,7 +117,7 @@ export async function listenTenant(
   return { close };
 }
 
-/** Berapa aliran yang sedang hidup. Untuk pemantauan dan pengujian. */
+/** How many streams are alive. For monitoring and testing. */
 export function activeStreamCount(): number {
   return active;
 }

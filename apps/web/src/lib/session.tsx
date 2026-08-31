@@ -14,35 +14,35 @@ import type { BootstrapResponse } from '@hrms/contracts';
 import { unsubscribeFromPush } from './push.ts';
 
 /**
- * Sesi di sisi klien.
+ * The client-side session.
  *
- * Access token hidup **hanya di memori** — tidak di `localStorage`, tidak di
- * Cache Storage, tidak di IndexedDB (PLAN/11 §5.3). Konsekuensinya nyata: muat
- * ulang halaman menghilangkannya. Itu bukan cacat, melainkan alasan adanya
- * refresh token sebagai cookie httpOnly — saat aplikasi dimuat, ia menukar
- * cookie itu dengan access token baru, dan JavaScript tidak pernah menyentuh
- * kredensial yang bertahan.
+ * The access token lives **in memory only** — not in `localStorage`, not in
+ * Cache Storage, not in IndexedDB (PLAN/11 §5.3). The consequence is real:
+ * reloading the page discards it. That is not a flaw but the reason the refresh
+ * token exists as an httpOnly cookie — when the app loads it exchanges that
+ * cookie for a fresh access token, and JavaScript never touches a credential
+ * that persists.
  *
- * Yang disimpan di sini menentukan apa yang bocor ketika ada XSS. Dengan pola
- * ini, yang dapat dicuri hanyalah token berumur 15 menit.
+ * What is stored here decides what leaks when there is an XSS. With this
+ * pattern, all that can be stolen is a token that expires in 15 minutes.
  */
 
 interface SessionState {
   status: 'loading' | 'authenticated' | 'anonymous';
   bootstrap: BootstrapResponse | null;
-  /** Fetch ke API dengan Authorization terisi dan penyegaran token otomatis. */
+  /** A fetch to the API with Authorization filled in and automatic token refresh. */
   api: (path: string, init?: RequestInit) => Promise<Response>;
   login: (input: { tenantCode: string; email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   can: (permission: string) => boolean;
   hasModule: (moduleCode: string) => boolean;
   /**
-   * Memuat ulang izin, modul, dan menu tanpa login ulang.
+   * Reloads permissions, modules, and menus without a fresh login.
    *
-   * Dibutuhkan ketika langganan berubah dari dalam aplikasi: DoD Fase 6
-   * menuntut perubahan tercermin di UI dalam sepuluh detik, dan meminta orang
-   * keluar-masuk kembali setelah mengaktifkan modul adalah kegagalan yang
-   * paling terasa justru pada langkah yang paling ingin dibuat mulus.
+   * Needed when a subscription changes from inside the application: the Phase 6
+   * DoD demands the change be reflected in the UI within ten seconds, and asking
+   * someone to log out and back in after enabling a module is a failure felt
+   * most on the step one most wants to feel smooth.
    */
   refresh: () => Promise<void>;
 }
@@ -76,7 +76,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SessionState['status']>('loading');
   const [bootstrap, setBootstrap] = useState<BootstrapResponse | null>(null);
 
-  /** Menukar cookie refresh dengan access token baru. */
+  /** Exchanges the refresh cookie for a fresh access token. */
   const renew = useCallback(async (): Promise<boolean> => {
     const response = await fetch('/api/auth/refresh', {
       method: 'POST',
@@ -102,21 +102,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Pembungkus fetch dengan satu percobaan ulang setelah menyegarkan token.
+   * A fetch wrapper with one retry after refreshing the token.
    *
-   * Satu percobaan, bukan berulang. Bila penyegaran berhasil tetapi request
-   * tetap 401, masalahnya bukan token kedaluwarsa — dan mencoba lagi hanya
-   * mengubah kegagalan yang jelas menjadi lingkaran yang membingungkan.
+   * One retry, not repeated ones. If the refresh succeeds and the request is
+   * still 401, the problem is not an expired token — and retrying only turns a
+   * clear failure into a confusing loop.
    */
   const api = useCallback(
     async (path: string, init: RequestInit = {}): Promise<Response> => {
-      // `content-type` TIDAK dipasang untuk FormData.
+      // `content-type` is NOT set for FormData.
       //
-      // Unggahan multipart membawa boundary yang dibangkitkan browser, dan
-      // boundary itu hanya ada bila header dibiarkan kosong. Memasang
-      // "application/json" pada FormData membuat server menerima badan yang
-      // tidak dapat diurai — dan galatnya muncul sebagai "berkas tidak
-      // ditemukan", bukan sebagai masalah content-type.
+      // A multipart upload carries a browser-generated boundary, and that
+      // boundary only exists when the header is left empty. Setting
+      // "application/json" on FormData makes the server receive a body it cannot
+      // parse — and its error appears as "file not found" rather than as a
+      // content-type problem.
       const isJsonBody = init.body !== undefined && !(init.body instanceof FormData);
 
       const call = (): Promise<Response> =>
@@ -143,8 +143,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [renew],
   );
 
-  // Saat aplikasi dimuat: coba tukar cookie menjadi sesi. Gagal berarti anonim,
-  // bukan galat — pengguna yang belum pernah masuk juga melewati jalur ini.
+  // On application load: try exchanging the cookie for a session. A failure means
+  // anonymous, not an error — a user who has never logged in takes this path too.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -176,13 +176,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     /**
-     * Langganan push dicabut SEBELUM sesinya dibuang.
+     * The push subscription is unsubscribed BEFORE the session is discarded.
      *
-     * Pencabutan memanggil endpoint yang menuntut token, dan token itu hilang
-     * satu baris di bawah. Urutan sebaliknya meninggalkan langganan yang tetap
-     * hidup di server: perangkat bersama akan terus menerima notifikasi milik
-     * pengguna sebelumnya — nama, tanggal cuti, dan keputusannya di layar
-     * terkunci orang lain — dan tidak ada galat yang muncul di mana pun.
+     * Unsubscribing calls an endpoint that demands a token, and that token
+     * disappears one line below. The reverse order leaves a subscription alive on
+     * the server: a shared device would keep receiving the previous user's
+     * notifications — their name, leave dates, and the decision on someone
+     * else's lock screen — with no error appearing anywhere.
      */
     await unsubscribeFromPush(api);
 
@@ -191,15 +191,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setBootstrap(null);
     setStatus('anonymous');
 
-    // Cache service worker dibersihkan total (dokumen 11 §5.2, risiko R50).
+    // The service worker cache is wiped completely (document 11 §5.2, risk R50).
     //
-    // Cache Storage bertahan setelah logout dan dapat dibaca skrip mana pun di
-    // origin yang sama. Di perangkat bersama — ruang HR, pos satpam, komputer
-    // pabrik — itu berarti data pengguna sebelumnya terbaca pengguna berikutnya.
+    // Cache Storage survives a logout and can be read by any script on the same
+    // origin. On a shared device — an HR room, a security post, a factory
+    // computer — that means the previous user's data is readable by the next.
     //
-    // Antrean presensi luring SENGAJA tidak ikut dihapus: ia milik perangkat,
-    // bukan milik sesi, dan menghapusnya berarti membuang presensi yang belum
-    // sempat terkirim milik orang yang baru saja keluar.
+    // The offline punch queue is DELIBERATELY not cleared: it belongs to the
+    // device, not to the session, and clearing it would throw away the unsent
+    // punches of whoever just logged out.
     navigator.serviceWorker?.controller?.postMessage({ type: 'HRMS_LOGOUT' });
   }, [api]);
 
@@ -212,9 +212,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       api,
       login,
       logout,
-      // Ini kenyamanan tampilan, bukan otorisasi. Setiap kontrol yang disembunyikan
-      // di sini punya pasangannya di ROUTE_MANIFEST, dan bila keduanya berbeda,
-      // gateway yang benar (P9).
+      // This is display convenience, not authorisation. Every control hidden here
+      // has its counterpart in ROUTE_MANIFEST, and where the two differ, the
+      // gateway is right (P9).
       can: (permission) => permissions.has(permission),
       hasModule: (moduleCode) => modules.has(moduleCode),
       refresh: async () => {
