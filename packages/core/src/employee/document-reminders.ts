@@ -3,29 +3,29 @@ import { publishEvent, type TenantClient } from '@hrms/db';
 import type { ReminderScanResult, ReminderThreshold } from './contracts.ts';
 
 /**
- * Pengingat dokumen karyawan yang akan kedaluwarsa (dokumen 09 §6).
+ * Reminders for employee documents about to expire (document 09 §6).
  *
- * `employee_documents.expires_at` ada sejak modul dokumen dibangun, dengan
- * komentar "untuk dokumen yang memang berumur — KITAS, SIM, kontrak". HR
- * mengisinya. Lalu tanggalnya lewat, dan tidak terjadi apa-apa: tidak ada satu
- * pun jalur kode yang pernah membaca kolom itu.
+ * `employee_documents.expires_at` has existed since the document module was
+ * built, with a comment reading "for documents that genuinely age — work
+ * permits, driving licences, contracts". HR fills it in. Then the date passes,
+ * and nothing happens: no code path ever read that column.
  *
- * Yang lewat bukan sekadar tanggal di basis data:
+ * What passes is more than a date in a database:
  *
- *   - **KITAS kedaluwarsa** = tenaga kerja asing bekerja tanpa izin. Pidana bagi
- *     perusahaan menurut UU 6/2011 tentang Keimigrasian, deportasi bagi orangnya.
- *   - **SIM kedaluwarsa** = sopir perusahaan mengemudi tanpa izin, dan asuransi
- *     kendaraan batal pada kecelakaan pertama.
+ *   - **An expired work permit** = a foreign worker working without
+ *     authorisation. A criminal offence for the company under Immigration Law
+ *     6/2011, and deportation for the person.
+ *   - **An expired driving licence** = a company driver driving unlicensed, and
+ *     the vehicle insurance void on the first accident.
  *
- * Keduanya baru ketahuan saat ada yang memeriksa — dan yang memeriksa biasanya
- * bukan HR.
+ * Both are only discovered when someone inspects — and the inspector is usually
+ * not HR.
  *
- * Bentuknya sengaja sama persis dengan `scanContractReminders`, sampai ke nama
- * ambangnya. Dua job yang mengerjakan hal serupa dengan bentuk berbeda adalah
- * dua job yang harus dipahami terpisah, dan yang kedua akan salah.
- */
+ * Its shape is deliberately identical to `scanContractReminders`, down to the
+ * threshold names. Two jobs doing similar work in different shapes are two jobs
+ * that have to be understood separately, and the second one will be wrong.
 
-/** Dokumen yang tidak perlu diingatkan meski punya tanggal kedaluwarsa. */
+/** Document kinds not worth reminding about, even with an expiry date. */
 const IGNORED_KINDS = new Set(['KONTRAK']);
 
 export async function scanDocumentReminders(
@@ -39,9 +39,9 @@ export async function scanDocumentReminders(
     where: {
       tenantId,
       expiresAt: { not: null, gte: new Date(today.getTime() - 30 * 86_400_000) },
-      // Dokumen yang sudah diarsipkan tidak diingatkan. Pengarsipan adalah cara
-      // HR menyatakan dokumen itu tidak lagi berlaku — mengingatkannya berarti
-      // meminta tindakan atas keputusan yang sudah diambil.
+      // An archived document is not reminded about. Archiving is how HR states a
+      // document no longer applies — reminding about it means asking for action
+      // on a decision already taken.
       archivedAt: null,
     },
     select: {
@@ -54,19 +54,18 @@ export async function scanDocumentReminders(
     },
   });
 
-  // Karyawan dibaca terpisah, bukan lewat relasi.
+  // Employees are read separately rather than through a relation.
   //
-  // `employee_documents.employee_id` tidak punya foreign key di basis data —
-  // keadaan yang ditemukan saat menulis berkas ini, bukan yang dirancang — dan
-  // Prisma karenanya tidak mengenal relasinya. Menambahkan FK itu perubahan
-  // skema tersendiri yang perlu memeriksa lebih dulu apakah ada baris yatim,
-  // dan menyelipkannya ke dalam perubahan ini berarti dua hal berbeda dalam satu
-  // migrasi.
+  // `employee_documents.employee_id` has no foreign key in the database — a state
+  // found while writing this file, not one that was designed — and Prisma
+  // therefore does not know the relation. Adding that FK is a schema change of
+  // its own that first has to check for orphan rows, and slipping it into this
+  // change would put two different things in one migration.
   //
-  // Karyawan yang TIDAK ditemukan dilewati. Dokumen milik orang yang sudah
-  // keluar atau yang barisnya hilang tidak menghasilkan pengingat kepada siapa
-  // pun — dan diamnya di sini benar: tidak ada tindakan yang dapat diambil atas
-  // KITAS orang yang sudah tidak bekerja di sini.
+  // An employee who is NOT found is skipped. A document belonging to someone who
+  // has left, or whose row is gone, produces a reminder to nobody — and its
+  // silence here is right: there is no action to take on the work permit of
+  // someone who no longer works here.
   const employees = await tx.employee.findMany({
     where: {
       tenantId,
@@ -81,10 +80,10 @@ export async function scanDocumentReminders(
     const employee = byId.get(document.employeeId);
     if (!employee) continue;
 
-    // Kontrak punya jalur pengingatnya sendiri, dengan peringatan hukum yang
-    // berbeda (PKWT yang lewat berubah menjadi PKWTT demi hukum). Mengirim
-    // keduanya berarti HR menerima dua email untuk satu kejadian, dan yang
-    // kedua isinya lebih lemah.
+    // Contracts have a reminder path of their own, with a different legal warning
+    // (a lapsed fixed-term contract becomes permanent by operation of law).
+    // Sending both means HR receives two emails for one event, and the second
+    // says less than the first.
     if (IGNORED_KINDS.has(document.kind.toUpperCase())) continue;
 
     const daysLeft = Math.round(
@@ -92,8 +91,8 @@ export async function scanDocumentReminders(
     );
     const sent = new Set(document.reminders.map((r) => r.threshold));
 
-    // Ambang tertinggi yang sudah terlewati, bukan semuanya. Dokumen yang baru
-    // diunggah ketika sisa 20 hari tidak perlu menerima tiga pengingat sekaligus.
+    // The highest threshold already passed, not all of them. A document uploaded
+    // when 20 days remain need not receive three reminders at once.
     const due: ReminderThreshold | null =
       daysLeft < 0 ? 'EXPIRED'
       : daysLeft <= 7 ? 'D7'
@@ -108,9 +107,9 @@ export async function scanDocumentReminders(
         data: { tenantId, documentId: document.id, threshold: due },
       });
     } catch {
-      // Constraint unique menolak duplikat. Dua job yang berjalan bersamaan —
-      // hal yang terjadi saat deploy bertepatan dengan jadwal — akan membuat
-      // salah satunya gagal di sini, dan itu perilaku yang benar.
+      // A unique constraint refuses duplicates. Two jobs running at once — which
+      // happens when a deploy coincides with the schedule — will make one of them
+      // fail here, and that is the right behaviour.
       continue;
     }
 

@@ -1,37 +1,37 @@
 import { type TenantClient } from '@hrms/db';
 
 /**
- * Pembangkit jadwal kerja (dokumen 10 §5).
+ * The work schedule generator (document 10 §5).
  *
- * Tabel `attendance.schedules` sudah dibaca dua modul sejak awal — presensi
- * memakainya untuk memutuskan status `DAY_OFF`, dan cuti untuk menghitung hari
- * kerja — tetapi **tidak ada satu pun yang mengisinya.** Akibatnya kedua modul
- * jatuh ke anggapan Senin–Jumat, dan anggapan itu salah untuk sebagian besar
- * tenant yang dituju produk ini: pabrik enam hari kerja, ritel yang libur hari
- * Senin, satpam tiga shift yang liburnya berputar.
+ * The `attendance.schedules` table has been read by two modules from the start —
+ * attendance uses it to decide `DAY_OFF` status, and leave to count working
+ * days — but **nothing ever filled it.** So both modules fell back to the
+ * Monday–Friday assumption, and that assumption is wrong for most of the tenants
+ * this product targets: a six-day factory, a shop that closes on Mondays,
+ * three-shift security guards whose days off rotate.
  *
- * Berkas ini yang mengisinya, dari sebuah pola mingguan.
+ * This file is what fills it, from a weekly pattern.
  *
- * ## Tiga hal yang sengaja TIDAK dilakukan
+ * ## Three things deliberately NOT done
  *
- * **Tidak menimpa baris yang sudah ada, kecuali diminta.** Jadwal yang sudah ada
- * mungkin hasil penyesuaian tangan — tukar shift antar-karyawan, libur pengganti
- * yang sudah disepakati. Membangkitkan ulang sebulan lalu menghapus diam-diam
- * kesepakatan itu adalah cara kehilangan kepercayaan pada fitur penjadwalan
+ * **It does not overwrite an existing row unless asked.** An existing schedule
+ * may be the result of a hand adjustment — a shift swap between employees, an
+ * agreed substitute day off. Regenerating a month and silently deleting those
+ * agreements is how trust in a scheduling feature is lost in a single use.
  * dalam satu kali pakai.
  *
- * **Tidak menjadwalkan di luar masa kerja.** Karyawan yang mengundurkan diri
- * bulan Maret tetapi punya jadwal sampai Desember akan tercatat ALFA setiap hari
- * sampai akhir tahun, dan angka kehadiran seluruh perusahaan ikut rusak.
+ * **It does not schedule outside employment.** An employee who resigned in March
+ * but has a schedule through December would be recorded ABSENT every day until
+ * the end of the year, and the whole company's attendance figures break with them.
  *
- * **Tidak menandai hari libur nasional sebagai libur mingguan.** Presensi sudah
- * memeriksa `holidays` lebih dulu daripada jadwal, dan urutan itu disengaja:
- * orang yang tetap masuk saat libur nasional tidak "terlambat", ia lembur.
- * Menuliskannya sebagai `is_day_off` akan menukar status HOLIDAY menjadi
- * DAY_OFF, dan lembur hari libur menjadi tidak terlihat.
+ * **It does not mark a national holiday as a weekly day off.** Attendance checks
+ * `holidays` before the schedule, and that order is deliberate: someone who comes
+ * in on a national holiday is not "late", they are working overtime. Writing it
+ * as `is_day_off` would swap the HOLIDAY status for DAY_OFF, and holiday overtime
+ * would become invisible.
  */
 
-/** 0 = Minggu, 6 = Sabtu — sama dengan `Date#getUTCDay`. */
+/** 0 = Sunday, 6 = Saturday — the same as `Date#getUTCDay`. */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export class ScheduleError extends Error {
@@ -45,11 +45,11 @@ export class ScheduleError extends Error {
 }
 
 /**
- * Batas rentang sekali bangkit.
+ * The range limit for one generation.
  *
- * Setahun, bukan lima. 500 karyawan × 5 tahun adalah 900 ribu baris dalam satu
- * transaksi — dan kesalahan pola pada pembangkitan seperti itu jauh lebih mahal
- * untuk dibatalkan daripada untuk dicegah.
+ * A year, not five. 500 employees × 5 years is 900 thousand rows in one
+ * transaction — and a pattern mistake in a generation that size is far more
+ * expensive to undo than to prevent.
  */
 export const MAX_RANGE_DAYS = 366;
 
@@ -57,20 +57,20 @@ export interface GenerateInput {
   employeeIds: string[];
   startDate: Date;
   endDate: Date;
-  /** Shift untuk hari masuk. `null` berarti tanpa shift tetap. */
+  /** The shift for a working day. `null` means no fixed shift. */
   shiftId: string | null;
-  /** Hari libur mingguan. Senin–Jumat biasa = [0, 6]. */
+  /** The weekly days off. An ordinary Monday–Friday = [0, 6]. */
   dayOffWeekdays: readonly Weekday[];
-  /** Timpa baris yang sudah ada. Default: lewati dan laporkan. */
+  /** Overwrite existing rows. Default: skip and report. */
   overwrite?: boolean;
 }
 
 export interface GenerateResult {
   created: number;
   updated: number;
-  /** Baris yang sudah ada dan TIDAK ditimpa. */
+  /** Rows that already existed and were NOT overwritten. */
   skipped: number;
-  /** Tanggal di luar masa kerja karyawan, tidak dijadwalkan. */
+  /** Dates outside the employee's employment, left unscheduled. */
   outsideEmployment: number;
   employees: number;
 }
@@ -97,8 +97,8 @@ export async function generateSchedules(
 
   const dayOff = new Set<number>(input.dayOffWeekdays);
   if (dayOff.size >= 7) {
-    // Tujuh hari libur bukan jadwal; ia cara menandai seseorang tidak bekerja
-    // sama sekali, dan jalurnya adalah menonaktifkan karyawan, bukan menjadwal.
+    // Seven days off is not a schedule; it is a way of marking that someone does
+    // not work at all, and its path is deactivating the employee, not scheduling.
     throw new ScheduleError('Seluruh hari ditandai libur — tidak ada hari kerja', 'all_days_off');
   }
 
@@ -126,9 +126,9 @@ export async function generateSchedules(
     employees: employees.length,
   };
 
-  // Baris yang sudah ada dibaca sekali untuk seluruh rentang, bukan sekali per
-  // tanggal. 500 karyawan × 366 hari adalah 183 ribu query bila diperiksa satu
-  // per satu — dan seluruhnya di dalam satu transaksi yang memegang lock.
+  // Existing rows are read once for the whole range, not once per date. 500
+  // employees × 366 days is 183 thousand queries if checked one at a time — all
+  // of it inside one transaction holding a lock.
   const existing = await tx.schedule.findMany({
     where: {
       tenantId,
@@ -182,9 +182,9 @@ export async function generateSchedules(
         tenantId,
         employeeId: employee.id,
         workDate: date,
-        // Hari libur tidak membawa shift. Shift pada hari libur adalah keadaan
-        // yang tidak dapat dijelaskan, dan `daily.ts` membacanya untuk
-        // menghitung keterlambatan pada hari yang tidak ada jam masuknya.
+        // A day off carries no shift. A shift on a day off is a state that cannot
+        // be explained, and `daily.ts` reads it to compute lateness on a day with
+        // no start time.
         shiftId: isDayOff ? null : input.shiftId,
         isDayOff,
       });

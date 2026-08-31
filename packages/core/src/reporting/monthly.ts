@@ -1,27 +1,26 @@
 import { writeAudit, type TenantClient } from '@hrms/db';
 
 /**
- * Rekap presensi bulanan per karyawan (dokumen 02 §9).
+ * The monthly per-employee attendance recap (document 02 §9).
  *
- * Ini laporan yang benar-benar dicetak, ditandatangani, dan diarsipkan setiap
- * bulan di perusahaan Indonesia — satu baris per karyawan, berisi jumlah hadir,
- * terlambat, alfa, dan cuti. Ia juga yang dipakai bagian keuangan untuk
- * memeriksa potongan sebelum payroll dijalankan.
+ * This is the report that actually gets printed, signed, and filed every month
+ * in an Indonesian company — one row per employee, holding the counts of days
+ * present, late, absent, and on leave. It is also what finance uses to check
+ * deductions before payroll runs.
  *
- * Sebelum ini, yang ada hanyalah **daftar hari** — satu baris per karyawan per
- * tanggal. Untuk 100 karyawan sebulan itu 3.000 baris, dan HR yang membutuhkan
- * 100 angka menjumlahkannya sendiri di Excel. Penjumlahan tangan adalah tempat
- * angka berubah tanpa ada yang tahu, dan angka yang berubah di sini menjadi
- * potongan gaji.
+ * Before this, all that existed was a **list of days** — one row per employee
+ * per date. For 100 employees over a month that is 3,000 rows, and HR needing
+ * 100 figures summed them in Excel themselves. Summing by hand is where numbers
+ * change without anyone knowing, and a number that changes here becomes a salary
+ * deduction.
  *
- * ## Yang dihitung, dan yang sengaja tidak
+ * ## What is counted, and what deliberately is not
  *
- * **Hari tanpa baris tidak dihitung sebagai apa pun.** Rekap presensi dibuat
- * saat dihitung, bukan otomatis setiap malam, sehingga bulan yang belum
- * dihitung ulang akan punya lebih sedikit baris daripada jumlah harinya. Angka
- * `hariTercatat` dikembalikan supaya selisih itu terlihat — laporan yang
- * menampilkan "0 alfa" untuk bulan yang belum dihitung terbaca seperti bulan
- * yang sempurna.
+ * **A day with no row counts as nothing.** An attendance recap is created when
+ * it is computed, not automatically every night, so a month not yet recomputed
+ * has fewer rows than it has days. The `daysRecorded` figure is returned so that
+ * difference is visible — a report showing "0 absences" for a month that has not
+ * been computed reads like a perfect month.
  */
 
 export interface MonthlyAttendanceRow {
@@ -34,7 +33,7 @@ export interface MonthlyAttendanceRow {
   cuti: number;
   libur: number;
   liburMingguan: number;
-  /** Hari yang punya baris rekap. Lebih kecil dari jumlah hari berarti belum dihitung penuh. */
+  /** Days that have a recap row. Fewer than the day count means it is not fully computed. */
   hariTercatat: number;
   menitTerlambat: number;
   menitLembur: number;
@@ -44,7 +43,7 @@ export interface MonthlyAttendanceRow {
 export interface MonthlyAttendanceReport {
   periodYear: number;
   periodMonth: number;
-  /** Jumlah hari kalender pada bulan itu. */
+  /** The number of calendar days in that month. */
   hariKalender: number;
   rows: MonthlyAttendanceRow[];
   totals: {
@@ -57,12 +56,11 @@ export interface MonthlyAttendanceReport {
     menitLembur: number;
   };
   /**
-   * Karyawan yang tidak punya satu pun baris rekap pada bulan itu.
+   * Employees with no recap row at all that month.
    *
-   * Dilaporkan terpisah, bukan ditampilkan sebagai baris nol. Nol yang berasal
-   * dari "tidak ada datanya" dan nol yang berasal dari "memang tidak hadir"
-   * adalah dua hal yang sangat berbeda, dan menampilkannya sama akan membuat
-   * yang pertama terbaca sebagai yang kedua.
+   * Reported separately rather than shown as a zero row. A zero from "there is no
+   * data" and a zero from "they genuinely were not there" are very different
+   * things, and showing them identically makes the first read as the second.
    */
   tanpaData: Array<{ employeeId: string; employeeNumber: string; fullName: string }>;
 }
@@ -84,10 +82,10 @@ export async function buildMonthlyAttendance(
     select: { id: true, employeeNumber: true, fullName: true },
   });
 
-  // Agregasi dilakukan di BASIS DATA, bukan dengan menarik 3.000 baris ke
-  // memori proses lalu menjumlahkannya. Untuk 100 karyawan sebulan selisihnya
-  // belum terasa; untuk 1.000 karyawan setahun ia menjadi selisih antara
-  // laporan yang terbuka dan permintaan yang kehabisan waktu.
+  // The aggregation happens in the DATABASE, not by pulling 3,000 rows into
+  // process memory and summing them. For 100 employees over a month the
+  // difference is not yet felt; for 1,000 employees over a year it becomes the
+  // difference between a report that opens and a request that times out.
   const agregat = await tx.$queryRaw<
     Array<{
       employee_id: string;
@@ -130,9 +128,9 @@ export async function buildMonthlyAttendance(
 
   for (const baris of agregat) {
     const row = perEmployee.get(baris.employee_id);
-    // Baris milik karyawan yang sudah tidak aktif dilewati, bukan menjatuhkan
-    // laporan. Karyawan yang resign pertengahan bulan tetap punya rekap, dan
-    // laporan bulan berjalan memang tentang yang masih bekerja.
+    // Rows belonging to an employee who is no longer active are skipped rather
+    // than failing the report. An employee who resigned mid-month still has a
+    // recap, and the current month's report is about those still working.
     if (!row) continue;
 
     const jumlah = Number(baris.jumlah);
@@ -146,9 +144,9 @@ export async function buildMonthlyAttendance(
         row.hadir += jumlah;
         break;
       case 'LATE':
-        // Terlambat TETAP hadir. Menghitungnya terpisah dari hadir akan membuat
-        // jumlah "hadir + terlambat + alfa" tidak sama dengan hari kerja, dan
-        // yang membacanya akan mengira ada hari yang hilang.
+        // Late STILL counts as present. Counting it separately from present would
+        // make "present + late + absent" fail to equal the working days, and
+        // whoever reads it would think a day had gone missing.
         row.hadir += jumlah;
         row.terlambat += jumlah;
         break;
@@ -194,10 +192,9 @@ export async function buildMonthlyAttendance(
   );
 
   if (actor) {
-    // Laporan ini memuat data kehadiran seluruh karyawan. Membacanya adalah
-    // pemindahan data pribadi keluar dari layar, dan jejaknya menjawab "dari
-    // mana berkas ini berasal" ketika ia ditemukan di tempat yang tidak
-    // seharusnya.
+    // This report holds the attendance data of every employee. Reading it moves
+    // personal data off the screen, and its trail answers "where did this file
+    // come from" when it turns up somewhere it should not be.
     await writeAudit(tx, tenantId, {
       action: 'report.attendance_monthly.read',
       entityType: 'report',
@@ -225,7 +222,7 @@ export const MONTHLY_ATTENDANCE_HEADERS = [
   'Jam Kerja',
 ] as const;
 
-/** Bentuk baris untuk ekspor .xlsx. */
+/** The row shape for the .xlsx export. */
 export function monthlyAttendanceRows(report: MonthlyAttendanceReport): string[][] {
   return [
     [...MONTHLY_ATTENDANCE_HEADERS],
