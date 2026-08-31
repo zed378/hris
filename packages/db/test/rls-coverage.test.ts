@@ -168,3 +168,127 @@ describe('cakupan RLS', () => {
     expect(row).toMatchObject({ upd: false, del: false });
   });
 });
+
+/**
+ * Peran bidang auth (PLAN/14 tahap 5).
+ *
+ * Batas basis data dibuat SEBELUM batas jaringan, dan urutannya disengaja:
+ * matriks GRANT jauh lebih murah diperbaiki selagi semuanya masih satu proses,
+ * karena kesalahannya muncul sebagai uji yang gagal, bukan sebagai service yang
+ * tidak bisa hidup.
+ *
+ * Yang dijaga di sini bukan kerapian. `hrms_auth` adalah satu-satunya peran yang
+ * memegang hash kata sandi; bila ia juga dapat membaca `employee` dan `payroll`,
+ * satu celah di layanan auth berubah menjadi jalan menuju gaji dan NIK seluruh
+ * karyawan. Yang menahannya adalah TIADANYA grant, bukan kehati-hatian kode.
+ *
+ * Ditegaskan positif — bukan sekadar "tidak ada yang memberikannya" — karena
+ * `GRANT ... ON ALL TABLES IN SCHEMA` di migrasi mana pun kelak dapat
+ * memberikannya tanpa sengaja, dan tidak ada yang akan menyadarinya.
+ */
+describe('peran hrms_auth', () => {
+  it('ada, dan tidak pernah menembus RLS', async () => {
+    const [row] = await owner.$queryRaw<Array<{ exists: boolean; bypass: boolean }>>`
+      SELECT true AS exists, rolbypassrls AS bypass FROM pg_roles WHERE rolname = 'hrms_auth'
+    `;
+    expect(row?.exists).toBe(true);
+    expect(row?.bypass).toBe(false);
+  });
+
+  it('menjangkau schema yang memang miliknya', async () => {
+    const [row] = await owner.$queryRaw<
+      Array<{ auth: boolean; iam: boolean; tenant: boolean; audit: boolean; messaging: boolean }>
+    >`
+      SELECT has_schema_privilege('hrms_auth', 'auth', 'USAGE')      AS auth,
+             has_schema_privilege('hrms_auth', 'iam', 'USAGE')       AS iam,
+             has_schema_privilege('hrms_auth', 'tenant', 'USAGE')    AS tenant,
+             has_schema_privilege('hrms_auth', 'audit', 'USAGE')     AS audit,
+             has_schema_privilege('hrms_auth', 'messaging', 'USAGE') AS messaging
+    `;
+    expect(row).toMatchObject({
+      auth: true,
+      iam: true,
+      tenant: true,
+      audit: true,
+      messaging: true,
+    });
+  });
+
+  /**
+   * Inti dari seluruh tahap ini.
+   *
+   * Data bisnis tidak boleh terjangkau sama sekali oleh bidang auth — bukan
+   * dibatasi RLS, melainkan tidak ada izinnya untuk dicoba.
+   */
+  it('tidak dapat menjangkau data bisnis sama sekali', async () => {
+    const [row] = await owner.$queryRaw<
+      Array<{ employee: boolean; attendance: boolean; leave: boolean; payroll: boolean }>
+    >`
+      SELECT has_schema_privilege('hrms_auth', 'employee', 'USAGE')   AS employee,
+             has_schema_privilege('hrms_auth', 'attendance', 'USAGE') AS attendance,
+             has_schema_privilege('hrms_auth', 'leave', 'USAGE')      AS leave,
+             has_schema_privilege('hrms_auth', 'payroll', 'USAGE')    AS payroll
+    `;
+    expect(row).toMatchObject({
+      employee: false,
+      attendance: false,
+      leave: false,
+      payroll: false,
+    });
+  });
+
+  it('tidak dapat membaca satu pun tabel bisnis, meski schema-nya kelak terbuka', async () => {
+    const [row] = await owner.$queryRaw<
+      Array<{ employees: boolean; punches: boolean; payslips: boolean }>
+    >`
+      SELECT has_table_privilege('hrms_auth', 'employee.employees', 'SELECT')     AS employees,
+             has_table_privilege('hrms_auth', 'attendance.punch_logs', 'SELECT')  AS punches,
+             has_table_privilege('hrms_auth', 'payroll.payslips', 'SELECT')       AS payslips
+    `;
+    expect(row).toMatchObject({ employees: false, punches: false, payslips: false });
+  });
+
+  it('bukan control plane (P11)', async () => {
+    const [row] = await owner.$queryRaw<Array<{ granted: boolean }>>`
+      SELECT has_schema_privilege('hrms_auth', 'platform', 'USAGE') AS granted
+    `;
+    expect(row?.granted).toBe(false);
+  });
+
+  it('hanya boleh menambah jejak audit, tidak mengubahnya (P5)', async () => {
+    const [row] = await owner.$queryRaw<Array<{ ins: boolean; upd: boolean; del: boolean }>>`
+      SELECT has_table_privilege('hrms_auth', 'audit.audit_logs', 'INSERT') AS ins,
+             has_table_privilege('hrms_auth', 'audit.audit_logs', 'UPDATE') AS upd,
+             has_table_privilege('hrms_auth', 'audit.audit_logs', 'DELETE') AS del
+    `;
+    expect(row).toMatchObject({ ins: true, upd: false, del: false });
+  });
+
+  it('tidak dapat mengubah katalog produk', async () => {
+    const [row] = await owner.$queryRaw<Array<{ modules: boolean; permissions: boolean }>>`
+      SELECT has_table_privilege('hrms_auth', 'tenant.modules', 'UPDATE')   AS modules,
+             has_table_privilege('hrms_auth', 'iam.permissions', 'UPDATE')  AS permissions
+    `;
+    expect(row).toMatchObject({ modules: false, permissions: false });
+  });
+
+  /**
+   * Batas yang BELUM selesai, ditegaskan apa adanya.
+   *
+   * Keadaan akhirnya: backend tidak dapat membaca `auth.users` sama sekali. Hari
+   * ini ia harus bisa — enam modul membacanya (`iam.administration`,
+   * `iam.resolve-access`, `notification`, `tenant`, `reporting`, `leave`), dan
+   * semuanya pindah bersama ke layanan auth pada tahap 6.
+   *
+   * Uji ini sengaja menegaskan keadaan SEKARANG. Ia akan GAGAL saat grant itu
+   * dicabut — dan kegagalannya adalah pengingat untuk memperbarui catatan ini,
+   * bukan tanda ada yang rusak. Batas setengah jadi yang tidak ditulis, enam
+   * bulan kemudian, terbaca seperti batas yang utuh.
+   */
+  it('CATATAN: hrms_app masih dapat membaca auth.users sampai tahap 6', async () => {
+    const [row] = await owner.$queryRaw<Array<{ granted: boolean }>>`
+      SELECT has_table_privilege('hrms_app', 'auth.users', 'SELECT') AS granted
+    `;
+    expect(row?.granted).toBe(true);
+  });
+});

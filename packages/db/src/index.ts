@@ -5,6 +5,7 @@
 
 export {
   appClient,
+  authClient,
   workerClient,
   platformClient,
   disconnectAll,

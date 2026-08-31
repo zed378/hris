@@ -223,6 +223,9 @@ services:
       DATABASE_URL_APP: postgresql://hrms_app:${APP_DB_PASSWORD:-hrms_app_password}@postgres:5432/${POSTGRES_DB:-hrms}
       # The control plane principal. Its rights are deliberately narrow: the
       # `platform` schema and tenant metadata, with no GRANT into auth/iam/audit.
+      # The auth plane. Reaches auth, iam, tenant, audit, messaging and nothing
+      # in employee, attendance, leave, or payroll (PLAN/14 stage 5).
+      DATABASE_URL_AUTH: postgresql://hrms_auth:${AUTH_DB_PASSWORD:-hrms_auth_password}@postgres:5432/${POSTGRES_DB:-hrms}
       DATABASE_URL_PLATFORM: postgresql://hrms_platform:${PLATFORM_DB_PASSWORD:-hrms_platform_password}@postgres:5432/${POSTGRES_DB:-hrms}
       # MUST be changed in production. Two different secrets, so a tenant token
       # and an admin token can never verify against each other.

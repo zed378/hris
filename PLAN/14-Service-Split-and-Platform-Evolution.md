@@ -358,7 +358,7 @@ next one to be started.
 | 2 | ~~**Enforce `accessVersion`**~~ — **done**, see §10.2 | The comparison §5 showed was missing. Still one process. | Yes |
 | 3 | ~~**Redis for rate limiting**~~ — **done**, see §10.3 | Fixes the replica bug in §9.2, before scaling exposes it. | Yes |
 | 4 | ~~**A hard internal boundary**~~ — **done**, see §10.4 | Authorization behind one RPC-shaped function, still in-process, with a lint rule keeping it that way. | Yes |
-| 5 | **Split database roles** | Distinct PostgreSQL roles and grants for auth-owned vs business schemas, both still used by one process. Proves the grant matrix before the network is involved. | Yes |
+| 5 | ~~**Split database roles**~~ — **done**, see §10.5 | `hrms_auth` with its own grant matrix, asserted by CI. | Yes |
 | 6 | **Extract the auth container** | Same code, own image, own deploy. Proxy path-routes `/api/auth/*`. Permission resolution moves to option C with the Redis cache from stage 3. | Hard — this is the commitment point |
 | 7 | **Broker** | Outbox pump targets the broker instead of pg-boss job tables. | Yes, the outbox is unchanged |
 | 8 | **Split frontend from backend** | See §11. | Hard |
@@ -515,6 +515,42 @@ Twelve tests against a real database pin the contract, and the ones that matter
 most construct states where **two things are wrong at once** — stale *and*
 unsubscribed, unsubscribed *and* unpermitted — because the order is what a
 rewrite loses, and any single check looks correct on its own.
+
+### 10.5 Stage 5 as built
+
+`hrms_auth` exists, `NOLOGIN` and `NOBYPASSRLS` like its siblings, with
+`DATABASE_URL_AUTH` and an `authClient()` that falls back to the app connection
+when it is unset.
+
+| Schema | `hrms_auth` |
+|---|---|
+| `auth`, `iam`, `tenant`, `audit`, `messaging` | reachable |
+| `employee`, `attendance`, `leave`, `payroll` | **nothing** |
+| `platform` | nothing (P11) |
+
+That last row of business schemas is the point of the stage. The auth service is
+the one component holding password hashes; confining it means a flaw in it cannot
+become a route to everyone's salary and national ID. It is enforced by the
+**absence** of a grant plus `NOBYPASSRLS` — not by the code being careful — and
+asserted *positively* in `rls-coverage.test.ts`, because a future migration's
+`GRANT ... ON ALL TABLES IN SCHEMA` could hand it over by accident and nobody
+would notice.
+
+The database boundary is built before the network one on purpose: a grant matrix
+is far cheaper to correct while everything is still one process, where a mistake
+is a failing test rather than a service that will not start.
+
+**The boundary is not complete, and the test says so out loud.** `hrms_app` can
+still read `auth.users`, because six modules do — `iam.administration`,
+`iam.resolve-access`, `notification`, `tenant`, `reporting`, and `leave`. Those
+move to the auth service in stage 6, together, because `iam` and `auth` are
+entangled by design (§4.1); revoking the grant before they move would take the
+application down rather than tighten it.
+
+There is a test asserting that overlap **still exists**. It will fail when the
+grant is finally revoked, and that failure is the reminder to update the record —
+not a sign that something broke. A half-applied boundary nobody wrote down reads,
+six months later, exactly like a finished one.
 
 ---
 

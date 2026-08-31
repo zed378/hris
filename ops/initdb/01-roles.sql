@@ -19,3 +19,11 @@ GRANT CONNECT ON DATABASE hrms TO hrms_app, hrms_worker;
 -- metadata tenant, tetapi tidak satu pun GRANT ke auth.users, iam.*, atau audit.*.
 CREATE ROLE hrms_platform WITH LOGIN PASSWORD 'hrms_platform_password' NOBYPASSRLS;
 GRANT CONNECT ON DATABASE hrms TO hrms_platform;
+
+-- Bidang auth (PLAN/14 tahap 5). Menjangkau auth, iam, tenant, audit, messaging,
+-- dan TIDAK SATU PUN tabel di employee, attendance, leave, atau payroll —
+-- komponen yang memegang hash kata sandi tidak boleh sekaligus menjadi jalan
+-- menuju gaji dan NIK semua orang. GRANT-nya diberikan migrasi; berkas ini hanya
+-- memberi LOGIN dan kata sandi pengembangan.
+CREATE ROLE hrms_auth WITH LOGIN PASSWORD 'hrms_auth_password' NOBYPASSRLS;
+GRANT CONNECT ON DATABASE hrms TO hrms_auth;

@@ -38,11 +38,40 @@ const globalForPrisma = globalThis as unknown as {
   __hrmsAppClient?: PrismaClient;
   __hrmsWorkerClient?: PrismaClient;
   __hrmsPlatformClient?: PrismaClient;
+  __hrmsAuthClient?: PrismaClient;
 };
 
 export function appClient(): PrismaClient {
   globalForPrisma.__hrmsAppClient ??= createClient(required('DATABASE_URL_APP'));
   return globalForPrisma.__hrmsAppClient;
+}
+
+/**
+ * The auth plane's client (PLAN/14 stage 5).
+ *
+ * Connects as `hrms_auth`, which reaches `auth`, `iam`, `tenant`, `audit`, and
+ * `messaging` — and **nothing** in `employee`, `attendance`, `leave`, or
+ * `payroll`. The component holding password hashes must not also be a route to
+ * everyone's salary and national ID, and that is enforced by the absence of a
+ * grant rather than by the code being careful.
+ *
+ * Falls back to the app connection when `DATABASE_URL_AUTH` is unset, so a
+ * deployment that has not yet provisioned the role keeps working exactly as
+ * before. The fallback is deliberately silent about being one: `/api/ready`
+ * reports the mode, and `rls-coverage.test.ts` asserts the grants, so the state
+ * is observable without every caller having to check.
+ *
+ * The boundary is not complete yet, and pretending otherwise would be worse than
+ * not having it. `hrms_app` can still read `auth.users`, because six modules do
+ * — `iam.administration`, `iam.resolve-access`, `notification`, `tenant`,
+ * `reporting`, and `leave`. Those move to the auth service in stage 6, together,
+ * and the grant is revoked then.
+ */
+export function authClient(): PrismaClient {
+  globalForPrisma.__hrmsAuthClient ??= createClient(
+    process.env['DATABASE_URL_AUTH'] ?? required('DATABASE_URL_APP'),
+  );
+  return globalForPrisma.__hrmsAuthClient;
 }
 
 export function workerClient(): PrismaClient {
@@ -74,10 +103,12 @@ export async function disconnectAll(): Promise<void> {
     globalForPrisma.__hrmsAppClient?.$disconnect(),
     globalForPrisma.__hrmsWorkerClient?.$disconnect(),
     globalForPrisma.__hrmsPlatformClient?.$disconnect(),
+    globalForPrisma.__hrmsAuthClient?.$disconnect(),
   ]);
   delete globalForPrisma.__hrmsAppClient;
   delete globalForPrisma.__hrmsWorkerClient;
   delete globalForPrisma.__hrmsPlatformClient;
+  delete globalForPrisma.__hrmsAuthClient;
 }
 
 export type { PrismaClient };
