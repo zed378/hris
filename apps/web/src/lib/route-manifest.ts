@@ -217,6 +217,14 @@ export const ROUTE_MANIFEST = {
   'GET /api/payroll/payslips': { module: 'payroll', permission: 'payroll.payslip.read.own' },
 
   // --- Cuti ------------------------------------------------------------------
+  // Notifikasi bukan milik satu modul — ia melayani semuanya. Diletakkan di
+  // modul inti supaya berlangganan tidak menuntut langganan modul apa pun.
+  'GET /api/notifications/subscriptions': { module: 'core', permission: 'core.profile.read.own' },
+  'POST /api/notifications/subscriptions': { module: 'core', permission: 'core.profile.read.own' },
+  'DELETE /api/notifications/subscriptions': {
+    module: 'core',
+    permission: 'core.profile.read.own',
+  },
   'GET /api/leave/types': { module: 'leave', permission: 'leave.request.create.own' },
   'POST /api/leave/types': { module: 'leave', permission: 'leave.policy.manage' },
   // Cakupan daftar ditentukan izin di dalam handler, bukan oleh parameter:

@@ -1,5 +1,6 @@
 import { log } from '@hrms/observability';
 import { runPayrollCalculation } from './payroll-run.ts';
+import { notifyLeaveDecision, type LeaveNotifyPayload } from './leave-notify.ts';
 import { EventTopic } from '@hrms/contracts';
 import { deliverNotification, type NotifiableTopic } from '@hrms/core/notification';
 import type { OutboxEnvelope } from './outbox-pump.ts';
@@ -38,6 +39,31 @@ function notify(topic: NotifiableTopic): Consumer {
         // log worker adalah pulau yang tidak dapat dihubungkan ke permintaan
         // mana pun.
         log.info({ scope: 'notification', topic, correlationId: correlationId ?? undefined, ...result });
+      }
+    },
+  };
+}
+
+/**
+ * Memberi tahu karyawan bahwa cutinya sudah diputuskan.
+ *
+ * Yang belum ada dan sengaja tidak ditambahkan di sini: hitung ulang rekap
+ * presensi otomatis untuk rentang cutinya. `calculateDay` membaca cuti langsung
+ * dari basis data, sehingga rekapnya sudah benar begitu dihitung — yang belum
+ * ada hanya pemicunya, dan menambahkannya berarti satu konsumen mengerjakan dua
+ * hal yang gagal karena alasan berbeda.
+ */
+function leaveDecision(approved: boolean): Consumer {
+  return {
+    kind: 'handle',
+    async run({ tenantId, payload, correlationId }) {
+      const result = await notifyLeaveDecision(
+        tenantId,
+        payload as LeaveNotifyPayload,
+        approved,
+      );
+      if (result.sent > 0 || result.pruned > 0) {
+        log.info({ scope: 'leave-notify', correlationId: correlationId ?? undefined, tenantId, approved, ...result });
       }
     },
   };
@@ -106,11 +132,8 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
    * membaca cuti langsung dari basis data, sehingga event ini belum punya efek;
    * yang belum ada adalah pemicu hitung ulang otomatis untuk rentang cutinya.
    */
-  [EventTopic.LEAVE_REQUEST_APPROVED]: {
-    kind: 'drain',
-    reason: 'hitung ulang rekap otomatis untuk rentang cuti, menyusul',
-  },
-  [EventTopic.LEAVE_REQUEST_REJECTED]: { kind: 'drain', reason: 'pemberitahuan penolakan, F4 lanjutan' },
+  [EventTopic.LEAVE_REQUEST_APPROVED]: leaveDecision(true),
+  [EventTopic.LEAVE_REQUEST_REJECTED]: leaveDecision(false),
   [EventTopic.LEAVE_REQUEST_SUBMITTED]: {
     kind: 'drain',
     reason: 'inbox approver realtime, F4 lanjutan',

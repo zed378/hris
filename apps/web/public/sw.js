@@ -118,3 +118,71 @@ self.addEventListener('message', (event) => {
     );
   }
 });
+
+/**
+ * Web Push (dokumen 11 §7).
+ *
+ * `userVisibleOnly: true` diwajibkan peramban dan sengaja tidak dilawan: push
+ * senyap adalah kemampuan melacak kehadiran perangkat tanpa sepengetahuan
+ * pemiliknya, dan tidak ada satu pun kebutuhan HRIS yang membenarkannya.
+ *
+ * Payload-nya sudah terenkripsi untuk perangkat ini — layanan push di antaranya
+ * tidak dapat membacanya. Karena itu isinya tetap dijaga tipis: judul, satu
+ * baris, dan tautan. **Tidak ada nominal gaji, tidak ada NIK, tidak ada alasan
+ * cuti.** Notifikasi muncul di layar terkunci yang dapat dilihat siapa pun yang
+ * kebetulan berada di dekat perangkat itu, dan enkripsi tidak menolong di sana.
+ */
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    // Payload yang tidak dapat diurai diabaikan diam-diam. Menampilkan
+    // notifikasi berisi teks mentah akan membuat pengguna melihat pecahan JSON
+    // di layar terkuncinya.
+    return;
+  }
+
+  const title = payload.title;
+  if (typeof title !== 'string' || title.length === 0) return;
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: typeof payload.body === 'string' ? payload.body : '',
+      icon: '/icon.svg',
+      // Notifikasi ber-tag sama saling menimpa. Tiga pengajuan cuti yang
+      // diputuskan berturut-turut menghasilkan tiga notifikasi; tiga percobaan
+      // pengiriman untuk keputusan yang SAMA harus menghasilkan satu.
+      tag: typeof payload.tag === 'string' ? payload.tag : 'hrms',
+      renotify: false,
+      data: { url: typeof payload.url === 'string' ? payload.url : '/' },
+    }),
+  );
+});
+
+/**
+ * Klik notifikasi.
+ *
+ * Tab yang sudah terbuka DIFOKUSKAN, bukan ditimpa tab baru. Membuka tab kedua
+ * pada aplikasi yang sudah berjalan akan meninggalkan dua sesi di perangkat yang
+ * sama — dan pada perangkat bersama, tab yang terlupakan adalah sesi yang
+ * tertinggal terbuka.
+ */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url ?? '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          void client.navigate?.(target);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
+});

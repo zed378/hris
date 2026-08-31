@@ -877,6 +877,33 @@ enum NotificationChannel {
   @@schema("notification")
 }
 
+/// Satu langganan Web Push — satu peramban di satu perangkat.
+///
+/// Satu baris per LANGGANAN, bukan per pengguna: satu orang memakai ponsel dan
+/// komputer kantor, masing-masing menghasilkan endpoint tersendiri, dan
+/// mengirim hanya ke salah satunya berarti separuh notifikasi tidak sampai.
+model PushSubscription {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+
+  endpoint String @unique
+  /// Kunci enkripsi milik peramban. Payload dienkripsi untuk penerimanya;
+  /// layanan push di antaranya tidak dapat membacanya.
+  p256dh   String
+  auth     String
+
+  userAgent     String?   @map("user_agent")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastSuccessAt DateTime? @map("last_success_at")
+  /// Langganan mati tidak melapor; ia hanya berhenti bekerja.
+  failureCount  Int       @default(0) @map("failure_count")
+
+  @@index([tenantId, userId])
+  @@map("push_subscriptions")
+  @@schema("notification")
+}
+
 enum NotificationStatus {
   PENDING
   SENT

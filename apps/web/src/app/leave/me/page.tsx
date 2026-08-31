@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
+import { subscribeToPush, type PushOutcome } from '@/lib/push.ts';
 
 /**
  * Cuti saya — saldo dan pengajuan (PLAN/12 F4).
@@ -82,6 +83,9 @@ export default function MyLeavePage() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [approvers, setApprovers] = useState<Array<{ id: string; label: string }>>([]);
 
+  const [push, setPush] = useState<PushOutcome | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+
   const [lampiran, setLampiran] = useState<{
     storageKey: string;
     fileName: string;
@@ -141,6 +145,23 @@ export default function MyLeavePage() {
    * memeriksa bahwa berkas itu ada, milik pengaju, dan belum dipakai pengajuan
    * lain.
    */
+  /**
+   * Menyalakan notifikasi untuk perangkat ini.
+   *
+   * Ditawarkan di halaman cuti, bukan di halaman setelan, karena di sinilah
+   * orang benar-benar menunggu kabar — dan permintaan izin yang muncul saat
+   * seseorang sedang menunggu jawaban jauh lebih mungkin diterima daripada yang
+   * muncul saat ia sedang mengerjakan hal lain.
+   *
+   * Izin notifikasi hanya dapat diminta SEKALI oleh peramban. Setelah ditolak,
+   * dialognya tidak akan muncul lagi.
+   */
+  const nyalakanNotifikasi = useCallback(async () => {
+    setPushBusy(true);
+    setPush(await subscribeToPush(api));
+    setPushBusy(false);
+  }, [api]);
+
   const unggahLampiran = useCallback(
     async (file: File) => {
       setUnggahBusy(true);
@@ -287,6 +308,45 @@ export default function MyLeavePage() {
           </div>
         ))}
       </section>
+
+      {/*
+        Ditawarkan sekali, dan hanya sampai berhasil. Tombol yang tetap muncul
+        setelah notifikasi menyala adalah tombol yang ditekan orang untuk
+        memastikan — lalu `subscribe()` mengembalikan langganan yang sama dan
+        tidak terjadi apa-apa, yang terbaca sebagai kerusakan.
+      */}
+      {!push?.ok && (
+        <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-medium">Notifikasi keputusan cuti</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Dapatkan pemberitahuan di perangkat ini begitu pengajuan Anda
+                diputuskan, tanpa perlu membuka halaman ini berulang kali.
+              </p>
+            </div>
+            <button
+              onClick={() => void nyalakanNotifikasi()}
+              disabled={pushBusy}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              {pushBusy ? 'Menyiapkan…' : 'Nyalakan'}
+            </button>
+          </div>
+
+          {push && !push.ok && (
+            <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              {push.message}
+            </p>
+          )}
+        </section>
+      )}
+
+      {push?.ok && (
+        <p className="mb-5 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+          Notifikasi menyala di perangkat ini. Ia berhenti otomatis saat Anda keluar.
+        </p>
+      )}
 
       <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-medium">Ajukan cuti</h2>

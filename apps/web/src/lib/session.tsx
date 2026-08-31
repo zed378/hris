@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { BootstrapResponse } from '@hrms/contracts';
+import { unsubscribeFromPush } from './push.ts';
 
 /**
  * Sesi di sisi klien.
@@ -174,6 +175,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    /**
+     * Langganan push dicabut SEBELUM sesinya dibuang.
+     *
+     * Pencabutan memanggil endpoint yang menuntut token, dan token itu hilang
+     * satu baris di bawah. Urutan sebaliknya meninggalkan langganan yang tetap
+     * hidup di server: perangkat bersama akan terus menerima notifikasi milik
+     * pengguna sebelumnya — nama, tanggal cuti, dan keputusannya di layar
+     * terkunci orang lain — dan tidak ada galat yang muncul di mana pun.
+     */
+    await unsubscribeFromPush(api);
+
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
     accessToken.current = null;
     setBootstrap(null);
@@ -189,7 +201,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // bukan milik sesi, dan menghapusnya berarti membuang presensi yang belum
     // sempat terkirim milik orang yang baru saja keluar.
     navigator.serviceWorker?.controller?.postMessage({ type: 'HRMS_LOGOUT' });
-  }, []);
+  }, [api]);
 
   const value = useMemo<SessionState>(() => {
     const permissions = new Set(bootstrap?.permissions ?? []);

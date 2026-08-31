@@ -872,8 +872,55 @@ Yang tidak terkunci Gerbang C tetapi belum dibangun:
 - **Penagihan tetap satu-satunya yang belum ada.** Selebihnya — pendaftaran
   mandiri, uji coba 14 hari, aktivasi modul, dasbor, pengerasan, dan ekspor
   portabilitas — sudah berjalan dan terbukti.
-- **Notifikasi berjenjang** email → Web Push → WhatsApp. Email sudah ada;
-  Web Push dan WhatsApp belum.
+- ~~**Web Push**~~ — **selesai.** `NotificationChannel.WEB_PUSH` ada di enum
+  sejak modul notifikasi dibangun tanpa satu pun produsen; kini terisi.
+  Keputusan cuti mengirim push ke seluruh perangkat pengaju — dua topiknya
+  sebelumnya di-`drain`, dicatat lalu dibuang, sehingga jawaban yang paling
+  ditunggu di sistem ini hanya terlihat oleh yang membuka aplikasinya sendiri.
+
+  **Push adalah tambahan, bukan pengganti** (dokumen 04 §R52). Web Push tidak
+  berfungsi di iOS kecuali PWA sudah dipasang ke Layar Utama, dan sebagian besar
+  pengguna tidak memasangnya — menggantungkan kabar penting padanya berarti
+  memindahkannya ke saluran yang diam-diam tidak sampai untuk separuh pengguna.
+  Kunci VAPID yang kosong berarti push mati, dan itu keadaan yang sah.
+
+  Isinya sengaja tipis: keputusan, tanggal, jumlah hari. **Tidak ada alasan
+  pengajuan, tidak ada komentar penyetuju.** Notifikasi muncul di layar terkunci
+  yang dapat dilihat siapa pun di dekat perangkat itu, dan enkripsi push tidak
+  menolong di sana.
+
+  Izin notifikasi hanya dapat diminta **sekali** oleh peramban. Karena itu setiap
+  keadaan yang membuat langganan pasti gagal — peramban tidak mendukung, server
+  belum dikonfigurasi, iOS belum memasang PWA — diperiksa **sebelum** izin
+  diminta. Ditawarkan di halaman cuti, bukan di setelan: permintaan izin yang
+  muncul saat seseorang sedang menunggu jawaban jauh lebih mungkin diterima.
+
+  Logout mencabut langganan **sebelum** membuang sesinya — pencabutan memanggil
+  endpoint yang menuntut token. Tanpa itu, perangkat bersama terus menerima
+  notifikasi milik pengguna sebelumnya, dan tidak ada galat yang muncul di mana
+  pun.
+
+  Diverifikasi terhadap layanan push tiruan ber-TLS:
+
+  | Jawaban layanan push | Hasil |
+  |---|---|
+  | 201 | `sent=1`, langganan dipertahankan |
+  | 410 Gone | `pruned=1`, barisnya dihapus |
+  | 404 | `pruned=1`, barisnya dihapus |
+  | 500 | `failed=1`, dipertahankan sampai gagal 10 kali |
+
+  **Versi pertama uji ini lulus karena alasan yang salah**, dan itu dicatat
+  karena bentuknya berulang di proyek ini: kunci `p256dh` karangan membuat
+  enkripsi gagal di lokal, sehingga tidak ada satu pun permintaan HTTP yang
+  pernah dikirim — dan `failed=1` yang dilaporkannya berasal dari kegagalan yang
+  sama sekali berbeda dari yang hendak diuji. Barulah dengan kunci P-256
+  sungguhan dan server ber-TLS, jalur 410 terbukti benar-benar memangkas.
+
+  Batas yang diketahui: jalur ini **belum pernah diuji terhadap layanan push
+  sungguhan** (FCM, Mozilla, Apple), dan belum diuji pada perangkat iOS yang
+  PWA-nya sudah dipasang.
+- **WhatsApp** belum ada. Ia jenjang ketiga untuk hal mendesak, dan menuntut
+  akun WhatsApp Business API beserta kredensialnya.
 - ~~**Ekspor `.xlsx` di seluruh modul**~~ — **selesai.** Presensi, cuti, dan
   payroll kini punya ekspornya masing-masing, menyusul modul karyawan. Ini bukan
   kekurangan kecil pada pasar yang dituju: di Indonesia setiap laporan berakhir
