@@ -2,32 +2,32 @@ import type { TenantClient } from '@hrms/db';
 import type { MenuNode } from '@hrms/contracts';
 
 export interface EffectiveAccess {
-  /** Modul yang aktif untuk tenant, termasuk modul CORE yang selalu aktif. */
+  /** The modules enabled for the tenant, CORE modules included as always enabled. */
   modules: string[];
-  /** Permission setelah seluruh presedensi diterapkan dan disaring langganan. */
+  /** Permissions after every precedence rule and the subscription filter. */
   permissions: string[];
   accessVersion: number;
 }
 
 /**
- * Menghitung akses efektif satu pengguna (PLAN/05 §4).
+ * Computes one user's effective access (PLAN/05 §4).
  *
- * Presedensinya, berurutan — dan urutannya menentukan hasil:
+ * Its precedence, in order — and the order decides the result:
  *
- *   1. Gabungan permission dari seluruh peran yang dimiliki pengguna.
- *   2. Ditambah GRANT per pengguna yang belum kedaluwarsa.
- *   3. Dikurangi DENY per pengguna. **DENY selalu menang** — atas peran maupun
- *      atas GRANT. Bila tidak demikian, mencabut akses satu orang mengharuskan
- *      penelusuran seluruh perannya, dan pencabutan darurat menjadi tidak andal.
- *   4. Disaring langganan: permission milik modul yang tidak aktif gugur.
+ *   1. The union of permissions from every role the user holds.
+ *   2. Plus per-user GRANTs that have not expired.
+ *   3. Minus per-user DENYs. **DENY always wins** — over roles and over GRANTs.
+ *      Otherwise, revoking one person's access would require tracing every one
+ *      of their roles, and an emergency revocation would be unreliable.
+ *   4. Filtered by subscription: a permission belonging to a disabled module falls away.
  *
- * Langkah 4 adalah P8 — "langganan mengalahkan peran". Konsekuensinya penting:
- * saat tenant berhenti melanggan payroll, tidak ada peran yang perlu diubah dan
- * tidak ada yang perlu diingat untuk dicabut. Izinnya gugur dengan sendirinya,
- * dan pulih utuh saat modulnya diaktifkan kembali.
+ * Step 4 is P8 — "a subscription beats a role". Its consequence matters: when a
+ * tenant stops subscribing to payroll, no role needs changing and nothing needs
+ * remembering to revoke. The permissions fall away by themselves, and return
+ * intact when the module is enabled again.
  *
- * Grant kedaluwarsa diabaikan di sini, bukan dihapus. Barisnya tetap ada agar
- * access review dapat menjawab "siapa pernah punya akses apa, dan mengapa".
+ * An expired grant is ignored here rather than deleted. Its row stays so an
+ * access review can answer "who once had what access, and why".
  */
 export async function resolveEffectiveAccess(
   tx: TenantClient,
@@ -43,7 +43,7 @@ export async function resolveEffectiveAccess(
         select: { moduleCode: true },
       }),
       tx.module.findMany({ where: { isCore: true }, select: { code: true } }),
-      // Modul yang termasuk paket yang dilanggan tenant SAAT INI.
+      // The modules included in the plan the tenant subscribes to RIGHT NOW.
       tx.tenant.findFirst({
         where: { id: tenantId },
         select: { plan: { select: { modules: { select: { moduleCode: true } } } } },
@@ -63,20 +63,20 @@ export async function resolveEffectiveAccess(
     ]);
 
   /**
-   * Entitlement adalah IRISAN antara "diaktifkan tenant" dan "termasuk paket".
+   * Entitlement is the INTERSECTION of "enabled by the tenant" and "included in the plan".
    *
-   * Membaca `TenantModule.status` saja tidak cukup, dan celahnya bernilai uang:
-   * tenant yang menurunkan paketnya dari Basic ke Starter tetap memegang baris
-   * `payroll` berstatus ENABLED dari masa langganan sebelumnya, sehingga ia
-   * terus memakai penggajian tanpa membayarnya. Tidak ada galat yang muncul —
-   * satu-satunya yang berubah adalah tagihannya.
+   * Reading `TenantModule.status` alone is not enough, and the gap is worth
+   * money: a tenant downgrading from Basic to Starter still holds an ENABLED
+   * `payroll` row from their previous subscription, so they keep using payroll
+   * without paying for it. No error appears — the only thing that changes is
+   * their invoice.
    *
-   * Perpotongan ini membuat penurunan paket berlaku seketika tanpa perlu ada
-   * proses rekonsiliasi yang harus diingat orang untuk dijalankan.
+   * This intersection makes a downgrade take effect immediately, with no
+   * reconciliation process anyone has to remember to run.
    *
-   * Modul CORE selalu masuk, apa pun paketnya: tanpa `core` dan `iam`, tenant
-   * tidak dapat masuk ke sistemnya sendiri untuk memperbaiki langganannya.
-   */
+   * CORE modules are always included, whatever the plan: without `core` and
+   * `iam`, a tenant could not log into their own system to fix their
+   * subscription.
   const inPlan = new Set(planModules?.plan?.modules.map((m) => m.moduleCode) ?? []);
   const modules = new Set<string>([
     ...coreModules.map((m) => m.code),
@@ -92,13 +92,13 @@ export async function resolveEffectiveAccess(
     if (grant.effect === 'GRANT') granted.add(grant.permissionCode);
   }
 
-  // 3 — DENY menang, diterapkan setelah semua penambahan.
+  // 3 — DENY wins, applied after every addition.
   for (const grant of grants) {
     if (grant.effect === 'DENY') granted.delete(grant.permissionCode);
   }
 
-  // 4 — saring langganan. Permission milik modul tak dikenal ikut gugur:
-  // itu keadaan yang seharusnya mustahil, dan gagal-tertutup adalah pilihan aman.
+  // 4 — filter by subscription. A permission belonging to an unknown module falls
+  // away too: that state should be impossible, and failing closed is the safe choice.
   const owners = await tx.permission.findMany({
     where: { code: { in: [...granted] } },
     select: { code: true, moduleCode: true },
@@ -117,16 +117,16 @@ export async function resolveEffectiveAccess(
 }
 
 /**
- * Merakit pohon menu yang terlihat pengguna.
+ * Assembles the menu tree the user sees.
  *
- * Aturannya dua, dan yang kedua sering terlupa:
- *   - Item dengan `permissionCode` tampil hanya bila pengguna memegangnya.
- *   - Item grup (tanpa permission dan tanpa path) tampil hanya bila ada anaknya
- *     yang tampil. Tanpa aturan ini, sidebar dipenuhi grup kosong yang saat
- *     diklik tidak membuka apa pun.
+ * Two rules, and the second is often forgotten:
+ *   - An item with a `permissionCode` appears only when the user holds it.
+ *   - A group item (no permission and no path) appears only when one of its
+ *     children appears. Without this rule the sidebar fills with empty groups
+ *     that open nothing when clicked.
  *
- * Ini kenyamanan, bukan otorisasi. Gateway memeriksa permission yang sama secara
- * mandiri — menyembunyikan menu tanpa menolak endpoint-nya bukan keamanan (P9).
+ * This is convenience, not authorisation. The gateway checks the same permission
+ * independently — hiding a menu without refusing its endpoint is not security (P9).
  */
 export async function buildMenuTree(
   tx: TenantClient,
@@ -182,12 +182,12 @@ export async function buildMenuTree(
 }
 
 /**
- * Menaikkan versi akses pengguna, **dalam transaksi yang sama** dengan perubahan
- * peran atau grant yang memicunya.
+ * Raises a user's access version, **in the same transaction** as the role or
+ * grant change that triggered it.
  *
- * Bila dipisah, ada jendela di mana akses sudah berubah tetapi cache masih
- * menyajikan yang lama — dan jendela itu paling mungkin terbuka justru saat
- * seseorang sedang mencabut akses dengan tergesa (PLAN/05 §5.3).
+ * Separated, there would be a window where access has changed but the cache
+ * still serves the old value — and that window is most likely to open precisely
+ * when somebody is revoking access in a hurry (PLAN/05 §5.3).
  */
 export async function bumpAccessVersion(
   tx: TenantClient,

@@ -6,38 +6,38 @@ import { deliverNotification, type NotifiableTopic } from '@hrms/core/notificati
 import type { OutboxEnvelope } from './outbox-pump.ts';
 
 /**
- * Katalog konsumen — satu keputusan untuk setiap topik event.
+ * The consumer catalogue — one decision per event topic.
  *
- * Bentuknya `Record<EventTopic, …>` dengan sengaja: TypeScript menolak
- * mengompilasi berkas ini bila sebuah topik baru ditambahkan ke katalog event
- * tanpa keputusan di sini. Yang dicegah bukan lupa menulis konsumen, melainkan
- * lupa MEMUTUSKAN — dan keduanya berbeda hasilnya.
+ * Its shape is `Record<EventTopic, …>` deliberately: TypeScript refuses to
+ * compile this file when a new topic is added to the event catalogue without a
+ * decision here. What that prevents is not forgetting to write a consumer, but
+ * forgetting to DECIDE — and the two have different outcomes.
  *
- * Topik tanpa konsumen tidak menghasilkan galat apa pun. Antreannya ada, pesan
- * masuk, dan pekerjaannya duduk di status `created` sampai retensi pg-boss
- * mengarsipkannya. Tidak ada yang gagal, tidak ada yang memberi tahu, dan event
- * itu sekadar tidak pernah terjadi bagi siapa pun yang menunggunya.
+ * A topic with no consumer produces no error at all. Its queue exists, messages
+ * arrive, and the jobs sit in `created` status until pg-boss retention archives
+ * them. Nothing fails, nothing tells anyone, and that event simply never
+ * happened for whoever was waiting on it.
  *
- * Karena itu `drain` harus ditulis eksplisit beserta alasannya. "Belum ada
- * efeknya" adalah keputusan yang sah; yang tidak sah adalah tidak terlihat
- * bahwa keputusan itu pernah diambil.
+ * So a `drain` has to be written explicitly, with its reason. "No effect yet" is
+ * a legitimate decision; what is not legitimate is being unable to see that the
+ * decision was ever taken.
  */
 
 export type Consumer =
   | { kind: 'handle'; run: (envelope: OutboxEnvelope) => Promise<void> }
   | { kind: 'drain'; reason: string };
 
-/** Topik yang berubah menjadi email. Idempotensinya ada pada `notification_logs.dedupeKey`. */
+/** Topics that become email. Their idempotency lives in `notification_logs.dedupeKey`. */
 function notify(topic: NotifiableTopic): Consumer {
   return {
     kind: 'handle',
     async run({ tenantId, payload, correlationId }) {
       const result = await deliverNotification(tenantId, topic, payload);
       if (result.status !== 'skipped') {
-        // `correlationId` diteruskan dari amplop outbox — inilah sambungan yang
-        // membuat jejak satu permintaan utuh melintasi batas antrean. Tanpa ini,
-        // log worker adalah pulau yang tidak dapat dihubungkan ke permintaan
-        // mana pun.
+        // The `correlationId` is carried from the outbox envelope — this is the
+        // join that keeps one request's trail whole across the queue boundary.
+        // Without it, the worker log is an island that cannot be connected to any
+        // request.
         log.info({ scope: 'notification', topic, correlationId: correlationId ?? undefined, ...result });
       }
     },
@@ -45,13 +45,13 @@ function notify(topic: NotifiableTopic): Consumer {
 }
 
 /**
- * Memberi tahu karyawan bahwa cutinya sudah diputuskan.
+ * Tells an employee their leave has been decided.
  *
- * Yang belum ada dan sengaja tidak ditambahkan di sini: hitung ulang rekap
- * presensi otomatis untuk rentang cutinya. `calculateDay` membaca cuti langsung
- * dari basis data, sehingga rekapnya sudah benar begitu dihitung — yang belum
- * ada hanya pemicunya, dan menambahkannya berarti satu konsumen mengerjakan dua
- * hal yang gagal karena alasan berbeda.
+ * What is missing and deliberately not added here: an automatic recompute of
+ * the attendance recap over the leave range. `calculateDay` reads leave straight
+ * from the database, so the recap is already right once computed — all that is
+ * missing is the trigger, and adding it would make one consumer do two things
+ * that fail for different reasons.
  */
 function leaveDecision(approved: boolean): Consumer {
   return {
@@ -76,19 +76,18 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
   [EventTopic.DOCUMENT_EXPIRING]: notify('employee.document.expiring'),
 
   /**
-   * Perhitungan payroll.
+   * The payroll calculation.
    *
-   * Satu-satunya konsumen yang mengerjakan pekerjaan berat, bukan mengirim
-   * pesan. Alasannya ada di `payroll-run.ts`: perhitungan seribu karyawan tidak
-   * dapat selesai di dalam transaksi permintaan HTTP, dan yang terjadi bukan
-   * "lambat" melainkan transaksi yang dibatalkan sehingga seluruh slip yang
-   * sudah dihitung hilang.
+   * The only consumer that does heavy work rather than sending a message. Its
+   * reason is in `payroll-run.ts`: a thousand-employee calculation cannot finish
+   * inside an HTTP request transaction, and what happens is not "slow" but a
+   * rolled-back transaction that loses every payslip already computed.
    *
-   * Galat SENGAJA dilempar kembali, tidak ditelan seperti konsumen lain.
-   * pg-boss akan mencoba ulang, dan mencoba ulang di sini aman justru karena
-   * potongan yang sudah selesai ter-commit: percobaan berikutnya melanjutkan,
-   * bukan mengulang. Menelannya berarti run tertinggal setengah jadi tanpa ada
-   * yang mencoba menyelesaikannya.
+   * Errors are DELIBERATELY rethrown rather than swallowed as in the other
+   * consumers. pg-boss will retry, and retrying is safe here precisely because
+   * the finished chunks are committed: the next attempt continues rather than
+   * restarting. Swallowing would leave a run half finished with nobody trying to
+   * complete it.
    */
   [EventTopic.PAYROLL_RUN_REQUESTED]: {
     kind: 'handle',
@@ -100,11 +99,11 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
   },
 
   /**
-   * Presensi yang ditandai untuk ditinjau.
+   * A punch flagged for review.
    *
-   * Mencatat saja untuk sekarang: antrean tinjauan HR dibaca langsung dari basis
-   * data, bukan dari event. Yang belum ada adalah dorongan realtime ke dasbor HR
-   * (Fase 3, SSE) — dan ketika ia dibangun, tempatnya di sini.
+   * Logging only for now: the HR review queue is read straight from the
+   * database, not from events. What is missing is the realtime push to the HR
+   * dashboard (Phase 3, SSE) — and when that is built, its place is here.
    */
   [EventTopic.PUNCH_FLAGGED]: {
     kind: 'handle',
@@ -126,11 +125,11 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
   },
 
   /**
-   * Cuti disetujui — presensi harus tahu.
+   * Leave approved — attendance has to know.
    *
-   * Hari bercuti tidak boleh dihitung alfa (lingkup F4). Kalkulasi harian
-   * membaca cuti langsung dari basis data, sehingga event ini belum punya efek;
-   * yang belum ada adalah pemicu hitung ulang otomatis untuk rentang cutinya.
+   * A day on leave must not be counted absent (P4 scope). The daily calculation
+   * reads leave straight from the database, so this event has no effect yet;
+   * what is missing is an automatic recompute trigger over the leave range.
    */
   [EventTopic.LEAVE_REQUEST_APPROVED]: leaveDecision(true),
   [EventTopic.LEAVE_REQUEST_REJECTED]: leaveDecision(false),
@@ -140,8 +139,8 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
   },
   [EventTopic.LEAVE_BALANCE_CHANGED]: { kind: 'drain', reason: 'widget saldo di dasbor, F6' },
 
-  // Aliran audit dan metrik. Semuanya sudah tercatat di basis data pada
-  // transaksi yang sama; event-nya ada untuk konsumen yang belum dibangun.
+  // The audit and metrics streams. All of it is already recorded in the database
+  // in the same transaction; the events exist for consumers not yet built.
   [EventTopic.TENANT_PROVISIONED]: { kind: 'drain', reason: 'onboarding otomatis, Fase 6' },
   [EventTopic.TENANT_MODULE_ENABLED]: { kind: 'drain', reason: 'penagihan berbasis modul, Fase 6' },
   [EventTopic.TENANT_MODULE_DISABLED]: { kind: 'drain', reason: 'penagihan berbasis modul, Fase 6' },

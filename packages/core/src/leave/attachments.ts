@@ -3,40 +3,41 @@ import { createBlobStore, BlobError } from '../storage/index.ts';
 import { LeaveError } from './balance.ts';
 
 /**
- * Lampiran pengajuan cuti sebagai berkas (dokumen 03 §4.4).
+ * Leave request attachments as files (document 03 §4.4).
  *
- * `leave_types.requires_attachment` ada sejak modul cuti dibangun, dan seed
- * menyalakannya untuk Cuti Sakit dan Cuti Melahirkan. Pemeriksaannya berbunyi:
+ * `leave_types.requires_attachment` has existed since the leave module was
+ * built, and the seed turns it on for Sick Leave and Maternity Leave. Its check
+ * read:
  *
- *     if (type.requiresAttachment && !input.attachmentKey) tolak
+ *     if (type.requiresAttachment && !input.attachmentKey) refuse
  *
- * `attachmentKey` adalah kolom teks bebas, dan layarnya menampilkan kotak isian
- * bertuliskan "Nomor atau nama berkas surat dokter". Artinya syarat "wajib
- * melampirkan surat dokter" **dipenuhi dengan mengetik kata 'ada'.**
+ * `attachmentKey` is a free-text column, and its screen showed an input box
+ * labelled "Number or name of the doctor's note file". Which means the
+ * requirement "a doctor's note is mandatory" was **satisfied by typing 'ada'.**
  *
- * Untuk cuti sakit, surat dokter itulah satu-satunya hal yang membedakan cuti
- * berbayar dari mangkir. Syarat yang menerima sembarang teks bukan syarat; ia
- * kotak isian yang membuat semua pihak — karyawan, atasan, HR, dan auditor —
- * mengira ada bukti yang tersimpan.
+ * For sick leave, that doctor's note is the only thing separating paid leave
+ * from absence. A requirement that accepts arbitrary text is not a requirement;
+ * it is an input box that makes everyone — the employee, their manager, HR, and
+ * an auditor — believe evidence is stored.
  *
- * ## Bentuknya
+ * ## Its shape
  *
- * Unggah mendahului pengajuan, karena pengunggahnya belum tahu id pengajuannya.
- * Karena itu lampiran lahir **yatim** dan diadopsi saat pengajuan dibuat. Yang
- * tetap yatim adalah berkas yang diunggah lalu pengajuannya tidak jadi dikirim,
- * dan job berkala membersihkannya — data pribadi yang tidak terhubung ke apa pun
- * tidak punya alasan bertahan.
+ * The upload precedes the request, because the uploader does not know its
+ * request id yet. So an attachment is born an **orphan** and is adopted when the
+ * request is created. What stays an orphan is a file uploaded whose request was
+ * never submitted, and a periodic job clears those — personal data connected to
+ * nothing has no reason to survive.
  */
 
-/** Surat dokter dipindai ponsel; 5 MB cukup, dan lebih dari itu biasanya salah unggah. */
+/** A doctor's note scanned by phone; 5 MB is enough, and more usually means a wrong upload. */
 export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 /**
- * Jenis yang diterima, beserta ekstensi penyimpanannya.
+ * The accepted types, with their storage extensions.
  *
- * Daftar putih, dan isinya diperiksa dari angka ajaibnya — bukan dari nama
- * berkas maupun `content-type`, yang keduanya dikirim klien dan karenanya
- * keduanya dapat berbohong.
+ * An allowlist, and the contents are checked against their magic bytes — not
+ * against the file name or the `content-type`, both of which are sent by the
+ * client and can therefore both lie.
  */
 const ACCEPTED: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -52,7 +53,7 @@ const store = createBlobStore({
   maxBytes: MAX_ATTACHMENT_BYTES,
 });
 
-/** Menentukan jenis berkas dari isinya. */
+/** Determines a file's type from its contents. */
 function sniffType(content: Buffer): string | null {
   if (content.length < 12) return null;
 
@@ -109,9 +110,9 @@ export async function uploadAttachment(
       tenantId,
       employeeId: input.employeeId,
       storageKey: stored.key,
-      // Nama asli disimpan untuk ditampilkan, TIDAK untuk membentuk jalur
-      // berkasnya. Nama berkas berasal dari klien; memakainya sebagai jalur
-      // berarti "../../etc/passwd" menjadi lokasi penyimpanan yang sah.
+      // The original name is stored for display, NOT to build its file path. A
+      // file name comes from the client; using it as a path would make
+      // "../../etc/passwd" a valid storage location.
       fileName: input.fileName.slice(0, 200),
       mimeType,
       sizeBytes: input.content.length,
@@ -132,17 +133,17 @@ export async function uploadAttachment(
 }
 
 /**
- * Memeriksa bahwa sebuah kunci lampiran benar milik karyawan ini dan masih yatim.
+ * Checks that an attachment key really belongs to this employee and is still an orphan.
  *
- * Dipanggil `submitRequest`. Tiga hal yang diperiksanya, dan ketiganya perlu:
+ * Called by `submitRequest`. It checks three things, and all three are needed:
  *
- *   - **Ada.** Kunci karangan tidak boleh memenuhi syarat lampiran.
- *   - **Milik karyawan ini.** Tanpa pemeriksaan ini, seorang karyawan dapat
- *     memakai ulang kunci surat dokter rekannya — kunci itu memang acak, tetapi
- *     ia pernah lewat di layar orang lain.
- *   - **Belum dipakai pengajuan lain.** Satu surat dokter untuk satu pengajuan;
- *     memakai ulang lampiran yang sama untuk cuti sakit bulan berikutnya adalah
- *     hal yang akan dicoba orang.
+ *   - **It exists.** A fabricated key must not satisfy an attachment requirement.
+ *   - **It belongs to this employee.** Without this check, an employee could
+ *     reuse a colleague's doctor's note key — the key is random, but it has
+ *     passed across someone else's screen.
+ *   - **It is not used by another request.** One doctor's note per request;
+ *     reusing the same attachment for next month's sick leave is something
+ *     people will try.
  */
 export async function claimAttachment(
   tx: TenantClient,
@@ -162,8 +163,8 @@ export async function claimAttachment(
     );
   }
   if (row.employeeId !== employeeId) {
-    // Pesannya sengaja sama dengan "tidak ditemukan": membedakannya memberi
-    // tahu pemanggil bahwa kunci itu ada dan milik orang lain.
+    // Its message is deliberately the same as "not found": distinguishing them
+    // tells the caller that the key exists and belongs to someone else.
     throw new LeaveError(
       'Lampiran tidak ditemukan. Unggah berkasnya lebih dulu.',
       'not_found',
@@ -179,7 +180,7 @@ export async function claimAttachment(
   return { id: row.id };
 }
 
-/** Menghubungkan lampiran ke pengajuan yang baru dibuat. */
+/** Links an attachment to the request that was just created. */
 export async function attachToRequest(
   tx: TenantClient,
   tenantId: string,
@@ -230,16 +231,16 @@ export interface OrphanCleanupResult {
   failed: number;
 }
 
-/** Umur lampiran yatim sebelum dibuang. Cukup untuk mengunggah lalu mengisi formulirnya. */
+/** How long an orphan attachment lives. Enough time to upload and then fill in the form. */
 export const ORPHAN_MAX_AGE_HOURS = 24;
 
 /**
- * Membuang lampiran yang diunggah tetapi pengajuannya tidak jadi dikirim.
+ * Discards an attachment uploaded whose request was never submitted.
  *
- * Berkas dihapus lebih dulu, baru barisnya — urutan yang sama dengan retensi
- * foto presensi, dan alasannya sama: urutan sebaliknya meninggalkan berkas yatim
- * yang tidak lagi terhubung ke catatan apa pun, dan karenanya tidak akan pernah
- * terhapus oleh putaran berikutnya.
+ * The file is deleted first, then its row — the same order as attendance photo
+ * retention, and for the same reason: the reverse order leaves an orphan file
+ * connected to no record, and therefore one that the next round will never
+ * delete.
  */
 export async function cleanupOrphanAttachments(
   tx: TenantClient,
@@ -261,8 +262,8 @@ export async function cleanupOrphanAttachments(
     try {
       outcome = await store.remove(orphan.storageKey);
     } catch {
-      // Barisnya SENGAJA dibiarkan. Selama ia bertahan, putaran berikutnya akan
-      // menemukan berkas ini lagi.
+      // Its row is DELIBERATELY left. While it survives, the next round will find
+      // this file again.
       result.failed += 1;
       continue;
     }
