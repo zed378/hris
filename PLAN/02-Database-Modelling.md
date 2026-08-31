@@ -1,28 +1,28 @@
-# 02 — Pemodelan Basis Data (Database-per-Service, PostgreSQL 16)
+# 02 — Database Modelling (Database-per-Service, PostgreSQL 16)
 
 ---
 
-## 1. Prinsip Pemodelan
+## 1. Modelling Principles
 
-| # | Prinsip | Alasan |
-|---|---------|--------|
-| D1 | **Satu basis data logis per service.** Tidak ada service yang memiliki kredensial ke basis data service lain | Batas service ditegakkan hak akses, bukan kesepakatan |
-| D2 | **Tidak ada foreign key lintas service.** Referensi antar-domain disimpan sebagai UUID polos tanpa FK | FK lintas basis data mustahil; memaksakannya berarti menggabungkan basis data |
-| D3 | **Setiap service memiliki replika baca lokal** (`employee_ref`, `org_unit_ref`) yang disinkronkan event | Menghindari panggilan gRPC untuk sekadar menampilkan nama |
-| D4 | **Setiap tabel bisnis memiliki `tenant_id`** dan RLS aktif | Isolasi tenant tidak bergantung pada kedisiplinan developer |
-| D5 | **Setiap service memiliki tabel `outbox_events` dan `processed_messages` sendiri** | Konsistensi event dijamin per service, bukan terpusat |
-| D6 | **Primary key UUIDv7** | Dapat digenerate klien, terurut waktu, tidak membocorkan volume bisnis |
-| D7 | **Uang selalu `NUMERIC(18,2)`, waktu selalu `TIMESTAMPTZ`** | Presisi finansial dan kebenaran zona waktu |
-| D8 | **Kolom `version bigint`** pada entitas yang direplikasi ke service lain | Konsumer dapat menolak event yang tiba tidak berurutan |
-| D9 | **Seluruh DDL memakai `IF NOT EXISTS`** dan dapat dijalankan berulang | Migrasi bisa terputus di tengah dan harus aman diulang |
-| D10 | **Skema hanya berubah secara aditif.** Tidak ada `DROP`, `RENAME`, atau perubahan tipe yang memicu penulisan ulang tabel | Rollback aplikasi selalu aman; dua versi service dapat hidup bersamaan. Aturan lengkap di dokumen `09` |
+| # | Principle | Reason |
+|---|-----------|--------|
+| D1 | **One logical database per service.** No service holds credentials to another service's database | Service boundaries are enforced by access rights, not by agreement |
+| D2 | **No cross-service foreign keys.** Cross-domain references are stored as plain UUIDs without an FK | Cross-database FKs are impossible; forcing them means merging the databases |
+| D3 | **Every service keeps a local read replica** (`employee_ref`, `org_unit_ref`) kept in sync by events | Avoids a gRPC call merely to display a name |
+| D4 | **Every business table carries `tenant_id`** with RLS enabled | Tenant isolation does not depend on developer discipline |
+| D5 | **Every service owns its own `outbox_events` and `processed_messages` tables** | Event consistency is guaranteed per service, not centrally |
+| D6 | **UUIDv7 primary keys** | Client-generatable, time-ordered, and they do not leak business volume |
+| D7 | **Money is always `NUMERIC(18,2)`, time is always `TIMESTAMPTZ`** | Financial precision and timezone correctness |
+| D8 | **A `version bigint` column** on entities replicated to other services | Consumers can reject events that arrive out of order |
+| D9 | **All DDL uses `IF NOT EXISTS`** and is re-runnable | A migration can be interrupted halfway and must be safe to repeat |
+| D10 | **The schema only changes additively.** No `DROP`, no `RENAME`, and no type change that rewrites a table | An application rollback is always safe; two service versions can live side by side. Full rules in document `09` |
 
-> DDL di dokumen ini ditulis dalam bentuk "keadaan akhir" agar mudah dibaca. Dalam praktik, setiap objek dibuat lewat migrasi ber-`IF NOT EXISTS`, dan setiap perubahan pada tabel yang sudah berisi data mengikuti resep aman di dokumen `09` §3 — bukan dengan menyunting DDL di sini lalu menjalankannya ulang.
+> The DDL in this document is written in "end state" form so it reads easily. In practice every object is created through an `IF NOT EXISTS` migration, and every change to a table that already holds data follows the safe recipe in document `09` §3 — not by editing the DDL here and re-running it.
 
-### 1.1 Peta Basis Data
+### 1.1 Database Map
 
 ```
-Klaster PostgreSQL (fase awal: satu klaster, banyak database logis)
+PostgreSQL cluster (early phase: one cluster, many logical databases)
 ├── auth_db          ← auth-service      (auth_user)
 ├── iam_db           ← iam-service       (iam_user)
 ├── tenant_db        ← tenant-service    (tenant_user)
@@ -37,40 +37,40 @@ Klaster PostgreSQL (fase awal: satu klaster, banyak database logis)
 ├── notification_db  ← notification-service
 ├── file_db          ← file-service
 ├── reporting_db     ← reporting-service (read model, CQRS)
-└── platform_db      ← platform-service   (platform_user) ← CONTROL PLANE, terisolasi
+└── platform_db      ← platform-service   (platform_user) ← CONTROL PLANE, isolated
 
-Basis data service ekspansi (usulan, dokumen 08):
-├── claim_db         ← claim-service      (reimbursement, SPPD, kasbon)
+Expansion service databases (proposed, document 08):
+├── claim_db         ← claim-service      (reimbursement, business travel, cash advance)
 ├── onboarding_db    ← onboarding-service
 ├── asset_db         ← asset-service
 ├── hse_db           ← hse-service
 └── training_db      ← training-service
 ```
 
-> `contract-compliance` dan `roster-planning` **tidak** memiliki basis data sendiri — keduanya perluasan `employee_db` dan `attendance_db`. Menambah basis data untuk data yang sudah ada di tempatnya hanya menghasilkan panggilan gRPC bolak-balik tanpa manfaat isolasi.
+> `contract-compliance` and `roster-planning` have **no** database of their own — both are extensions of `employee_db` and `attendance_db`. Adding a database for data that already lives where it belongs only produces gRPC round trips with none of the isolation benefit.
 
-> **`platform_db` adalah pengecualian yang disengaja terhadap D4.** Ia tidak memiliki kolom `tenant_id` dan tidak menerapkan RLS, karena isinya memang bukan data tenant melainkan data *tentang* tenant: penghitung agregat, metadata langganan, dan telemetri. Konsekuensinya, `platform_db` **tidak boleh berisi data pribadi apa pun** — larangan ini ditegakkan gerbang CI yang memeriksa nama kolom (dok. 07, §9). Peran `platform_user` tidak memiliki `GRANT` ke basis data service mana pun, dan NetworkPolicy egress memblokir jalur jaringannya.
+> **`platform_db` is a deliberate exception to D4.** It has no `tenant_id` column and enforces no RLS, because its contents are not tenant data but data *about* tenants: aggregate counters, subscription metadata, and telemetry. The consequence is that `platform_db` **must not hold any personal data** — a prohibition enforced by a CI gate that inspects column names (doc. 07, §9). The `platform_user` role holds no `GRANT` into any service database, and an egress NetworkPolicy blocks its network path.
 
 ```sql
--- Isolasi ditegakkan hak akses, bukan konvensi.
+-- Isolation is enforced by access rights, not by convention.
 CREATE ROLE payroll_user LOGIN PASSWORD :'payroll_pw' NOBYPASSRLS;
 GRANT CONNECT ON DATABASE payroll_db TO payroll_user;
--- payroll_user TIDAK memiliki GRANT apa pun ke attendance_db.
--- Percobaan koneksi silang gagal di level PostgreSQL, bukan di level review kode.
+-- payroll_user holds NO grant of any kind into attendance_db.
+-- A cross-connection attempt fails at the PostgreSQL level, not at code review.
 REVOKE ALL ON DATABASE attendance_db FROM payroll_user;
 ```
 
-> Pemisahan menjadi klaster fisik terpisah dilakukan saat sebuah service melampaui ambang beban (dipantau lewat `pg_stat_database`). Karena tidak ada query lintas basis data sejak awal, pemisahan itu hanya mengubah connection string.
+> Splitting into physically separate clusters happens once a service crosses a load threshold (watched through `pg_stat_database`). Because there were no cross-database queries to begin with, that split only changes a connection string.
 
 ---
 
-## 2. Fondasi Bersama (di-deploy ke setiap basis data)
+## 2. Shared Foundation (deployed into every database)
 
-Berkas ini dijalankan sebagai migrasi pertama pada setiap service.
+This file runs as the first migration of every service.
 
 ```sql
 -- =====================================================================
--- 00_foundation.sql — identik di semua basis data service
+-- 00_foundation.sql — identical in every service database
 -- =====================================================================
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "btree_gist";
@@ -87,12 +87,12 @@ BEGIN
   RETURN encode(unix_ts_ms || rand_bytes, 'hex')::uuid;
 END $$ LANGUAGE plpgsql VOLATILE;
 
--- Konteks tenant dari X-Tenant-ID yang sudah divalidasi gateway
+-- Tenant context, taken from the X-Tenant-ID the gateway already validated
 CREATE OR REPLACE FUNCTION current_tenant() RETURNS uuid AS $$
   SELECT NULLIF(current_setting('app.tenant_id', true), '')::uuid;
 $$ LANGUAGE sql STABLE;
 
--- ---------- Outbox: setiap service punya sendiri ----------
+-- ---------- Outbox: every service owns its own ----------
 CREATE TYPE outbox_status AS ENUM ('PENDING','PUBLISHED','FAILED');
 
 CREATE TABLE outbox_events (
@@ -113,7 +113,7 @@ CREATE TABLE outbox_events (
 );
 CREATE INDEX idx_outbox_dispatch ON outbox_events (available_at, id) WHERE status = 'PENDING';
 
--- ---------- Idempotensi konsumer ----------
+-- ---------- Consumer idempotency ----------
 CREATE TABLE processed_messages (
   consumer     text NOT NULL,
   message_id   uuid NOT NULL,
@@ -122,7 +122,7 @@ CREATE TABLE processed_messages (
 );
 CREATE INDEX idx_processed_gc ON processed_messages (processed_at);
 
--- ---------- Audit lokal service ----------
+-- ---------- Service-local audit ----------
 CREATE TABLE audit_logs (
   id             bigint GENERATED ALWAYS AS IDENTITY,
   tenant_id      uuid NOT NULL,
@@ -139,7 +139,7 @@ CREATE TABLE audit_logs (
 ) PARTITION BY RANGE (occurred_at);
 REVOKE UPDATE, DELETE ON audit_logs FROM PUBLIC;
 
--- ---------- Replika baca karyawan (di semua service domain) ----------
+-- ---------- Employee read replica (present in every domain service) ----------
 CREATE TABLE employee_ref (
   employee_id      uuid PRIMARY KEY,
   tenant_id        uuid NOT NULL,
@@ -152,14 +152,14 @@ CREATE TABLE employee_ref (
   state            text NOT NULL,
   hire_date        date NOT NULL,
   termination_date date,
-  source_version   bigint NOT NULL,      -- versi dari employee-service; tolak event basi
+  source_version   bigint NOT NULL,      -- version from employee-service; reject stale events
   synced_at        timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_employee_ref_tenant ON employee_ref (tenant_id, state);
 CREATE INDEX idx_employee_ref_mgr    ON employee_ref (tenant_id, manager_id);
 CREATE INDEX idx_employee_ref_stale  ON employee_ref (synced_at);
 
--- ---------- Penerapan RLS otomatis ke semua tabel ber-tenant_id ----------
+-- ---------- Automatic RLS for every table carrying tenant_id ----------
 CREATE OR REPLACE FUNCTION apply_rls_everywhere() RETURNS void AS $$
 DECLARE r record;
 BEGIN
@@ -181,13 +181,13 @@ BEGIN
   END LOOP;
 END $$ LANGUAGE plpgsql;
 
--- Dipanggil di akhir setiap migrasi; uji CI memverifikasi tidak ada tabel yang luput
+-- Called at the end of every migration; a CI test verifies no table was missed
 SELECT apply_rls_everywhere();
 ```
 
 ---
 
-## 3. `tenant_db` — Tenant, Langganan, Modul
+## 3. `tenant_db` — Tenants, Subscriptions, Modules
 
 ```sql
 -- =====================================================================
@@ -198,7 +198,7 @@ CREATE TYPE module_tier   AS ENUM ('CORE','BASIC','ADVANCED','ULTIMATE','EXTENSI
 
 CREATE TABLE tenants (
   id            uuid PRIMARY KEY DEFAULT uuid_v7(),
-  code          citext UNIQUE NOT NULL,     -- dipakai saat login: "ACME"
+  code          citext UNIQUE NOT NULL,     -- used at login: "ACME"
   legal_name    text NOT NULL,
   npwp          text,
   timezone      text NOT NULL DEFAULT 'Asia/Jakarta',
@@ -212,15 +212,15 @@ CREATE TABLE tenants (
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
--- Catatan: tabel ini TIDAK ber-RLS. Ia adalah katalog tenant itu sendiri;
--- aksesnya dibatasi karena hanya tenant-service yang memiliki kredensialnya.
+-- Note: this table carries NO RLS. It is the tenant catalogue itself;
+-- access is bounded because only tenant-service holds its credentials.
 
 CREATE TABLE modules (
   key           text PRIMARY KEY,           -- 'attendance','leave','payroll'
   name          text NOT NULL,
   description   text,
   tier          module_tier NOT NULL,
-  service_name  text NOT NULL,              -- service mana yang mengimplementasikannya
+  service_name  text NOT NULL,              -- which service implements it
   requires      text[] NOT NULL DEFAULT '{}',
   monthly_price numeric(12,2),
   is_active     boolean NOT NULL DEFAULT true,
@@ -251,7 +251,7 @@ CREATE TABLE subscriptions (
     EXCLUDE USING gist (tenant_id WITH =, period WITH &&)
 );
 
--- Sumber kebenaran entitlement. Gateway membaca ini (via cache) pada setiap request.
+-- The source of truth for entitlement. The gateway reads this (through a cache) on every request.
 CREATE TABLE tenant_modules (
   tenant_id     uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   module_key    text NOT NULL REFERENCES modules(key),
@@ -276,22 +276,22 @@ CREATE TABLE tenant_exports (
 );
 ```
 
-**Event yang dipublikasikan:** `tenant.provisioned`, `tenant.suspended`, `tenant.subscription.changed`, `tenant.module.enabled`, `tenant.module.disabled`. Gateway dan frontend mendengarkan `tenant.subscription.changed` untuk menyegarkan menu tanpa perlu login ulang.
+**Events published:** `tenant.provisioned`, `tenant.suspended`, `tenant.subscription.changed`, `tenant.module.enabled`, `tenant.module.disabled`. The gateway and the frontend listen for `tenant.subscription.changed` to refresh the menu without requiring a new login.
 
 ---
 
-## 4. `auth_db` — Autentikasi
+## 4. `auth_db` — Authentication
 
-Rancangan sengaja sederhana sesuai keputusan menunda SSO/OIDC. Detail alur ada di dokumen `06`.
+The design is deliberately plain, in line with the decision to defer SSO/OIDC. The flow details are in document `06`.
 
 ```sql
 CREATE TABLE users (
   id             uuid PRIMARY KEY DEFAULT uuid_v7(),
-  tenant_id      uuid NOT NULL,                 -- tanpa FK: tenant ada di basis data lain (D2)
+  tenant_id      uuid NOT NULL,                 -- no FK: the tenant lives in another database (D2)
   email          citext NOT NULL,
   password_hash  text NOT NULL,                 -- Argon2id
   full_name      text NOT NULL,
-  employee_id    uuid,                          -- referensi lunak ke employee-service
+  employee_id    uuid,                          -- soft reference into employee-service
   is_active      boolean NOT NULL DEFAULT true,
   must_change_password boolean NOT NULL DEFAULT false,
   failed_attempts smallint NOT NULL DEFAULT 0,
@@ -300,7 +300,7 @@ CREATE TABLE users (
   password_changed_at timestamptz NOT NULL DEFAULT now(),
   created_at     timestamptz NOT NULL DEFAULT now(),
   updated_at     timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, email)      -- email sama boleh ada di tenant berbeda
+  UNIQUE (tenant_id, email)      -- the same email may exist in different tenants
 );
 CREATE INDEX idx_users_login ON users (tenant_id, email) WHERE is_active;
 
@@ -346,14 +346,14 @@ CREATE INDEX idx_login_attempts ON login_attempts (email, attempted_at DESC);
 
 ---
 
-## 5. `iam_db` — Peran, Permission, Menu
+## 5. `iam_db` — Roles, Permissions, Menus
 
-Skema lengkapnya — `menus`, `menu_permissions`, `role_menus`, `user_menu_grants`, `user_permission_grants`, `access_delegations`, `access_versions`, beserta fungsi `fn_effective_permissions` dan `fn_effective_menus` — didefinisikan di **dokumen `05-Dynamic-Role-Menu-Access.md`**. Di bawah hanya ringkasan tabel inti dan penyesuaian yang diperlukan untuk microservices.
+The full schema — `menus`, `menu_permissions`, `role_menus`, `user_menu_grants`, `user_permission_grants`, `access_delegations`, `access_versions`, together with the `fn_effective_permissions` and `fn_effective_menus` functions — is defined in **document `05-Dynamic-Role-Menu-Access.md`**. What follows is only a summary of the core tables and the adjustments microservices require.
 
 ```sql
 CREATE TABLE roles (
   id         uuid PRIMARY KEY DEFAULT uuid_v7(),
-  tenant_id  uuid,                        -- NULL = peran sistem global
+  tenant_id  uuid,                        -- NULL = global system role
   key        text NOT NULL,
   name       text NOT NULL,
   is_system  boolean NOT NULL DEFAULT false,
@@ -362,7 +362,7 @@ CREATE TABLE roles (
 
 CREATE TABLE permissions (
   key          text PRIMARY KEY,          -- 'payroll.run.approve'
-  module_key   text NOT NULL,             -- tanpa FK: katalog modul ada di tenant_db (D2)
+  module_key   text NOT NULL,             -- no FK: the module catalogue lives in tenant_db (D2)
   service_name text NOT NULL,
   resource     text NOT NULL,
   action       text NOT NULL,
@@ -379,7 +379,7 @@ CREATE TABLE role_permissions (
 );
 
 CREATE TABLE user_roles (
-  user_id      uuid NOT NULL,             -- referensi lunak ke auth_db
+  user_id      uuid NOT NULL,             -- soft reference into auth_db
   tenant_id    uuid NOT NULL,
   role_id      uuid NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
   org_unit_ids uuid[] NOT NULL DEFAULT '{}',
@@ -391,9 +391,9 @@ CREATE TABLE user_roles (
   PRIMARY KEY (user_id, role_id)
 );
 
--- Replika modul aktif per tenant, disinkronkan dari tenant-service.
--- Diperlukan agar resolusi permission dapat menggugurkan izin modul yang tidak dilanggan
--- tanpa panggilan gRPC pada jalur kritis.
+-- Replica of the modules enabled per tenant, synced from tenant-service.
+-- Needed so permission resolution can strike out permissions belonging to an
+-- unsubscribed module without a gRPC call on the critical path.
 CREATE TABLE tenant_module_ref (
   tenant_id      uuid NOT NULL,
   module_key     text NOT NULL,
@@ -405,11 +405,11 @@ CREATE TABLE tenant_module_ref (
 );
 ```
 
-> **Penyesuaian penting terhadap dokumen `05`:** fungsi `fn_effective_permissions` di sana melakukan JOIN ke `core.tenant_modules`. Dalam arsitektur microservices, JOIN itu diarahkan ke `tenant_module_ref` — replika lokal di `iam_db`. Semantiknya identik (lisensi tetap mengalahkan peran), tetapi tidak melanggar batas service.
+> **An important adjustment relative to document `05`:** the `fn_effective_permissions` function there joins to `core.tenant_modules`. Under a microservices architecture that join is redirected to `tenant_module_ref` — the local replica inside `iam_db`. The semantics are identical (a licence still beats a role), but it does not cross the service boundary.
 
 ---
 
-## 6. `employee_db` — Data Karyawan
+## 6. `employee_db` — Employee Data
 
 ```sql
 CREATE TYPE employment_status AS ENUM ('PROBATION','PERMANENT','CONTRACT','INTERN','OUTSOURCE');
@@ -444,7 +444,7 @@ CREATE TABLE positions (
 CREATE TABLE employees (
   id               uuid PRIMARY KEY DEFAULT uuid_v7(),
   tenant_id        uuid NOT NULL,
-  user_id          uuid,                      -- referensi lunak ke auth_db
+  user_id          uuid,                      -- soft reference into auth_db
   employee_number  text NOT NULL,
   full_name        text NOT NULL,
   email_work       citext,
@@ -454,7 +454,7 @@ CREATE TABLE employees (
   marital_status   text,
   dependents_count smallint NOT NULL DEFAULT 0,
 
-  national_id_enc  bytea,                     -- NIK KTP, pgp_sym_encrypt
+  national_id_enc  bytea,                     -- NIK from the ID card, pgp_sym_encrypt
   tax_id_enc       bytea,                     -- NPWP
   bank_account_enc bytea,
   bank_name        text,
@@ -474,8 +474,8 @@ CREATE TABLE employees (
   manager_id        uuid REFERENCES employees(id) ON DELETE SET NULL,
   photo_url         text,
 
-  -- Dinaikkan pada SETIAP perubahan. Konsumer replika memakainya
-  -- untuk menolak event yang tiba tidak berurutan.
+  -- Incremented on EVERY change. Replica consumers use it
+  -- to reject events that arrive out of order.
   version           bigint NOT NULL DEFAULT 1,
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now(),
@@ -514,7 +514,7 @@ CREATE TABLE employment_contracts (
   CONSTRAINT excl_contract_overlap EXCLUDE USING gist (employee_id WITH =, period WITH &&)
 );
 
--- Checksum untuk rekonsiliasi replika (dok. 01, §4.4)
+-- Checksum for replica reconciliation (doc. 01, §4.4)
 CREATE OR REPLACE VIEW v_replica_checksum AS
 SELECT tenant_id,
        count(*) AS row_count,
@@ -524,7 +524,7 @@ SELECT tenant_id,
  GROUP BY tenant_id;
 ```
 
-**Event yang dipublikasikan:** `employee.created`, `employee.updated`, `employee.terminated`, `employee.reinstated`, `org_unit.changed`. Setiap event membawa `version` agar konsumer dapat mengurutkannya.
+**Events published:** `employee.created`, `employee.updated`, `employee.terminated`, `employee.reinstated`, `org_unit.changed`. Every event carries its `version` so consumers can order them.
 
 ---
 
@@ -555,7 +555,7 @@ CREATE TABLE shifts (
 CREATE TABLE shift_assignments (
   id          uuid PRIMARY KEY DEFAULT uuid_v7(),
   tenant_id   uuid NOT NULL,
-  employee_id uuid NOT NULL,               -- tanpa FK lintas service (D2)
+  employee_id uuid NOT NULL,               -- no cross-service FK (D2)
   shift_id    uuid NOT NULL REFERENCES shifts(id) ON DELETE RESTRICT,
   work_date   date NOT NULL,
   is_day_off  boolean NOT NULL DEFAULT false,
@@ -586,9 +586,9 @@ CREATE TABLE punch_logs (
 CREATE TABLE punch_logs_2026m08 PARTITION OF punch_logs
   FOR VALUES FROM ('2026-08-01') TO ('2026-09-01');
 
--- Kolom bukti presensi (akurasi lokasi, geofence, foto, skor kepercayaan, status tinjauan,
--- sinkronisasi luring) ditambahkan lewat migrasi aditif — lihat dokumen `10` §3.1.
--- Tabel pendukungnya: work_sites, site_assignments, attendance_policies,
+-- The evidence columns (location accuracy, geofence, photo, trust score, review
+-- status, offline sync) are added through additive migrations — see document `10` §3.1.
+-- Their supporting tables: work_sites, site_assignments, attendance_policies,
 -- employee_devices, attendance_consents, photo_access_logs.
 CREATE UNIQUE INDEX uq_punch_dedupe_2026m08 ON punch_logs_2026m08 (tenant_id, dedupe_key);
 CREATE INDEX idx_punch_emp_2026m08 ON punch_logs_2026m08 (tenant_id, employee_id, work_date, punched_at);
@@ -606,8 +606,8 @@ CREATE TABLE daily_records (
   early_leave_minutes integer NOT NULL DEFAULT 0,
   overtime_minutes    integer NOT NULL DEFAULT 0,
   status              day_status NOT NULL,
-  leave_request_id    uuid,                -- referensi lunak ke leave-service
-  leave_type_code     text,                -- didenormalisasi dari event leave.request.approved
+  leave_request_id    uuid,                -- soft reference into leave-service
+  leave_type_code     text,                -- denormalised from the leave.request.approved event
   is_locked           boolean NOT NULL DEFAULT false,
   computed_at         timestamptz NOT NULL DEFAULT now(),
   computed_by         text NOT NULL DEFAULT 'system',
@@ -629,9 +629,9 @@ CREATE TABLE periods (
   CONSTRAINT excl_period_overlap EXCLUDE USING gist (tenant_id WITH =, period WITH &&)
 );
 
--- Snapshot rekap periode: dibekukan saat periode ditutup.
--- payroll-service mengambil ini lewat gRPC, sehingga rekalkulasi payroll
--- selalu memberi hasil sama meski data harian kemudian dikoreksi.
+-- Period recap snapshot: frozen the moment the period is closed.
+-- payroll-service fetches this over gRPC, so recalculating payroll always
+-- produces the same result even if the daily data is corrected afterwards.
 CREATE TABLE period_snapshots (
   id           uuid PRIMARY KEY DEFAULT uuid_v7(),
   tenant_id    uuid NOT NULL,
@@ -651,7 +651,7 @@ CREATE TABLE period_snapshots (
 
 ---
 
-## 8. `leave_db` — Kalender Cuti
+## 8. `leave_db` — Leave Calendar
 
 ```sql
 CREATE TYPE accrual_method AS ENUM ('ANNUAL_GRANT','MONTHLY_ACCRUAL','ANNIVERSARY','UNLIMITED','NONE');
@@ -705,7 +705,7 @@ CREATE TABLE leave_balances (
 );
 ```
 
-> `chk_no_negative_balance` adalah jaring pengaman terakhir terhadap persetujuan cuti bersamaan. Meskipun aplikasi memakai `SELECT … FOR UPDATE`, constraint ini menjamin basis data menolak saldo minus dalam kondisi apa pun. Penanganan lengkapnya di dokumen `03`, §6.1.
+> `chk_no_negative_balance` is the last safety net against concurrent leave approvals. Even though the application uses `SELECT … FOR UPDATE`, this constraint guarantees the database refuses a negative balance under any condition whatsoever. The full treatment is in document `03`, §6.1.
 
 ```sql
 CREATE TABLE leave_requests (
@@ -827,13 +827,14 @@ CREATE TABLE runs (
   total_net       numeric(18,2) NOT NULL DEFAULT 0,
   total_employer_cost numeric(18,2) NOT NULL DEFAULT 0,
 
-  -- Snapshot lintas service: rekap absensi & cuti dibekukan pada saat kalkulasi.
-  -- Tanpa ini, rekalkulasi memberi hasil berbeda ketika data hulu berubah.
+  -- Cross-service snapshot: the attendance and leave recaps are frozen at
+  -- calculation time. Without this, recalculating gives a different result
+  -- whenever the upstream data changes.
   attendance_snapshot_id uuid,
   leave_snapshot_id      uuid,
   snapshot_config        jsonb,
 
-  saga_id         uuid,                      -- korelasi ke payroll_saga (dok. 03, §5)
+  saga_id         uuid,                      -- correlation to payroll_saga (doc. 03, §5)
   progress_percent smallint NOT NULL DEFAULT 0,
   error_summary   jsonb,
   created_by      uuid,
@@ -845,7 +846,7 @@ CREATE TABLE runs (
   UNIQUE (tenant_id, run_number)
 );
 
--- Anti double-payroll: hanya satu run non-batal per (tenant, bulan, tipe)
+-- Anti double-payroll: only one non-cancelled run per (tenant, month, type)
 CREATE UNIQUE INDEX uq_run_active
   ON runs (tenant_id, period_month, run_type) WHERE status <> 'CANCELLED';
 
@@ -854,7 +855,7 @@ CREATE TABLE payslips (
   tenant_id         uuid NOT NULL,
   run_id            uuid NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
   employee_id       uuid NOT NULL,
-  employee_snapshot jsonb NOT NULL,          -- data karyawan saat penggajian, dibekukan
+  employee_snapshot jsonb NOT NULL,          -- employee data at payroll time, frozen
   working_days      numeric(5,2) NOT NULL DEFAULT 0,
   present_days      numeric(5,2) NOT NULL DEFAULT 0,
   absent_days       numeric(5,2) NOT NULL DEFAULT 0,
@@ -869,9 +870,9 @@ CREATE TABLE payslips (
   payment_status    text NOT NULL DEFAULT 'UNPAID',
   pdf_key           text,
   published_at      timestamptz,
-  calculation_trace jsonb,                   -- rincian langkah hitung untuk sengketa
+  calculation_trace jsonb,                   -- the calculation steps, for disputes
   created_at        timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (run_id, employee_id)               -- idempotensi saat worker melanjutkan setelah crash
+  UNIQUE (run_id, employee_id)               -- idempotency when the worker resumes after a crash
 );
 CREATE INDEX idx_payslip_employee ON payslips (tenant_id, employee_id, created_at DESC);
 
@@ -892,7 +893,7 @@ CREATE TABLE payslip_lines (
 
 CREATE TABLE statutory_configs (
   id         uuid PRIMARY KEY DEFAULT uuid_v7(),
-  tenant_id  uuid,                          -- NULL = default nasional
+  tenant_id  uuid,                          -- NULL = national default
   config_key text NOT NULL,                 -- PPH21_TER, BPJS_TK_RATE, PTKP, UMR
   effective  daterange NOT NULL,
   value      jsonb NOT NULL,
@@ -903,7 +904,7 @@ CREATE TABLE statutory_configs (
   )
 );
 
--- Saga state: transaksi terdistribusi payroll (dok. 03, §5)
+-- Saga state: the distributed payroll transaction (doc. 03, §5)
 CREATE TABLE payroll_saga (
   id             uuid PRIMARY KEY DEFAULT uuid_v7(),
   tenant_id      uuid NOT NULL,
@@ -922,7 +923,7 @@ CREATE INDEX idx_saga_stuck ON payroll_saga (timeout_at) WHERE status = 'RUNNING
 
 ---
 
-## 10. Service Domain Lainnya (ringkas)
+## 10. The Remaining Domain Services (in brief)
 
 ```sql
 -- =====================================================================
@@ -972,7 +973,7 @@ CREATE TABLE requisitions (
   id                 uuid PRIMARY KEY DEFAULT uuid_v7(),
   tenant_id          uuid NOT NULL,
   requisition_number text NOT NULL,
-  position_id        uuid,                  -- referensi lunak ke employee-service
+  position_id        uuid,                  -- soft reference into employee-service
   org_unit_id        uuid,
   headcount          smallint NOT NULL DEFAULT 1 CHECK (headcount > 0),
   filled_count       smallint NOT NULL DEFAULT 0,
@@ -1009,13 +1010,13 @@ CREATE TABLE applications (
   current_stage     text NOT NULL DEFAULT 'APPLIED',
   stage_entered_at  timestamptz NOT NULL DEFAULT now(),
   score             numeric(5,2),
-  hired_employee_id uuid,                   -- diisi setelah employee-service konfirmasi
+  hired_employee_id uuid,                   -- filled in once employee-service confirms
   version           integer NOT NULL DEFAULT 1,
   UNIQUE (requisition_id, candidate_id)
 );
 
 -- =====================================================================
--- relation_db  (data paling sensitif: ACL eksplisit per kasus)
+-- relation_db  (the most sensitive data: an explicit ACL per case)
 -- =====================================================================
 CREATE TABLE employee_issues (
   id              uuid PRIMARY KEY DEFAULT uuid_v7(),
@@ -1047,7 +1048,7 @@ CREATE TABLE case_acl (
   UNIQUE (case_id, user_id)
 );
 
--- Pembacaan pun diaudit di service ini, bukan hanya penulisan
+-- In this service reads are audited too, not only writes
 CREATE TABLE case_access_logs (
   id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   tenant_id  uuid NOT NULL,
@@ -1124,7 +1125,7 @@ CREATE TABLE development_plans (
   employee_id  uuid NOT NULL,
   period_year  smallint NOT NULL,
   career_goal  text,
-  appraisal_id uuid,                        -- referensi lunak ke performance-service
+  appraisal_id uuid,                        -- soft reference into performance-service
   mentor_id    uuid,
   status       text NOT NULL DEFAULT 'DRAFT',
   UNIQUE (tenant_id, employee_id, period_year)
@@ -1145,25 +1146,25 @@ CREATE TABLE development_activities (
 
 ---
 
-## 11. `reporting_db` — Read Model Lintas Service (CQRS)
+## 11. `reporting_db` — Cross-Service Read Model (CQRS)
 
-Dashboard membutuhkan data dari beberapa service sekaligus: jumlah hadir hari ini (attendance) berdasarkan departemen (employee) dikurangi yang sedang cuti (leave). Melakukan ini lewat agregasi gRPC berarti tiga panggilan pada setiap pembukaan halaman.
+The dashboard needs data from several services at once: today's headcount present (attendance) broken down by department (employee) minus those on leave (leave). Doing that through gRPC aggregation means three calls every time the page opens.
 
-Solusinya: `reporting-service` berlangganan seluruh event domain dan membangun tabel denormalisasi.
+The solution: `reporting-service` subscribes to every domain event and builds denormalised tables.
 
 ```sql
--- Satu baris per karyawan per hari, diisi dari event tiga service berbeda
+-- One row per employee per day, populated from the events of three different services
 CREATE TABLE rpt_daily_attendance (
   tenant_id      uuid NOT NULL,
   work_date      date NOT NULL,
   employee_id    uuid NOT NULL,
-  employee_name  text NOT NULL,             -- dari employee.*
+  employee_name  text NOT NULL,             -- from employee.*
   org_unit_id    uuid,
   org_unit_name  text,
-  status         text NOT NULL,             -- dari attendance.daily.computed
+  status         text NOT NULL,             -- from attendance.daily.computed
   late_minutes   integer NOT NULL DEFAULT 0,
   overtime_minutes integer NOT NULL DEFAULT 0,
-  leave_type_code text,                     -- dari leave.request.approved
+  leave_type_code text,                     -- from leave.request.approved
   updated_at     timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, work_date, employee_id)
 );
@@ -1194,7 +1195,7 @@ CREATE TABLE rpt_payroll_cost (
   PRIMARY KEY (tenant_id, period_month, org_unit_id)
 );
 
--- Read model dashboard tenant: satu baris per tenant, disegarkan event
+-- Tenant dashboard read model: one row per tenant, refreshed by events
 CREATE TABLE rpt_tenant_dashboard (
   tenant_id          uuid PRIMARY KEY,
   headcount_total    integer NOT NULL DEFAULT 0,
@@ -1215,9 +1216,10 @@ CREATE TABLE rpt_tenant_dashboard (
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
 
--- Read model dashboard tim: satu baris per unit organisasi.
--- Sengaja TANPA kolom biaya — manajer lini tidak berwenang atas data gaji,
--- sehingga kolomnya tidak ada sama sekali, bukan sekadar disembunyikan di API.
+-- Team dashboard read model: one row per organisational unit.
+-- Deliberately WITHOUT any cost column — a line manager has no authority over
+-- salary data, so the column does not exist at all rather than merely being
+-- hidden by the API.
 CREATE TABLE rpt_team_dashboard (
   tenant_id       uuid NOT NULL,
   org_unit_id     uuid NOT NULL,
@@ -1232,7 +1234,7 @@ CREATE TABLE rpt_team_dashboard (
   PRIMARY KEY (tenant_id, org_unit_id)
 );
 
--- Jejak event yang sudah diproyeksikan: mendeteksi lubang pada aliran event
+-- A trail of the events already projected: detects holes in the event stream
 CREATE TABLE projection_checkpoints (
   projection_name text PRIMARY KEY,
   last_event_id   uuid,
@@ -1243,24 +1245,24 @@ CREATE TABLE projection_checkpoints (
 );
 ```
 
-> **Konsekuensi yang harus dikomunikasikan ke pengguna:** angka pada dashboard bersifat *eventually consistent* — biasanya tertinggal 1–3 detik dari kejadian nyata. Untuk laporan yang memerlukan akurasi mutlak (rekap payroll untuk pelaporan pajak), `reporting-service` tidak dipakai; laporan diambil langsung dari service pemilik data.
+> **A consequence that has to be communicated to users:** the numbers on the dashboard are *eventually consistent* — usually 1–3 seconds behind what actually happened. For reports that require absolute accuracy (a payroll recap for tax filing), `reporting-service` is not used at all; the report is taken directly from the service that owns the data.
 
 ---
 
-## 12. Strategi Indexing & Partisi
+## 12. Indexing & Partitioning Strategy
 
-| Pola query | Service | Index |
-|------------|---------|-------|
-| Dashboard absensi harian per unit | reporting | `idx_rpt_daily_unit` |
-| Payroll menarik rekap periode | attendance | `idx_daily_payroll ... INCLUDE (...)` — index-only scan |
-| Inbox persetujuan atasan | leave | Partial index `WHERE status='PENDING'` |
-| Kalender cuti (rentang tanggal) | leave | GiST pada `daterange` |
-| Cari karyawan nama parsial | employee | GIN `gin_trgm_ops` |
-| Cari kandidat berdasarkan skill | recruitment | GIN `tsvector` |
-| Log absensi historis | attendance | Partisi bulanan + index lokal |
-| Deteksi replika basi | semua | `idx_employee_ref_stale` |
+| Query pattern | Service | Index |
+|---------------|---------|-------|
+| Daily attendance dashboard per unit | reporting | `idx_rpt_daily_unit` |
+| Payroll pulling the period recap | attendance | `idx_daily_payroll ... INCLUDE (...)` — index-only scan |
+| A manager's approval inbox | leave | Partial index `WHERE status='PENDING'` |
+| Leave calendar (date range) | leave | GiST on `daterange` |
+| Employee search by partial name | employee | GIN `gin_trgm_ops` |
+| Candidate search by skill | recruitment | GIN `tsvector` |
+| Historical attendance logs | attendance | Monthly partitions + local indexes |
+| Detecting a stale replica | all | `idx_employee_ref_stale` |
 
-**Otomatisasi partisi** (`attendance_db`), dijalankan tanggal 25 setiap bulan untuk bulan berikutnya:
+**Partition automation** (`attendance_db`), run on the 25th of every month for the month ahead:
 
 ```sql
 CREATE OR REPLACE FUNCTION ensure_punch_partition(p_month date) RETURNS void AS $$
@@ -1280,12 +1282,12 @@ END $$ LANGUAGE plpgsql;
 
 ---
 
-## 13. Migrasi Data dari Excel
+## 13. Migrating Data out of Excel
 
-Impor ditangani `reporting-service`? Tidak — impor menulis ke banyak domain, sehingga dijalankan sebagai **saga** yang dikoordinasi service khusus impor di dalam `api-gateway`, dengan staging di basis datanya sendiri.
+Is the import handled by `reporting-service`? No — an import writes into many domains, so it runs as a **saga** coordinated by a dedicated import service inside `api-gateway`, with staging in a database of its own.
 
 ```sql
--- import_db (dikelola import-orchestrator, bagian dari api-gateway)
+-- import_db (owned by import-orchestrator, part of api-gateway)
 CREATE TABLE import_batches (
   id          uuid PRIMARY KEY DEFAULT uuid_v7(),
   tenant_id   uuid NOT NULL,
@@ -1314,6 +1316,6 @@ CREATE TABLE import_rows (
 CREATE INDEX idx_import_rows_status ON import_rows (batch_id, status);
 ```
 
-**Alur impor:** unggah → parsing ke staging → pemetaan kolom → validasi per baris → pratinjau → commit per batch 500 baris ke service tujuan lewat gRPC → laporan galat yang dapat diperbaiki dan diunggah ulang.
+**The import flow:** upload → parse into staging → map the columns → validate row by row → preview → commit in batches of 500 rows to the destination service over gRPC → an error report that can be corrected and re-uploaded.
 
-Prinsip yang dipertahankan dari analisis referensi: **impor tidak boleh gagal total karena satu sel salah.** Ini pengalaman yang menentukan apakah pengguna Excel bersedia berpindah.
+The principle carried over from the reference-system analysis: **an import must never fail entirely because of one wrong cell.** That is the experience which decides whether an Excel user is willing to move at all.
