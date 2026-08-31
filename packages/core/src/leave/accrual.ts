@@ -1,39 +1,39 @@
 import { Prisma } from '@hrms/db';
 
 /**
- * Perolehan jatah cuti menurut metode akrual (dokumen 03 §4.1).
+ * Leave entitlement by accrual method (document 03 §4.1).
  *
- * Berkas ini menutup bug dari kelas yang sudah berulang di proyek ini: **nilai
- * enum yang dideklarasikan tetapi tidak pernah diproduksi siapa pun.**
+ * This file closes a bug of a class that has recurred in this project: **an
+ * enum value that is declared but never produced by anyone.**
  *
- * `AccrualMethod` punya lima nilai sejak migrasi pertama modul cuti, dan layar
- * jenis cuti mengizinkan HR memilih kelimanya. Tetapi `ensureBalance` memberikan
- * `defaultQuotaDays` PENUH apa pun metodenya. Akibatnya, tenant yang memilih:
+ * `AccrualMethod` has had five values since the leave module's first migration,
+ * and the leave type screen lets HR pick all five. But `ensureBalance` granted
+ * the FULL `defaultQuotaDays` whatever the method. So a tenant choosing:
  *
- *   - `MONTHLY_ACCRUAL` — karyawan yang masuk 10 Maret langsung menerima 12 hari
- *     pada hari pertamanya, bukan menabung satu hari per bulan. Ia dapat
- *     mengambil seluruhnya di bulan April lalu mengundurkan diri di bulan Mei,
- *     dan perusahaan membayar cuti yang belum diperoleh.
- *   - `ANNIVERSARY` — jatah seharusnya lahir pada ulang tahun masa kerja, sesuai
- *     UU Ketenagakerjaan Pasal 79 ayat (3): hak cuti tahunan timbul setelah 12
- *     bulan bekerja terus-menerus. Yang terjadi, jatahnya ada sejak 1 Januari
- *     bagi orang yang baru bekerja sebulan.
+ *   - `MONTHLY_ACCRUAL` — an employee joining on 10 March immediately received
+ *     12 days on their first day rather than accruing one a month. They could
+ *     take all of it in April and resign in May, and the company would have
+ *     paid for leave that was never earned.
+ *   - `ANNIVERSARY` — the allowance should be born on the service anniversary,
+ *     per Article 79(3) of the Labour Law: the right to annual leave arises
+ *     after 12 continuous months of work. What happened instead was that the
+ *     allowance existed from 1 January for someone who had worked a month.
  *
- * Tidak ada galat pada keduanya. Angkanya sekadar salah, dan salahnya berpihak
- * pada karyawan — sehingga tidak akan ada yang melaporkannya.
+ * Neither produced an error. The number was simply wrong, and wrong in the
+ * employee's favour — so nobody would ever report it.
  *
- * ## Bentuk perbaikannya: target, bukan tambahan
+ * ## The shape of the fix: a target, not an increment
  *
- * `entitlementAsOf` menjawab satu pertanyaan: **berapa hari yang SEHARUSNYA
- * sudah diperoleh orang ini pada tanggal ini.** Ia fungsi murni atas tanggal
- * masuk, bukan akumulasi dari pemanggilan sebelumnya.
+ * `entitlementAsOf` answers one question: **how many days this person SHOULD
+ * have earned by this date.** It is a pure function of the join date, not an
+ * accumulation of previous calls.
  *
- * Konsekuensinya penting untuk job berkala: rekonsiliasi menjadi idempoten dan
- * memperbaiki dirinya sendiri. Menjalankannya dua kali sehari tidak menggandakan
- * apa pun, dan job yang mati selama tiga bulan mengejar ketertinggalannya dalam
- * satu putaran. Akrual yang menambah "satu bulan" setiap kali dipanggil punya
- * dua kegagalan sekaligus: dua kali jalan berarti dua kali jatah, dan sekali
- * terlewat berarti jatah yang hilang selamanya tanpa jejak.
+ * The consequence matters for the periodic job: reconciliation becomes
+ * idempotent and self-correcting. Running it twice in a day duplicates nothing,
+ * and a job that was dead for three months catches up in a single round. An
+ * accrual that adds "one month" on every call has two failure modes at once:
+ * running twice means twice the allowance, and missing once means an allowance
+ * lost forever with no trace.
  */
 
 export type AccrualMethod =
@@ -47,28 +47,28 @@ const MONTHS_PER_YEAR = 12;
 
 export interface EntitlementInput {
   method: AccrualMethod;
-  /** Jatah setahun penuh menurut jenis cutinya. */
+  /** A full year's allowance for this leave type. */
   quotaDays: Prisma.Decimal;
-  /** Tanggal masuk kerja. Dasar seluruh perhitungan masa kerja. */
+  /** The join date. The basis of every length-of-service calculation. */
   joinDate: Date;
-  /** Tahun kalender baris saldonya. */
+  /** The calendar year of the balance row. */
   periodYear: number;
-  /** Tanggal penilaian — biasanya hari ini. */
+  /** The evaluation date — usually today. */
   asOf: Date;
 }
 
 /**
- * Berapa hari jatah yang sudah diperoleh pada `asOf`.
+ * How many days of allowance have been earned as of `asOf`.
  *
- * Selalu dihitung dalam UTC. Perbedaan zona waktu bergeser paling banyak satu
- * hari pada batas bulan, dan untuk jatah cuti tahunan itu tidak mengubah
- * apa pun — berbeda dengan batas hari kerja presensi, yang bergeser setiap hari
- * bagi setiap orang dan karena itu memang memakai zona waktu tenant.
+ * Always computed in UTC. A timezone difference shifts things by at most one
+ * day at a month boundary, and for an annual leave allowance that changes
+ * nothing — unlike an attendance working-day boundary, which shifts every day
+ * for every person and therefore does use the tenant's timezone.
  */
 export function entitlementAsOf(input: EntitlementInput): Prisma.Decimal {
   const { method, quotaDays, joinDate, periodYear, asOf } = input;
 
-  // Tidak berbasis kuota. Barisnya tetap ada supaya mutasinya punya tempat.
+  // Not quota-based. The row still exists so its movements have somewhere to go.
   if (method === 'UNLIMITED' || method === 'NONE') return new Prisma.Decimal(0);
 
   const periodStart = Date.UTC(periodYear, 0, 1);
@@ -76,60 +76,59 @@ export function entitlementAsOf(input: EntitlementInput): Prisma.Decimal {
   const join = utcMidnight(joinDate);
   const now = utcMidnight(asOf);
 
-  // Belum masuk kerja saat tahun itu berakhir.
+  // Had not joined yet by the time that year ended.
   if (join > periodEnd) return new Prisma.Decimal(0);
 
-  // Jatah penuh untuk seluruh tahun periodenya, **tidak bergantung pada
-  // `asOf`**. Ini perilaku yang sudah ada sejak awal dan sengaja TIDAK diubah
-  // menjadi prorata: mengubahnya akan memotong jatah orang-orang yang saldonya
-  // sudah terbentuk, dan prorata masuk-tengah-tahun adalah kebijakan tenant,
-  // bukan koreksi bug.
+  // The full allowance for the whole period year, **independent of `asOf`**.
+  // This is the behaviour that has existed from the start and is deliberately
+  // NOT changed to proration: changing it would cut the allowance of people
+  // whose balances already exist, and mid-year proration is a tenant policy,
+  // not a bug fix.
   //
-  // Ketidakbergantungan pada `asOf` itu penting, dan hampir hilang saat berkas
-  // ini ditulis. `runCarryOver` membuat baris tahun BERIKUTNYA, dan bila
-  // dijalankan pada 31 Desember maka `asOf` masih berada sebelum awal periode
-  // barunya. Penjaga "tahunnya belum mulai" yang berlaku untuk semua metode
-  // akan membuat baris itu lahir dengan jatah nol — dan karena `ANNUAL_GRANT`
-  // tidak tumbuh seiring waktu, tidak ada satu pun jalur yang akan
-  // memperbaikinya kemudian. Seluruh perusahaan memulai tahun tanpa jatah cuti,
-  // tanpa satu pun galat, hanya karena penutupan tahun dijalankan sehari lebih
-  // awal dari yang dibayangkan.
+  // That independence from `asOf` matters, and it was nearly lost while this
+  // file was being written. `runCarryOver` creates the NEXT year's rows, and if
+  // it runs on 31 December then `asOf` still sits before the start of the new
+  // period. A "the year has not started" guard applying to every method would
+  // make that row be born with a zero allowance — and because `ANNUAL_GRANT`
+  // does not grow over time, no path would ever fix it afterwards. The whole
+  // company would begin the year with no leave allowance, with not one error,
+  // purely because the year-end close ran a day earlier than imagined.
   if (method === 'ANNUAL_GRANT') return quotaDays;
 
-  // Tahunnya belum mulai — tidak ada yang dapat ditabung.
+  // The year has not started — there is nothing to accrue.
   if (now < periodStart) return new Prisma.Decimal(0);
 
-  // Penilaian tidak pernah melampaui akhir tahun periodenya. Tanpa batas ini,
-  // membuka saldo 2026 pada tahun 2028 akan menampilkan jatah dua tahun.
+  // Evaluation never runs past the end of the period year. Without this bound,
+  // opening a 2026 balance in 2028 would show two years' allowance.
   const evaluated = Math.min(now, periodEnd);
 
   switch (method) {
 
     case 'MONTHLY_ACCRUAL': {
-      // Satu per dua belas jatah untuk setiap bulan masa kerja yang GENAP
-      // terlewati di dalam tahun ini.
+      // One twelfth of the allowance for every WHOLE month of service that has
+      // elapsed within this year.
       //
-      // Yang dihitung adalah ulang-bulan tanggal masuk, bukan akhir bulan
-      // kalender. Karyawan yang masuk 10 Maret memperoleh jatah pertamanya
-      // pada 10 April, bukan 31 Maret — sehingga orang yang masuk tanggal 28
-      // tidak memperoleh hampir sebulan penuh secara cuma-cuma.
+      // What is counted is the monthiversary of the join date, not the end of a
+      // calendar month. An employee joining on 10 March earns their first
+      // instalment on 10 April, not 31 March — so someone joining on the 28th
+      // does not get almost a whole month for free.
       const months = monthiversariesBetween(join, Math.max(periodStart, join), evaluated);
 
-      // Batas dua belas bulan. Dengan penjepitan `from` ke awal tahun dan `to`
-      // ke akhir tahun di atas, batas ini TIDAK PERNAH tercapai hari ini — dan
-      // itu dinyatakan di sini alih-alih dibiarkan tampak seperti penjagaan
-      // yang bekerja. Uji mutasi mengonfirmasinya: menghapus `Math.min` tidak
-      // menggagalkan satu uji pun. Ia tetap dipasang karena yang menjaganya
-      // adalah penjepitan di dua tempat lain, dan penjepitan itulah yang akan
-      // dilonggarkan orang berikutnya yang menambahkan periode non-kalender.
+      // The twelve-month cap. With `from` clamped to the start of the year and
+      // `to` clamped to its end above, this cap is NEVER reached today — and
+      // that is stated here rather than left looking like a guard that works.
+      // Mutation testing confirms it: removing `Math.min` fails not one test.
+      // It stays because what guards this is the clamping in two other places,
+      // and that clamping is what the next person adding a non-calendar period
+      // will loosen.
       const capped = Math.min(months, MONTHS_PER_YEAR);
       return quotaDays.mul(capped).div(MONTHS_PER_YEAR);
     }
 
     case 'ANNIVERSARY': {
-      // Jatah penuh lahir pada ulang tahun masa kerja, dan tidak sedetik pun
-      // sebelum itu. Karyawan tahun pertama memperoleh NOL — persis yang
-      // dimaksud UU Ketenagakerjaan Pasal 79 ayat (3).
+      // The full allowance is born on the service anniversary, and not a second
+      // before. A first-year employee earns ZERO — exactly what Article 79(3)
+      // of the Labour Law means.
       const anniversary = anniversaryIn(join, periodYear);
       if (anniversary === null) return new Prisma.Decimal(0);
       return evaluated >= anniversary ? quotaDays : new Prisma.Decimal(0);
@@ -142,20 +141,20 @@ function utcMidnight(date: Date): number {
 }
 
 /**
- * Berapa ulang-bulan tanggal masuk yang jatuh dalam [from, to].
+ * How many monthiversaries of the join date fall within [from, to].
  *
- * Batas bawahnya INKLUSIF, dan itu bukan detail: bagi karyawan lama, 1 Januari
- * adalah ulang-bulan yang sah bila ia masuk tanggal 1. Mengecualikannya membuat
- * setiap karyawan bertanggal-masuk 1 kehilangan satu bulan setiap tahun —
- * selisih satu hari jatah yang tidak akan pernah dapat dijelaskan asalnya.
+ * The lower bound is INCLUSIVE, and that is not a detail: for a long-serving
+ * employee, 1 January is a valid monthiversary if they joined on the 1st.
+ * Excluding it would make every employee with a join date of the 1st lose a
+ * month every year — a one-day discrepancy nobody could ever explain.
  *
- * Tanggal masuk itu sendiri BUKAN ulang-bulan: hari pertama bekerja belum
- * memperoleh apa pun.
+ * The join date itself is NOT a monthiversary: the first day of work has earned
+ * nothing yet.
  *
- * Tanggal 31 pada bulan yang lebih pendek jatuh ke hari terakhir bulan itu —
- * masuk 31 Januari berulang-bulan pada 28 (atau 29) Februari. Alternatifnya,
- * melompat ke 1 Maret, akan membuat bulan Februari seseorang tidak pernah
- * terhitung pada tahun tertentu.
+ * The 31st in a shorter month falls to that month's last day — joining on 31
+ * January has its monthiversary on 28 (or 29) February. The alternative,
+ * jumping to 1 March, would mean somebody's February never counted in a given
+ * year.
  */
 function monthiversariesBetween(join: number, from: number, to: number): number {
   const joinDay = new Date(join).getUTCDate();
@@ -163,8 +162,8 @@ function monthiversariesBetween(join: number, from: number, to: number): number 
 
   let cursor = clampedMonthiversary(start.getUTCFullYear(), start.getUTCMonth(), joinDay);
 
-  // Mundur sebulan bila ulang-bulan bulan ini jatuh sebelum `from`, supaya
-  // putaran berikutnya tidak melewatkannya.
+  // Step back a month when this month's monthiversary falls before `from`, so
+  // the next iteration does not skip it.
   while (cursor < from) {
     const c = new Date(cursor);
     cursor = clampedMonthiversary(c.getUTCFullYear(), c.getUTCMonth() + 1, joinDay);
@@ -172,7 +171,7 @@ function monthiversariesBetween(join: number, from: number, to: number): number 
 
   let count = 0;
   while (cursor <= to) {
-    // Hari pertama bekerja bukan ulang-bulan.
+    // The first day of work is not a monthiversary.
     if (cursor > join) count += 1;
     const c = new Date(cursor);
     cursor = clampedMonthiversary(c.getUTCFullYear(), c.getUTCMonth() + 1, joinDay);
@@ -182,16 +181,16 @@ function monthiversariesBetween(join: number, from: number, to: number): number 
 }
 
 function clampedMonthiversary(year: number, month: number, day: number): number {
-  // `month` boleh 12 atau lebih; Date.UTC menggulungnya ke tahun berikutnya.
+  // `month` may be 12 or more; Date.UTC rolls it into the next year.
   const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
   return Date.UTC(year, month, Math.min(day, lastDay));
 }
 
 /**
- * Ulang tahun masa kerja yang jatuh pada tahun kalender tertentu.
+ * The service anniversary falling within a given calendar year.
  *
- * `null` bila karyawan belum genap setahun bekerja pada tahun itu — ulang tahun
- * ke-nol bukan ulang tahun.
+ * `null` when the employee has not completed a full year by then — a zeroth
+ * anniversary is not an anniversary.
  */
 function anniversaryIn(join: number, periodYear: number): number | null {
   const joinDate = new Date(join);
@@ -200,11 +199,11 @@ function anniversaryIn(join: number, periodYear: number): number | null {
 }
 
 /**
- * Apakah metodenya bertambah seiring waktu di dalam satu tahun berjalan.
+ * Whether the method grows over time within a running year.
  *
- * Dipakai job berkala untuk menyaring baris yang perlu ditinjau ulang.
- * `ANNUAL_GRANT` tidak termasuk: jatahnya sudah penuh sejak baris dibuat, dan
- * memindainya setiap hari hanya menghasilkan selisih nol.
+ * Used by the periodic job to filter the rows that need re-examining.
+ * `ANNUAL_GRANT` is excluded: its allowance is full from the moment the row is
+ * created, and scanning it daily only produces a difference of zero.
  */
 export function accruesOverTime(method: AccrualMethod): boolean {
   return method === 'MONTHLY_ACCRUAL' || method === 'ANNIVERSARY';

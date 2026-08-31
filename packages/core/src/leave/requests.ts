@@ -10,48 +10,48 @@ import {
 } from './balance.ts';
 
 /**
- * Pengajuan dan persetujuan cuti (PLAN/12 F4).
+ * Leave requests and approvals (PLAN/12 P4).
  *
- * Alur saldonya sengaja tiga langkah, bukan dua:
+ * The balance flow is deliberately three steps, not two:
  *
- *   pengajuan  → HOLD    (`pending_days` naik)
- *   persetujuan → CONSUME (`pending_days` turun, `used_days` naik)
- *   penolakan / pembatalan → RELEASE (`pending_days` turun)
+ *   request              → HOLD    (`pending_days` rises)
+ *   approval             → CONSUME (`pending_days` falls, `used_days` rises)
+ *   rejection / cancellation → RELEASE (`pending_days` falls)
  *
- * Langkah HOLD itulah yang mencegah seseorang mengajukan tiga cuti dua hari di
- * atas saldo dua hari lalu menunggu ketiganya disetujui. Tanpa penahanan, setiap
- * pengajuan melihat saldo yang masih utuh karena belum ada satu pun yang
- * memotong — dan kelebihannya baru ketahuan saat persetujuan ketiga ditolak
- * basis data, setelah dua manajer terlanjur menyetujui.
+ * That HOLD step is what stops someone requesting three two-day leaves against
+ * a two-day balance and then waiting for all three to be approved. Without the
+ * hold, every request sees the balance still whole because nothing has deducted
+ * from it yet — and the excess only surfaces when the third approval is refused
+ * by the database, after two managers have already approved.
  */
 
 /**
- * Hari libur mingguan seorang karyawan, dibaca dari jadwalnya.
+ * An employee's weekly days off, read from their schedule.
  *
- * Kunci berupa tanggal ISO (`YYYY-MM-DD`); nilai `true` berarti hari itu
- * DIJADWALKAN LIBUR bagi orang ini. Tanggal yang tidak ada kuncinya jatuh ke
- * anggapan Senin–Jumat.
+ * Keyed by ISO date (`YYYY-MM-DD`); a value of `true` means that day is
+ * SCHEDULED OFF for this person. A date with no key falls back to the
+ * Monday–Friday assumption.
  */
 export type DayOffMap = ReadonlyMap<string, boolean>;
 
 /**
- * Berapa hari kerja dalam rentang, mengecualikan libur mingguan dan hari libur.
+ * How many working days fall in a range, excluding weekly days off and holidays.
  *
- * Sabtu dan Minggu hanyalah **anggapan terakhir**, bukan aturan. Anggapan itu
- * salah untuk sebagian besar tenant yang dituju produk ini: pabrik enam hari
- * kerja, ritel yang libur hari Senin, satpam tiga shift yang liburnya berputar.
- * Pada pabrik enam hari, mengajukan cuti Senin–Sabtu terpotong lima hari saldo
- * padahal enam hari kerja ditinggalkan — perusahaan kehilangan satu hari kerja
- * setiap kali, dan tidak ada yang menampakkannya karena angkanya tetap masuk
+ * Saturday and Sunday are only a **last-resort assumption**, not a rule. That
+ * assumption is wrong for most of the tenants this product targets: a six-day
+ * factory, a shop that closes on Mondays, three-shift security guards whose days
+ * off rotate. In a six-day factory, a Monday–Saturday request deducted five days
+ * of balance while six working days were missed — the company lost a working day
+ * every time, and nothing revealed it because the number still looked plausible.
  * akal.
  *
- * Yang benar ada di `attendance.schedules`: satu baris per karyawan per tanggal,
- * dengan `is_day_off` yang sudah dipakai modul presensi untuk memutuskan status
- * `DAY_OFF`. Cuti kini membaca sumber yang sama, sehingga presensi dan cuti
- * tidak dapat berbeda pendapat tentang hari mana yang hari kerja.
+ * The right answer lives in `attendance.schedules`: one row per employee per
+ * date, with an `is_day_off` the attendance module already uses to decide
+ * `DAY_OFF` status. Leave now reads the same source, so attendance and leave
+ * cannot disagree about which days are working days.
  *
- * Tanggal tanpa baris jadwal jatuh ke Senin–Jumat. Tenant yang belum
- * menjadwalkan apa pun karena itu tidak berubah perilakunya.
+ * A date with no schedule row falls back to Monday–Friday. A tenant who has not
+ * scheduled anything therefore sees no change in behaviour.
  */
 export function countWorkingDays(
   start: Date,
@@ -70,10 +70,10 @@ export function countWorkingDays(
     const scheduled = dayOffs.get(iso);
     const weekday = cursor.getUTCDay();
 
-    // Jadwal menang atas anggapan akhir pekan — ke DUA arah. Sabtu yang
-    // dijadwalkan masuk terhitung hari kerja; Senin yang dijadwalkan libur
-    // tidak. Membuat jadwal hanya dapat mengurangi hari kerja akan salah untuk
-    // pabrik enam hari, yang justru menambahnya.
+    // A schedule beats the weekend assumption — in BOTH directions. A Saturday
+    // scheduled on counts as a working day; a Monday scheduled off does not.
+    // Letting a schedule only reduce working days would be wrong for a six-day
+    // factory, which increases them instead.
     const isWorkDay = scheduled === undefined ? weekday !== 0 && weekday !== 6 : !scheduled;
 
     if (isWorkDay && !holidays.has(iso)) days += 1;
@@ -92,7 +92,7 @@ export interface SubmitInput {
   isHalfDay: boolean;
   reason: string;
   attachmentKey?: string | null | undefined;
-  /** Pengguna yang akan memutuskan. Alur berjenjang menyusul bila tenant butuh. */
+  /** The user who will decide. A tiered flow follows when a tenant needs one. */
   approverId: string;
 }
 
@@ -147,7 +147,7 @@ function toView(row: {
   };
 }
 
-/** Nomor pengajuan yang dapat dibaca manusia: `CUTI-2026-000123`. */
+/** A human-readable request number: `CUTI-2026-000123`. */
 async function nextRequestNumber(tx: TenantClient, tenantId: string, year: number): Promise<string> {
   const count = await tx.leaveRequest.count({
     where: { tenantId, requestNumber: { startsWith: `CUTI-${year}-` } },
@@ -156,12 +156,12 @@ async function nextRequestNumber(tx: TenantClient, tenantId: string, year: numbe
 }
 
 /**
- * Mengajukan cuti, sekaligus menahan saldonya.
+ * Requests leave, and holds its balance at the same time.
  *
- * Seluruhnya dalam satu transaksi. Penahanan saldo yang terpisah dari pembuatan
- * pengajuan akan meninggalkan salah satunya tanpa yang lain bila proses mati di
- * antaranya — dan keduanya sama buruknya: saldo tertahan tanpa pengajuan tidak
- * dapat dilepaskan siapa pun, pengajuan tanpa penahanan menghapus seluruh
+ * All in one transaction. A balance hold separate from creating the request
+ * would leave one without the other if the process died in between — and both
+ * are equally bad: a hold with no request cannot be released by anyone, and a
+ * request with no hold removes the entire point of holding.
  * gunanya penahanan.
  */
 export async function submitRequest(
@@ -180,17 +180,17 @@ export async function submitRequest(
   if (!type) throw new LeaveError('Jenis cuti tidak ditemukan atau tidak aktif', 'not_found');
 
   /**
-   * Lampiran wajib berarti BERKAS yang benar-benar terunggah.
+   * A mandatory attachment means a FILE that was genuinely uploaded.
    *
-   * Sebelum ini pemeriksaannya hanya `!input.attachmentKey` atas sebuah kolom
-   * teks bebas, dan layarnya menampilkan kotak isian bertuliskan "Nomor atau
-   * nama berkas surat dokter". Artinya syarat "wajib melampirkan surat dokter"
-   * dipenuhi dengan mengetik kata "ada".
+   * Before this the check was only `!input.attachmentKey` over a free-text
+   * column, and the screen showed an input box labelled "Number or name of the
+   * doctor's note file". Which means the requirement "a doctor's note is
+   * mandatory" was satisfied by typing the word "ada".
    *
-   * Untuk cuti sakit, surat dokter itulah satu-satunya hal yang membedakan cuti
-   * berbayar dari mangkir. Syarat yang menerima sembarang teks bukan syarat; ia
-   * kotak isian yang membuat semua pihak mengira ada bukti yang tersimpan.
-   */
+   * For sick leave, that doctor's note is the only thing separating paid leave
+   * from absence. A requirement that accepts arbitrary text is not a
+   * requirement; it is an input box that makes everyone believe evidence is
+   * stored.
   let attachmentId: string | null = null;
 
   if (type.requiresAttachment) {
@@ -200,18 +200,18 @@ export async function submitRequest(
         'invalid_state',
       );
     }
-    // Melempar bila kuncinya karangan, milik orang lain, atau sudah dipakai
-    // pengajuan lain.
+    // Throws when the key is fabricated, belongs to someone else, or has already
+    // been used by another request.
     attachmentId = (await claimAttachment(tx, tenantId, input.employeeId, input.attachmentKey)).id;
   } else if (input.attachmentKey) {
-    // Lampiran opsional tetap diperiksa kepemilikannya. Jenis cuti yang tidak
-    // mewajibkannya bukan alasan untuk menerima kunci milik orang lain.
+    // An optional attachment still has its ownership checked. A leave type that
+    // does not require one is no reason to accept someone else's key.
     attachmentId = (await claimAttachment(tx, tenantId, input.employeeId, input.attachmentKey)).id;
   }
 
-  // Masa kerja minimum. UU Ketenagakerjaan mensyaratkan 12 bulan untuk cuti
-  // tahunan, dan tenant dapat menetapkan lebih longgar tetapi tidak lebih ketat
-  // lewat `minServiceMonths`.
+  // Minimum length of service. The Labour Law requires 12 months for annual
+  // leave, and a tenant may set something more lenient but not stricter through
+  // `minServiceMonths`.
   const employee = await tx.employee.findFirst({
     where: { id: input.employeeId, tenantId },
     select: { joinDate: true },
@@ -234,9 +234,9 @@ export async function submitRequest(
   });
   const holidaySet = new Set(holidays.map((h) => h.date.toISOString().slice(0, 10)));
 
-  // Jadwal karyawan ini pada rentang yang diajukan. Hanya baris yang benar-benar
-  // ada yang diambil — ketiadaan baris berarti "pakai anggapan Senin–Jumat",
-  // bukan "hari libur".
+  // This employee's schedule over the requested range. Only rows that genuinely
+  // exist are fetched — the absence of a row means "use the Monday–Friday
+  // assumption", not "a day off".
   const schedules = await tx.schedule.findMany({
     where: {
       tenantId,
@@ -271,8 +271,8 @@ export async function submitRequest(
       actorUserId,
     );
 
-    // Validasi SETELAH lock diperoleh. Membacanya sebelum lock berarti
-    // memutuskan atas nilai yang mungkin sudah berubah.
+    // Validation AFTER the lock is held. Reading before the lock means deciding
+    // on a value that may already have changed.
     if (balance.availableDays < totalDays) {
       throw new LeaveError(
         `Saldo ${type.name} tidak mencukupi: tersisa ${balance.availableDays} hari, diminta ${totalDays} hari.`,
@@ -304,9 +304,9 @@ export async function submitRequest(
       include: { leaveType: { select: { name: true } } },
     });
   } catch (error) {
-    // Constraint EXCLUDE menolak tumpang tindih. Pesannya diterjemahkan di sini
-    // karena galat basis data mentah tidak dapat dibaca penggunanya, dan karena
-    // inilah satu-satunya tempat yang tahu bahwa yang dimaksud adalah cuti.
+    // The EXCLUDE constraint refuses an overlap. Its message is translated here
+    // because a raw database error cannot be read by its user, and because this
+    // is the only place that knows what is meant is leave.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError ||
       String(error).includes('excl_leave_overlap')
@@ -348,8 +348,8 @@ export async function submitRequest(
     });
   }
 
-  // Diadopsi setelah pengajuannya ada — pengunggahnya belum tahu id-nya saat
-  // mengunggah, sehingga lampiran selalu lahir yatim.
+  // Adopted after its request exists — the uploader does not know the id when
+  // they upload, so an attachment is always born an orphan.
   if (attachmentId) await attachToRequest(tx, tenantId, attachmentId, request.id);
 
   await publishEvent(tx, tenantId, {
@@ -373,16 +373,16 @@ export interface DecisionInput {
 }
 
 /**
- * Memutuskan pengajuan cuti.
+ * Deciding a leave request.
  *
- * Baris saldo dikunci SEBELUM status pengajuan diperiksa, dan urutan itu
- * disengaja. Lima puluh persetujuan simultan atas pengajuan yang sama akan
- * mengantre di lock saldo; yang pertama mengubah status menjadi APPROVED, dan
- * empat puluh sembilan sisanya membaca status itu setelah lock dilepas — lalu
- * berhenti karena statusnya bukan PENDING lagi.
+ * The balance row is locked BEFORE the request status is checked, and that
+ * order is deliberate. Fifty simultaneous approvals of the same request queue
+ * on the balance lock; the first changes the status to APPROVED, and the other
+ * forty-nine read that status once the lock is released — then stop, because it
+ * is no longer PENDING.
  *
- * Mengunci setelah memeriksa status akan membalik urutannya: lima puluh
- * transaksi sama-sama membaca PENDING, lalu antre menulis.
+ * Locking after checking the status would invert that: fifty transactions would
+ * all read PENDING, then queue up to write.
  */
 export async function decideRequest(
   tx: TenantClient,
@@ -397,32 +397,31 @@ export async function decideRequest(
   if (!request) throw new LeaveError('Pengajuan tidak ditemukan', 'not_found');
 
   /**
-   * Siapa yang boleh memutuskan.
+   * Who may decide.
    *
-   * Dua kegagalan kontrol ditutup di sini, dan keduanya ditemukan dengan
-   * mencobanya, bukan dengan membaca kode.
+   * Two control failures are closed here, and both were found by trying it, not
+   * by reading the code.
    *
-   * **`currentApproverId` ditulis tetapi tidak pernah dibaca.** Pengaju memilih
-   * penyetujunya, sistem mencatatnya, lalu mengabaikannya sepenuhnya: siapa pun
-   * pemegang `leave.request.approve` dapat memutuskan pengajuan siapa pun. Kolom
-   * itu hanya menghias kotak masuk.
+   * **`currentApproverId` was written but never read.** The requester picks
+   * their approver, the system records it, and then ignores it entirely: anyone
+   * holding `leave.request.approve` could decide anyone's request. That column
+   * merely decorated the inbox.
    *
-   * **Pengaju dapat menyetujui cutinya sendiri.** Seorang manajer yang memegang
-   * izin persetujuan — dan manajer memang memegangnya — dapat mengajukan cuti
-   * lalu menyetujuinya sendiri dalam dua klik. Tidak ada satu pun pemeriksaan di
-   * antaranya, dan hasilnya tidak dapat dibedakan dari persetujuan yang sah.
+   * **A requester could approve their own leave.** A manager holding the
+   * approval permission — and managers do hold it — could request leave and then
+   * approve it themselves in two clicks. There was not one check in between,
+   * and the result is indistinguishable from a legitimate approval.
    *
-   * Aturannya sekarang dua kalimat:
+   * The rule is now two sentences:
    *
-   *   1. Persetujuan diri sendiri DITOLAK, tanpa pengecualian. Tidak ada jalan
-   *      keluar bersyarat: jalan keluar bersyarat adalah lubang yang menunggu
-   *      keadaannya terpenuhi.
-   *   2. Yang bukan penyetuju yang ditunjuk tetap boleh memutuskan — HR harus
-   *      dapat menggantikan manajer yang sedang cuti atau sudah keluar, dan
-   *      sistem yang menuntut penyetuju yang tepat akan membekukan pengajuan
-   *      setiap kali seseorang berhenti bekerja. Tetapi penggantian itu
-   *      DICATAT, dan itulah nilainya: yang tidak dapat dicegah harus dapat
-   *      dilihat.
+   *   1. Self-approval is REFUSED, without exception. There is no conditional
+   *      escape hatch: a conditional escape hatch is a hole waiting for its
+   *      condition to be met.
+   *   2. Someone other than the designated approver may still decide — HR must
+   *      be able to stand in for a manager who is on leave or has left, and a
+   *      system demanding the exact approver would freeze requests every time
+   *      somebody resigns. But that substitution is RECORDED, and that is its
+   *      value: what cannot be prevented must be visible.
    */
   const actor = await tx.user.findFirst({
     where: { id: actorUserId, tenantId },
@@ -451,8 +450,8 @@ export async function decideRequest(
     ? await lockBalance(tx, tenantId, request.employeeId, request.leaveTypeId, periodYear)
     : null;
 
-  // Dibaca ULANG setelah lock. Nilai di `request` di atas berasal dari sebelum
-  // lock diperoleh, dan pada 50 permintaan simultan ia hampir pasti basi.
+  // Read AGAIN after the lock. The value in `request` above comes from before the
+  // lock was held, and across 50 simultaneous requests it is almost certainly stale.
   const fresh = await tx.leaveRequest.findFirst({
     where: { id: decision.requestId, tenantId },
     select: { status: true },
@@ -469,8 +468,8 @@ export async function decideRequest(
 
   if (balance) {
     if (decision.approve) {
-      // Penahanan menjadi pemakaian. Saldo tersedia tidak berubah pada langkah
-      // ini — ia sudah berkurang saat pengajuan.
+      // The hold becomes usage. The available balance does not change at this
+      // step — it already fell when the request was made.
       await tx.leaveBalance.update({
         where: { id: balance.id },
         data: {
@@ -523,10 +522,9 @@ export async function decideRequest(
     where: { requestId: request.id, decision: null },
     data: {
       decision: decision.approve ? 'APPROVED' : 'REJECTED',
-      // Penggantian ditandai di dalam komentarnya, bukan di kolom terpisah.
-      // Komentar inilah yang dibaca orang saat menelusuri kembali sebuah
-      // keputusan; penanda di kolom lain adalah penanda yang tidak akan
-      // terlihat oleh yang membacanya.
+      // The substitution is marked inside the comment, not in a separate column.
+      // This comment is what a person reads when tracing a decision back; a
+      // marker in another column is a marker its reader will never see.
       comment: menggantikan
         ? `[diputuskan bukan oleh penyetuju yang ditunjuk] ${decision.comment}`
         : decision.comment,
@@ -543,10 +541,10 @@ export async function decideRequest(
     after: {
       status: updated.status,
       comment: decision.comment,
-      // Yang tidak dapat dicegah harus dapat dilihat. HR yang menggantikan
-      // manajer yang sedang cuti adalah hal yang wajar; HR yang menggantikan
-      // manajer pada setiap pengajuan adalah pola yang perlu ditanyakan, dan
-      // pertanyaan itu hanya dapat diajukan bila datanya ada.
+      // What cannot be prevented must be visible. HR standing in for a manager
+      // who is on leave is normal; HR standing in on every single request is a
+      // pattern worth asking about, and that question can only be asked when the
+      // data exists.
       overrodeDesignatedApprover: menggantikan,
     },
   });
@@ -570,11 +568,11 @@ export async function decideRequest(
 }
 
 /**
- * Membatalkan pengajuan yang belum diputuskan, oleh pengajunya sendiri.
+ * Cancelling an undecided request, by the requester themselves.
  *
- * Penahanan saldonya dilepaskan. Tanpa pelepasan, saldo yang ditahan pengajuan
- * yang dibatalkan akan hilang sampai akhir tahun tanpa ada yang memakainya —
- * dan pemiliknya tidak punya cara mengetahui ke mana perginya.
+ * Its balance hold is released. Without the release, the balance held by a
+ * cancelled request would be lost until year end with nobody using it — and its
+ * owner would have no way of knowing where it went.
  */
 export async function cancelRequest(
   tx: TenantClient,
@@ -672,17 +670,17 @@ export interface LeaveOnDate {
 }
 
 /**
- * Cuti yang disetujui dan mencakup satu tanggal tertentu.
+ * The approved leave covering a particular date.
  *
- * Dipakai kalkulasi presensi harian supaya hari bercuti tidak dihitung alfa.
- * Tanpa ini, status `LEAVE` yang ada di tipe tidak pernah dihasilkan siapa pun,
- * dan seorang karyawan yang cutinya sudah disetujui tetap tercatat ABSENT —
- * lalu dipotong gajinya sebagai mangkir.
+ * Used by the daily attendance calculation so a day on leave is not counted
+ * absent. Without this, the `LEAVE` status present in the type is never produced
+ * by anyone, and an employee whose leave has been approved is still recorded
+ * ABSENT — and then docked pay as absent.
  *
- * Diletakkan di pintu depan modul cuti, bukan di-query langsung dari modul
- * presensi. Presensi tidak boleh tahu bentuk tabel cuti; ketika kelak modul cuti
- * dipecah menjadi service, yang berubah hanya isi fungsi ini.
- */
+ * Placed at the leave module's front door rather than queried directly from the
+ * attendance module. Attendance must not know the shape of the leave tables;
+ * when the leave module is eventually split into a service, only the body of
+ * this function changes.
 export async function leaveOnDate(
   tx: TenantClient,
   tenantId: string,

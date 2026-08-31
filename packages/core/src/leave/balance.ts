@@ -2,27 +2,27 @@ import { Prisma, writeAudit, type TenantClient } from '@hrms/db';
 import { accruesOverTime, entitlementAsOf, type AccrualMethod } from './accrual.ts';
 
 /**
- * Saldo cuti dan mutasinya (dokumen 02 §8, dokumen 03 §4.1).
+ * Leave balances and their movements (document 02 §8, document 03 §4.1).
  *
- * Seluruh berkas ini berputar pada satu kalimat pada DoD Fase 4:
+ * This whole file turns on one sentence in the Phase 4 DoD:
  *
- *   "50 persetujuan simultan pada saldo 2 hari → tepat 1 berhasil"
+ *   "50 simultaneous approvals against a 2-day balance → exactly 1 succeeds"
  *
- * Yang menjamin itu adalah tiga lapis yang saling menopang:
+ * What guarantees that is three layers holding each other up:
  *
- *   1. `SELECT … FOR UPDATE` pada baris saldo — transaksi kedua MENUNGGU di
- *      sini, tidak membaca nilai basi lalu memutuskan atas dasar itu.
- *   2. Validasi yang membaca nilai SETELAH lock diperoleh.
- *   3. `chk_no_negative_balance` di basis data — jaring pengaman terakhir.
+ *   1. `SELECT … FOR UPDATE` on the balance row — the second transaction WAITS
+ *      here rather than reading a stale value and deciding on it.
+ *   2. Validation that reads the value AFTER the lock is held.
+ *   3. `chk_no_negative_balance` in the database — the last safety net.
  *
- * Lapis ketiga tetap dipasang meski dua lapis pertama sudah benar, dan itu
- * bukan kehati-hatian berlebih: ia yang bertahan ketika seseorang menambahkan
- * jalur tulis baru enam bulan dari sekarang dan lupa mengambil lock-nya.
+ * The third layer stays even though the first two are correct, and that is not
+ * excessive caution: it is what survives when someone adds a new write path six
+ * months from now and forgets to take the lock.
  *
- * Yang TIDAK dipakai: pengecekan optimistis berbasis `version`. Untuk saldo,
- * kalah balapan berarti pengguna diminta mencoba lagi — dan pada persetujuan
- * cuti massal di akhir bulan, "coba lagi" berarti manajer menekan tombol yang
- * sama lima kali tanpa tahu mengapa.
+ * What is NOT used: an optimistic check based on `version`. For a balance,
+ * losing the race means asking the user to try again — and during a bulk leave
+ * approval at month end, "try again" means a manager pressing the same button
+ * five times without knowing why.
  */
 
 export class LeaveError extends Error {
@@ -63,7 +63,7 @@ export interface BalanceView {
   usedDays: number;
   pendingDays: number;
   expiredDays: number;
-  /** Dibaca dari kolom GENERATED, tidak pernah dihitung ulang di sini. */
+  /** Read from the GENERATED column, never recomputed here. */
   availableDays: number;
 }
 
@@ -102,19 +102,19 @@ function toView(row: BalanceRow): BalanceView {
 }
 
 /**
- * Membaca saldo, termasuk kolom `available_days` yang dihitung basis data.
+ * Reads a balance, including the `available_days` column the database computes.
  *
- * Query mentah, bukan Prisma, semata karena kolom GENERATED tidak dapat
- * dideklarasikan di model Prisma. Menghitung ulang rumusnya di TypeScript akan
- * menghasilkan dua sumber kebenaran yang pasti berbeda pada hari seseorang
- * menambahkan jenis mutasi baru.
+ * A raw query rather than Prisma purely because a GENERATED column cannot be
+ * declared in a Prisma model. Recomputing its formula in TypeScript would give
+ * two sources of truth that are certain to differ the day someone adds a new
+ * kind of movement.
  */
 export async function readBalances(
   tx: TenantClient,
   tenantId: string,
   employeeId: string,
   periodYear: number,
-  /** Tanggal penilaian akrual untuk jenis yang belum punya baris. */
+  /** The accrual evaluation date for types that have no row yet. */
   asOf: Date = new Date(),
 ): Promise<BalanceView[]> {
   const rows = await tx.$queryRaw<BalanceRow[]>`
@@ -133,23 +133,23 @@ export async function readBalances(
   const withRow = new Set(existing.map((balance) => balance.leaveTypeId));
 
   /**
-   * Jenis cuti yang belum punya baris ikut ditampilkan, dengan jatah yang
-   * SEHARUSNYA sudah diperoleh.
+   * Leave types with no row yet are shown too, with the allowance that SHOULD
+   * already have been earned.
    *
-   * Ditemukan lewat penelusuran alur pilot. Baris saldo dibuat saat dibutuhkan
-   * (`ensureBalance`), dan yang membutuhkannya adalah pengajuan cuti — bukan
-   * pembacaan. Akibatnya karyawan yang belum pernah mengajukan cuti membuka
-   * layar "Cuti Saya" dan melihat **daftar kosong.**
+   * Found by walking the pilot flow. Balance rows are created when needed
+   * (`ensureBalance`), and what needs them is a leave request — not a read. So
+   * an employee who has never requested leave opens the "My Leave" screen and
+   * sees an **empty list.**
    *
-   * Kosong tidak terbaca sebagai "belum ada mutasi". Ia terbaca sebagai "saya
-   * tidak punya hak cuti" — dan orang yang menyimpulkan itu tidak akan
-   * mengajukan cuti, lalu jatahnya hangus di akhir tahun tanpa pernah dipakai.
+   * Empty does not read as "no movements yet". It reads as "I have no leave
+   * entitlement" — and someone who concludes that will not request leave, and
+   * their allowance then expires at year end never having been used.
    *
-   * Baris TIDAK dibuat di sini, dan itu disengaja: ini jalur baca, dan GET yang
-   * menulis akan gagal pada replika baca sekaligus membuat membuka halaman
-   * menjadi tindakan yang mengubah data. Angkanya dihitung dari fungsi yang sama
-   * yang dipakai `ensureBalance` saat kelak benar-benar menyimpannya, sehingga
-   * yang dilihat sekarang persis yang akan tersimpan nanti.
+   * Rows are NOT created here, and that is deliberate: this is a read path, and
+   * a GET that writes fails on a read replica while also turning opening a page
+   * into an action that changes data. The figure is computed by the same
+   * function `ensureBalance` uses when it eventually stores it, so what is seen
+   * now is exactly what will be stored later.
    */
   const employee = await tx.employee.findFirst({
     where: { id: employeeId, tenantId },
@@ -176,9 +176,9 @@ export async function readBalances(
     });
 
     belum.push({
-      // Belum punya baris, jadi belum punya id. String kosong dipilih alih-alih
-      // id palsu: pemanggil yang memakainya untuk memutasi saldo akan gagal
-      // seketika, bukan menulis ke baris milik orang lain.
+      // No row yet, so no id. An empty string is chosen over a fake id: a caller
+      // that uses it to move a balance fails immediately rather than writing
+      // into somebody else's row.
       id: '',
       employeeId,
       leaveTypeId: type.id,
@@ -199,16 +199,16 @@ export async function readBalances(
 }
 
 /**
- * Mengunci baris saldo dan mengembalikan keadaannya setelah terkunci.
+ * Locks the balance row and returns its state once locked.
  *
- * `FOR UPDATE` inilah lapis pertama. Transaksi kedua yang meminta baris yang
- * sama akan berhenti di sini sampai transaksi pertama selesai, lalu membaca
- * nilai yang SUDAH memperhitungkan perubahan transaksi pertama.
+ * This `FOR UPDATE` is the first layer. A second transaction asking for the
+ * same row stops here until the first finishes, then reads a value that ALREADY
+ * accounts for the first transaction's change.
  *
- * Tanpa ini, dua transaksi sama-sama membaca "tersedia 2 hari", sama-sama
- * menyimpulkan cukup, dan sama-sama menulis — menghasilkan saldo minus yang
- * hanya tertahan oleh constraint, dan tertahan sebagai galat basis data yang
- * tidak dapat dijelaskan kepada penggunanya.
+ * Without it, two transactions both read "2 days available", both conclude that
+ * is enough, and both write — producing a negative balance held back only by the
+ * constraint, and held back as a database error that cannot be explained to the
+ * user.
  */
 export async function lockBalance(
   tx: TenantClient,
@@ -217,8 +217,8 @@ export async function lockBalance(
   leaveTypeId: string,
   periodYear: number,
 ): Promise<BalanceView | null> {
-  // Dua langkah karena `FOR UPDATE` tidak dapat dipakai bersama JOIN pada
-  // sebagian bentuk query; yang perlu dikunci hanya baris saldonya.
+  // Two steps because `FOR UPDATE` cannot be used with a JOIN in some query
+  // shapes; what needs locking is only the balance row.
   const locked = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT id FROM "leave".leave_balances
     WHERE tenant_id = ${tenantId}::uuid
@@ -243,7 +243,7 @@ export async function lockBalance(
 export interface LedgerEntry {
   balanceId: string;
   entryType: LedgerEntryType;
-  /** Positif menambah saldo tersedia, negatif menguranginya. */
+  /** Positive adds to the available balance, negative subtracts from it. */
   days: number;
   referenceType?: string | undefined;
   referenceId?: string | undefined;
@@ -252,11 +252,11 @@ export interface LedgerEntry {
 }
 
 /**
- * Menulis satu baris buku besar.
+ * Writes one ledger row.
  *
- * Dipanggil pada SETIAP perubahan saldo, tanpa kecuali. Fungsi yang mengubah
- * kolom saldo tanpa memanggil ini adalah bug, meski angkanya benar — karena
- * saldo yang benar tanpa riwayat tidak dapat dipertahankan dalam perselisihan.
+ * Called on EVERY balance change, without exception. A function that changes a
+ * balance column without calling this is a bug even when its figure is right —
+ * because a correct balance with no history cannot be defended in a dispute.
  */
 export async function writeLedger(
   tx: TenantClient,
@@ -278,12 +278,11 @@ export async function writeLedger(
 }
 
 /**
- * Memastikan baris saldo ada untuk kombinasi karyawan-jenis-tahun.
+ * Ensures a balance row exists for an employee-type-year combination.
  *
- * Dibuat saat dibutuhkan, bukan lewat job massal di awal tahun. Job massal
- * untuk seluruh karyawan × seluruh jenis cuti menghasilkan ribuan baris yang
- * sebagian besar tidak pernah dipakai, dan tetap saja meleset untuk karyawan
- * yang masuk pada bulan Maret.
+ * Created on demand rather than by a bulk job at the start of the year. A bulk
+ * job for every employee × every leave type produces thousands of rows most of
+ * which are never used, and still misses the employee who joins in March.
  */
 export async function ensureBalance(
   tx: TenantClient,
@@ -292,7 +291,7 @@ export async function ensureBalance(
   leaveTypeId: string,
   periodYear: number,
   actorUserId?: string,
-  /** Tanggal penilaian akrual. Disuntikkan agar dapat diuji. */
+  /** The accrual evaluation date. Injected so it can be tested. */
   asOf: Date = new Date(),
 ): Promise<BalanceView> {
   const type = await tx.leaveType.findFirst({
@@ -318,13 +317,13 @@ export async function ensureBalance(
 
   const existing = await lockBalance(tx, tenantId, employeeId, leaveTypeId, periodYear);
 
-  // Baris yang sudah ada IKUT DIREKONSILIASI, bukan dikembalikan apa adanya.
+  // An existing row IS RECONCILED, not returned as it stands.
   //
-  // Tanpa ini, akrual bulanan hanya benar pada hari baris itu dibuat. Karyawan
-  // yang barisnya lahir bulan Maret akan selamanya melihat jatah bulan Maret,
-  // karena tidak ada satu pun jalur yang menyentuhnya lagi — dan job berkala
-  // tidak dapat menutupinya sendirian, sebab job yang belum sempat jalan
-  // meninggalkan angka basi tepat pada saat seseorang mengajukan cuti.
+  // Without this, monthly accrual is only right on the day the row was created.
+  // An employee whose row was born in March would see March's allowance forever,
+  // because no path touches it again — and the periodic job cannot cover that
+  // alone, since a job that has not run yet leaves a stale figure exactly when
+  // someone requests leave.
   if (existing) return reconcileEntitlement(tx, tenantId, existing, method, target, actorUserId);
 
   const created = await tx.leaveBalance.create({
@@ -361,14 +360,14 @@ function grantNote(method: AccrualMethod, periodYear: number, days: number): str
 }
 
 /**
- * Menaikkan `entitled_days` ke target akrual, bila memang perlu naik.
+ * Raises `entitled_days` to the accrual target, when it needs raising.
  *
- * **Tidak pernah menurunkan.** Jatah yang sudah diberikan mungkin sudah dipakai,
- * dan menariknya kembali menghasilkan saldo minus yang ditolak
- * `chk_no_negative_balance` — kegagalan yang muncul pada orang berikutnya yang
- * mengajukan cuti, bukan pada perubahan yang menyebabkannya. Kuota yang turun
- * atau tanggal masuk yang dikoreksi mundur adalah keputusan HR, dan jalurnya
- * `adjustBalance`, yang meminta alasan dan meninggalkan jejak audit.
+ * **Never lowers it.** An allowance already granted may already have been used,
+ * and pulling it back produces a negative balance refused by
+ * `chk_no_negative_balance` — a failure that appears for the next person to
+ * request leave, not on the change that caused it. A reduced quota or a join
+ * date corrected backwards is an HR decision, and its path is `adjustBalance`,
+ * which asks for a reason and leaves an audit trail.
  */
 async function reconcileEntitlement(
   tx: TenantClient,
@@ -413,7 +412,7 @@ export interface AdjustInput {
   reason: string;
 }
 
-/** Penyesuaian manual saldo oleh HR. Selalu diaudit dan selalu berbuku besar. */
+/** A manual balance adjustment by HR. Always audited and always ledgered. */
 export async function adjustBalance(
   tx: TenantClient,
   tenantId: string,
@@ -471,7 +470,7 @@ export async function adjustBalance(
   return updated!;
 }
 
-/** Riwayat mutasi satu saldo, terbaru dahulu. */
+/** The movement history of one balance, newest first. */
 export async function readLedger(
   tx: TenantClient,
   tenantId: string,
@@ -494,8 +493,8 @@ export async function readLedger(
   });
 
   return rows.map((row) => ({
-    // `BigInt` tidak dapat diserialkan ke JSON. Diubah di sini, di batas modul,
-    // bukan diserahkan ke setiap pemanggil untuk diingat.
+    // `BigInt` cannot be serialised to JSON. Converted here, at the module
+    // boundary, rather than left for every caller to remember.
     id: String(row.id),
     entryType: row.entryType,
     days: Number(row.days),
@@ -512,18 +511,18 @@ export interface CarryOverResult {
 }
 
 /**
- * Menutup tahun: membawa sisa saldo ke tahun berikutnya, sisanya hangus.
+ * Closes the year: carries the remaining balance into the next one, the rest expires.
  *
- * Dua mutasi, bukan satu. Sisa 10 hari dengan batas carry-over 6 menghasilkan
- * `carried_over_days = 6` pada tahun baru DAN `expired_days = 4` pada tahun
- * lama — bukan sekadar 6 yang muncul entah dari mana.
+ * Two movements, not one. 10 days left with a carry-over cap of 6 produces
+ * `carried_over_days = 6` in the new year AND `expired_days = 4` in the old
+ * one — not merely a 6 appearing from nowhere.
  *
- * Perbedaannya penting saat karyawan bertanya ke mana perginya empat hari itu.
- * Saldo yang hilang tanpa baris buku besar tidak dapat dijelaskan siapa pun,
- * dan pertanyaan itu selalu datang pada bulan Januari.
+ * The difference matters when an employee asks where those four days went. A
+ * balance that disappears without a ledger row cannot be explained by anyone,
+ * and that question always comes in January.
  *
- * Idempoten: menjalankannya dua kali tidak menggandakan apa pun, karena
- * `expired_days` yang sudah terisi menandai tahun itu sudah ditutup.
+ * Idempotent: running it twice duplicates nothing, because an `expired_days`
+ * that is already filled marks that year as closed.
  */
 export async function runCarryOver(
   tx: TenantClient,
@@ -553,8 +552,8 @@ export async function runCarryOver(
   const result: CarryOverResult = { employees: 0, carriedOver: 0, expired: 0 };
 
   for (const row of rows) {
-    // Tahun yang sudah ditutup dilewati. Tanpa penjaga ini, menjalankan job dua
-    // kali akan membawa sisa yang sama ke tahun berikutnya untuk kedua kalinya.
+    // A year already closed is skipped. Without this guard, running the job
+    // twice would carry the same remainder into the next year a second time.
     if (!row.expired_days.isZero()) continue;
 
     const available = Number(row.available_days);
@@ -609,8 +608,8 @@ export async function runCarryOver(
         ...(actorUserId ? { actorUserId } : {}),
       });
 
-      // Sisi tahun lama juga ditandai, supaya jumlah kolomnya tetap konsisten
-      // dan tahun itu terhitung sudah ditutup.
+      // The old year's side is marked too, so its column totals stay consistent
+      // and that year counts as closed.
       await tx.leaveBalance.update({
         where: { id: row.id },
         data: {
@@ -634,30 +633,30 @@ export async function runCarryOver(
 }
 
 export interface AccrualResult {
-  /** Baris saldo yang ditinjau. */
+  /** The balance rows examined. */
   reviewed: number;
-  /** Baris yang jatahnya bertambah. */
+  /** The rows whose allowance grew. */
   accrued: number;
-  /** Total hari yang ditambahkan. */
+  /** Total days added. */
   days: number;
 }
 
 /**
- * Meninjau ulang seluruh saldo tahun berjalan yang jatahnya tumbuh seiring waktu.
+ * Re-examines every running-year balance whose allowance grows over time.
  *
- * Dijalankan berkala oleh worker. Yang dilakukannya sama persis dengan yang
- * dilakukan `ensureBalance` saat seseorang mengajukan cuti — bedanya hanya
- * cakupan: job ini menyentuh semua orang, sehingga angka di layar saldo sudah
- * benar sebelum ada yang mengajukan apa pun.
+ * Run periodically by the worker. What it does is exactly what `ensureBalance`
+ * does when someone requests leave — the only difference is reach: this job
+ * touches everyone, so the figure on the balance screen is already right before
+ * anyone requests anything.
  *
- * Idempoten karena membandingkan TARGET, bukan menambahkan jatah. Menjalankannya
- * dua kali sehari menghasilkan selisih nol pada putaran kedua; job yang mati
- * selama tiga bulan mengejar seluruh ketertinggalannya dalam satu putaran.
+ * Idempotent because it compares against a TARGET rather than adding an
+ * allowance. Running it twice in a day gives a difference of zero on the second
+ * round; a job dead for three months catches up entirely in one round.
  *
- * Hanya menyentuh baris yang SUDAH ADA. Membuat baris untuk setiap karyawan ×
- * setiap jenis cuti akan menghasilkan ribuan baris yang sebagian besar tidak
- * pernah dipakai — dan `ensureBalance` sudah menghitung dengan benar pada baris
- * yang lahir kemudian, berapa pun bulan kelahirannya.
+ * Touches EXISTING rows only. Creating a row for every employee × every leave
+ * type would produce thousands of rows most of which are never used — and
+ * `ensureBalance` already computes correctly for a row born later, whatever
+ * month it is born in.
  */
 export async function runAccrual(
   tx: TenantClient,
@@ -687,9 +686,9 @@ export async function runAccrual(
       AND b.period_year = ${periodYear}
       AND t.accrual_method IN ('MONTHLY_ACCRUAL', 'ANNIVERSARY')
       AND t.is_active = true
-      -- Karyawan yang sudah keluar berhenti menabung jatah. Tanpa penyaring
-      -- ini, orang yang resign bulan Maret tetap memperoleh jatah sampai
-      -- Desember, dan angkanya muncul lagi saat perhitungan pesangon.
+      -- An employee who has left stops accruing. Without this filter, someone
+      -- who resigned in March keeps earning through December, and the figure
+      -- resurfaces in their severance calculation.
       AND e.status = 'ACTIVE'
   `;
 
