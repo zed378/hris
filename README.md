@@ -4,11 +4,11 @@ Multi-tenant HRIS for Indonesian SMEs. A modular monolith built to be split into
 services if — and only if — a measurable trigger appears.
 
 The full blueprint lives in [`PLAN/`](PLAN/). The one that decides day-to-day
-work: **[`PLAN/12-Rencana-Eksekusi-Tim-Kecil.md`](PLAN/12-Rencana-Eksekusi-Tim-Kecil.md)**
+work: **[`PLAN/12-Small-Team-Execution-Plan.md`](PLAN/12-Small-Team-Execution-Plan.md)**
 — phases, gates, and the reasoning behind every architectural decision.
 
 Current state is tracked honestly, bugs included, in
-**[`PLAN/13-Status-Implementasi.md`](PLAN/13-Status-Implementasi.md)**.
+**[`PLAN/13-Implementation-Status.md`](PLAN/13-Implementation-Status.md)**.
 
 > The product interface is in Indonesian, because its users are Indonesian HR
 > staff. Code, comments, and documentation are in English. Do not translate
@@ -195,7 +195,7 @@ alarm that gets ignored when it is right.
 
 No `DROP`, `RENAME`, or `TRUNCATE`. Enforced by
 `ops/scripts/lint-migrations.mjs`. The full rules and the deprecation ladder are
-in [`PLAN/09`](PLAN/09-Strategi-Migrasi-Non-Destruktif.md).
+in [`PLAN/09`](PLAN/09-Non-Destructive-Migration-Strategy.md).
 
 RLS is written by hand in migrations — Prisma does not generate it. Every table
 with a `tenant_id` **must** have a policy; a CI test reads the PostgreSQL
@@ -252,7 +252,7 @@ the reverse) fails the build.
 ## What works
 
 Tracked in detail, with every bug found and how it was proven, in
-[`PLAN/13`](PLAN/13-Status-Implementasi.md). In outline:
+[`PLAN/13`](PLAN/13-Implementation-Status.md). In outline:
 
 - **Platform** — multi-tenancy with fail-closed RLS, self-service registration,
   roles and permissions, per-user grant/deny, audit trail, transactional outbox,
@@ -285,4 +285,4 @@ Tracked in detail, with every bug found and how it was proven, in
 - **Support sessions** (PLAN/07 §6). Until they exist, the answer to "how does
   support look at customer data?" is **they cannot** — not a temporary back door.
 
-Order and gates are in [`PLAN/12`](PLAN/12-Rencana-Eksekusi-Tim-Kecil.md) §6.
+Order and gates are in [`PLAN/12`](PLAN/12-Small-Team-Execution-Plan.md) §6.

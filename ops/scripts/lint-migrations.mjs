@@ -146,7 +146,7 @@ function main() {
       console.error(`    ✗ ${v.rule}`);
       console.error(`      ${v.hint}\n`);
     }
-    console.error('Aturan lengkap: PLAN/09-Strategi-Migrasi-Non-Destruktif.md\n');
+    console.error('Aturan lengkap: PLAN/09-Non-Destructive-Migration-Strategy.md\n');
     return 1;
   }
 
