@@ -20,6 +20,7 @@
     "@hrms/core": "workspace:*",
     "@hrms/db": "workspace:*",
     "@hrms/observability": "workspace:*",
+    "nats": "^2.29.3",
     "pg-boss": "^12.27.0"
   },
   "devDependencies": {

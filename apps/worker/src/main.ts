@@ -2,10 +2,10 @@ import { log } from '@hrms/observability';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { config as loadEnv } from 'dotenv';
-import { PgBoss } from 'pg-boss';
 import { disconnectAll } from '@hrms/db';
 import { EventTopic } from '@hrms/contracts';
-import { countStuck, pumpOnce, type OutboxEnvelope } from './outbox-pump.ts';
+import { createBroker } from './broker.ts';
+import { countStuck, pumpOnce } from './outbox-pump.ts';
 import { runContractReminders } from './contract-reminders.ts';
 import { runPhotoRetention } from './photo-retention.ts';
 import { runLeaveAccrual } from './leave-accrual.ts';
@@ -31,34 +31,17 @@ const POLL_INTERVAL_MS = 2000;
 
 async function main(): Promise<void> {
   /**
-   * pg-boss uses the owner role, and that is a deliberate exception.
+   * The broker is chosen by configuration (PLAN/14 stage 7).
    *
-   * It manages its own schema — creating tables, indexes, and functions in
-   * `pgboss` on first run and whenever its version rises. That demands DDL
-   * rights `hrms_worker` does not have, and granting them would give a runtime
-   * role the right to create tables anywhere.
-   *
-   * The consequence worth knowing: this connection is NOT bound by the worker
-   * role's `statement_timeout`. The `pgboss` schema holds not one `tenant_id`
-   * column, so RLS does not apply there and nothing is bypassed — but a job
-   * hanging here will not be cut off by the database, and only `boss.stop()`
-   * will end it.
+   * pg-boss unless `BROKER_URL` says otherwise, which means the ordinary
+   * deployment gains no new container and no new failure mode. Everything below
+   * is written against the interface, so the choice is the only line that knows
+   * which one is running.
    */
-  const boss = new PgBoss({
-    connectionString: process.env['DATABASE_URL']!,
-    schema: 'pgboss',
-  });
+  const broker = createBroker();
+  await broker.start(Object.values(EventTopic));
 
-  boss.on('error', (error: unknown) => log.error({ scope: 'pg-boss', error }));
-  await boss.start();
-
-  // pg-boss 12 requires a queue to be created explicitly before use. Creating
-  // them here — from the same topic catalogue the publisher uses — means a new
-  // topic cannot reach production without its queue coming along. Idempotent, so
-  // it is safe to run on every startup.
-  for (const topic of Object.values(EventTopic)) {
-    await boss.createQueue(topic);
-  }
+  log.info({ scope: 'worker', event: 'broker-ready', kind: broker.kind });
 
   /**
    * Consumer registration.
@@ -68,7 +51,7 @@ async function main(): Promise<void> {
    * For email, its idempotency lives in the `dedupeKey` on notification_logs —
    * not in a hope that a message will never be resent.
    *
-   * A handling failure does NOT throw. Throwing would make pg-boss retry, and
+   * A handling failure does NOT throw. Throwing would make the broker retry, and
    * retrying a genuinely wrong email address only produces the same failure over
    * and over. The failure is recorded on its own row, where it can be seen and
    * acted on.
@@ -76,22 +59,15 @@ async function main(): Promise<void> {
   for (const [topic, consumer] of Object.entries(CONSUMERS) as Array<[EventTopic, Consumer]>) {
     if (consumer.kind === 'drain') {
       // Drained with no effect. Its reason is in the consumer catalogue, not here.
-      await boss.work(topic, async () => {});
+      await broker.subscribe(topic, async () => {});
       continue;
     }
 
-    await boss.work(topic, async (jobs) => {
-      for (const job of jobs) {
-        // The pump wraps every event: `{ tenantId, correlationId, payload }`. The
-        // business payload is one level inside, not at the root of `job.data`.
-        const envelope = job.data as OutboxEnvelope;
-        if (!envelope?.tenantId || !envelope.payload) continue;
-
-        try {
-          await consumer.run(envelope);
-        } catch (error) {
-          log.error({ scope: 'consumer', topic, jobId: job.id, error });
-        }
+    await broker.subscribe(topic, async (envelope) => {
+      try {
+        await consumer.run(envelope);
+      } catch (error) {
+        log.error({ scope: 'consumer', topic, error });
       }
     });
   }
@@ -101,7 +77,7 @@ async function main(): Promise<void> {
     if (!running) return;
     running = false;
     log.info({ scope: 'worker', event: 'shutdown', signal });
-    await boss.stop({ graceful: true });
+    await broker.stop();
     await disconnectAll();
     process.exit(0);
   };
@@ -206,7 +182,7 @@ async function main(): Promise<void> {
 
   while (running) {
     try {
-      const stats = await pumpOnce(boss);
+      const stats = await pumpOnce(broker);
       if (stats.published > 0 || stats.failed > 0) {
         log.info({ scope: 'outbox', ...stats });
       }

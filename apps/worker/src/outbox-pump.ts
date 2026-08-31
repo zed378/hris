@@ -1,4 +1,4 @@
-import type { PgBoss } from 'pg-boss';
+import type { Broker } from './broker.ts';
 import { withOutboxPump } from '@hrms/db';
 
 /**
@@ -49,7 +49,14 @@ export interface OutboxEnvelope<T = Record<string, unknown>> {
   payload: T;
 }
 
-export async function pumpOnce(boss: PgBoss): Promise<PumpStats> {
+/**
+ * The destination is an interface, not pg-boss (PLAN/14 stage 7).
+ *
+ * The outbox is the part that must survive a change of broker: it is what makes
+ * a job impossible to lose and impossible to fire for a write that rolled back,
+ * and no broker provides that on its own. Only where the row goes changes.
+ */
+export async function pumpOnce(broker: Broker): Promise<PumpStats> {
   const stats: PumpStats = { published: 0, failed: 0 };
 
   const rows = await withOutboxPump((tx) =>
@@ -72,7 +79,7 @@ export async function pumpOnce(boss: PgBoss): Promise<PumpStats> {
         correlationId: row.correlation_id,
         payload: row.payload as Record<string, unknown>,
       };
-      await boss.send(row.topic, envelope);
+      await broker.publish(row.topic, envelope);
 
       await withOutboxPump(
         (tx) => tx.$executeRaw`

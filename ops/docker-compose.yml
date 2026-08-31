@@ -201,6 +201,42 @@ services:
       retries: 10
 
   # ---------------------------------------------------------------------------
+  # BROKER — NATS JetStream (PLAN/14 §9.1)
+  #
+  # Only started with `--profile broker`, and off by default. pg-boss on the
+  # application database remains the supported configuration: it is one fewer
+  # system to keep alive, and PLAN/12 N7 rates the chance of it becoming a
+  # bottleneck as low.
+  #
+  # What would change that is fan-out rather than throughput — with more than one
+  # service, more than one consumer wants each event, and pg-boss models a job
+  # queue rather than a topic. Until that is measured, adding a broker would be a
+  # permanent operational dependency bought with nothing.
+  #
+  # NATS over RabbitMQ for the same reason PLAN/12 chose PostgreSQL for
+  # everything: a single static binary, no separate runtime, no management plugin
+  # to secure. Kafka is not a candidate — its operational weight exceeds that of
+  # the whole application.
+  #
+  # The transactional outbox stays either way. It is what makes an event
+  # impossible to lose and impossible to fire for a write that rolled back, and
+  # no broker provides that on its own.
+  # ---------------------------------------------------------------------------
+  nats:
+    image: nats:alpine
+    container_name: hrms-nats
+    restart: unless-stopped
+    profiles: ['broker']
+    command: ['-js', '-sd', '/data']
+    volumes:
+      - hrms-nats:/data
+    healthcheck:
+      test: ['CMD', 'nats-server', '--help']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
   # PROXY — one public origin (PLAN/14 §7)
   #
   # Only started with `--profile split`. Without it the backend serves everything
@@ -362,6 +398,9 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
+      # Empty means pg-boss on the application database, which is the default
+      # and the supported configuration. Set it to move events onto the broker.
+      BROKER_URL: ${BROKER_URL:-}
       NODE_ENV: production
       # pg-boss manages its own queue schema, so it needs DDL rights.
       DATABASE_URL: postgresql://hrms_owner:${POSTGRES_PASSWORD:-hrms_dev_password}@postgres:5432/${POSTGRES_DB:-hrms}
@@ -454,6 +493,7 @@ services:
         done
 
 volumes:
+  hrms-nats:
   hrms-pgdata:
   hrms-backups:
   hrms-storage:

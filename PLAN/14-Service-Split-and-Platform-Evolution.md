@@ -360,7 +360,7 @@ next one to be started.
 | 4 | ~~**A hard internal boundary**~~ — **done**, see §10.4 | Authorization behind one RPC-shaped function, still in-process, with a lint rule keeping it that way. | Yes |
 | 5 | ~~**Split database roles**~~ — **done**, see §10.5 | `hrms_auth` with its own grant matrix, asserted by CI. | Yes |
 | 6 | ~~**Extract the auth container**~~ — **built**, see §10.6 | Own image, own deploy, own database role. Opt-in via `AUTH_SERVICE_URL`. | Yes, in practice — see §10.6 |
-| 7 | **Broker** | Outbox pump targets the broker instead of pg-boss job tables. | Yes, the outbox is unchanged |
+| 7 | ~~**Broker**~~ — **built, and off**, see §10.7 | The pump publishes through an interface; NATS JetStream is opt-in, pg-boss remains the default. | Yes, the outbox is unchanged |
 | 8 | **Split frontend from backend** | See §11. | Hard |
 
 ### 10.1 Stage 1 as built
@@ -622,6 +622,45 @@ cookie serialisation, and the error envelope.
 - **Not load-tested.** The remote call adds a round trip per authenticated
   request, mitigated by the permission cache, and neither has been measured under
   load.
+
+### 10.7 Stage 7 as built — a capability, deliberately switched off
+
+The outbox pump publishes through a `Broker` interface. NATS JetStream is
+implemented and tested; **pg-boss remains the default and nothing about the
+ordinary deployment changes.**
+
+That is the whole shape of this stage, and the restraint is the point. §9.1 lists
+what would justify a broker — fan-out across services, queue traffic competing
+with application traffic, retention pressure — and **none of it has been
+measured**. Unlike Redis, which fixed a correctness bug that already existed in
+any multi-replica deployment, a broker fixes nothing that is currently broken.
+Adopting one now would add a permanent operational dependency for a one- or
+two-person team, which is exactly what `PLAN/12` §3.2 argues against.
+
+So the seam exists, the implementation exists, seven tests exercise it against a
+real NATS, and `BROKER_URL` is empty. When the trigger fires, the work is a
+configuration change rather than a project.
+
+**The transactional outbox is untouched**, which is why this was tractable at
+all. Its value — an event that can neither be lost nor fire for a write that
+rolled back — is something no broker provides on its own. Only the pump's
+destination moved.
+
+**NATS over RabbitMQ**, for the reason `PLAN/12` chose PostgreSQL for everything:
+operational weight. A single static binary, no separate runtime, no management
+plugin to secure. Kafka is not a candidate; §9.1 already says its weight exceeds
+the whole application's.
+
+**Two bugs found by running it against a real broker**, neither visible to a
+fake:
+
+- The consumer was fetched with a configuration object where the API takes a
+  *name*. The symptom was silence — publishing succeeded, the stream held the
+  message, and the subscriber was simply never called. Five delivery tests timed
+  out at thirty seconds each with no error from either side.
+- The stream used `workqueue` retention, which permits only **one** consumer per
+  subject and deletes each message on acknowledgement — forbidding the very
+  fan-out that §9.1 gives as the reason to want a broker. Now `limits`.
 
 ---
 
