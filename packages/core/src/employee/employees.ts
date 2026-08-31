@@ -11,18 +11,19 @@ import {
 } from './pii.ts';
 
 /**
- * Modul karyawan (PLAN/12 Fase 2).
+ * The employee module (PLAN/12 Phase 2).
  *
- * Dua hal yang membentuk seluruh berkas ini:
+ * Two things shape this whole file:
  *
- * 1. **PII tidak pernah didekripsi tanpa alasan.** Setiap fungsi menerima
- *    `canUnmask` secara eksplisit, bukan membacanya dari konteks global. Parameter
- *    yang harus diisi memaksa pemanggilnya memutuskan; nilai dari konteks akan
- *    diam-diam benar di satu tempat dan diam-diam salah di tempat berikutnya.
+ * 1. **PII is never decrypted without a reason.** Every function takes
+ *    `canUnmask` explicitly rather than reading it from a global context. A
+ *    parameter that has to be filled in forces its caller to decide; a value
+ *    from context would be silently right in one place and silently wrong in the
+ *    next.
  *
- * 2. **Riwayat penempatan tidak pernah ditimpa** (P13). Mutasi menutup periode
- *    berjalan dan membuka baris baru, sehingga "siapa kepala departemen ini bulan
- *    Maret lalu" tetap dapat dijawab tahun depan.
+ * 2. **Assignment history is never overwritten** (P13). A transfer closes the
+ *    current period and opens a new row, so "who headed this department last
+ *    March" is still answerable next year.
  */
 
 export class EmployeeError extends Error {
@@ -43,12 +44,12 @@ export interface ActorContext {
 }
 
 /**
- * Masukan data karyawan.
+ * The employee data input.
  *
- * Setiap field opsional menyertakan `| undefined` secara eksplisit karena
- * `exactOptionalPropertyTypes` aktif. Itu membedakan "kolom tidak dikirim"
- * dari "kolom sengaja dikosongkan" — pada data karyawan keduanya berarti hal
- * yang berbeda: yang pertama tidak mengubah apa pun, yang kedua menghapus.
+ * Every optional field includes `| undefined` explicitly because
+ * `exactOptionalPropertyTypes` is on. That distinguishes "the field was not
+ * sent" from "the field was deliberately cleared" — and on employee data the two
+ * mean different things: the first changes nothing, the second deletes.
  */
 export interface EmployeeInput {
   employeeNumber: string;
@@ -69,11 +70,11 @@ export interface EmployeeInput {
 }
 
 /**
- * Perubahan sebagian atas data karyawan.
+ * A partial change to employee data.
  *
- * Bukan `Partial<EmployeeInput>`: dengan `exactOptionalPropertyTypes`, `Partial`
- * hanya menandai properti boleh tidak ada, sedangkan objek hasil parse Zod
- * membawa properti yang ada tetapi bernilai `undefined`. Tipe ini menerima
+ * Not `Partial<EmployeeInput>`: with `exactOptionalPropertyTypes`, `Partial`
+ * only marks a property as possibly absent, while an object parsed by Zod
+ * carries properties that are present but `undefined`. This type accepts both.
  * keduanya.
  */
 export type EmployeeUpdate = {
@@ -104,12 +105,12 @@ const PII_SELECT = {
 } as const;
 
 /**
- * Daftar karyawan.
+ * The employee list.
  *
- * `canUnmask` hampir selalu `false` di sini, dan itu memang jalur yang benar:
- * daftar adalah layar yang paling sering dibuka dan paling jarang membutuhkan
- * nomor identitas lengkap. Dengan kolom tersamar tersimpan, jalur ini tidak
- * menyentuh kunci enkripsi sama sekali.
+ * `canUnmask` is almost always `false` here, and that is the right path: the
+ * list is the screen opened most often and the one least often needing a full
+ * identity number. With the masked columns stored, this path does not touch the
+ * encryption key at all.
  */
 export async function listEmployees(
   tx: TenantClient,
@@ -156,8 +157,8 @@ export async function listEmployees(
         joinDate: true,
         version: true,
         ...PII_SELECT,
-        // Hanya penempatan yang sedang berjalan. Indeks unik parsial menjamin
-        // paling banyak ada satu, sehingga `[0]` di bawah aman.
+        // Only the currently running assignment. A partial unique index guarantees
+        // there is at most one, so the `[0]` below is safe.
         employments: {
           where: { effectiveTo: null },
           select: {
@@ -239,7 +240,7 @@ export async function getEmployee(
   };
 }
 
-/** Membentuk kolom tersimpan dari masukan mentah. */
+/** Builds the stored columns from the raw input. */
 function piiColumns(input: EmployeeInput) {
   const nationalId = preparePii(input.nationalId, maskNationalId, 'NIK');
   const taxId = preparePii(input.taxId, maskTaxId, 'NPWP');
@@ -283,9 +284,9 @@ export async function createEmployee(
     select: { id: true },
   });
 
-  // Jejak audit sengaja TIDAK memuat nilai PII, bahkan yang tersamar. Tabel audit
-  // disimpan tujuh tahun dan dibaca oleh peran yang lebih luas daripada yang boleh
-  // melihat data karyawan; menyalin PII ke sana membatalkan seluruh kerja di pii.ts.
+  // The audit trail deliberately holds NO PII value, not even a masked one. The
+  // audit table is kept for seven years and read by a broader set of roles than
+  // may see employee data; copying PII there voids all of the work in pii.ts.
   await writeAudit(tx, tenantId, {
     action: 'employee.created',
     entityType: 'employee',
@@ -307,12 +308,12 @@ export async function createEmployee(
 }
 
 /**
- * Memperbarui karyawan dengan penguncian optimistis.
+ * Updates an employee with optimistic locking.
  *
- * `expectedVersion` datang dari data yang dibaca klien. Bila tidak cocok, berarti
- * ada yang menyimpan lebih dulu — dan menimpanya berarti perubahan orang itu
- * hilang tanpa seorang pun tahu (dok. 03 §4.6). Grid ala Excel membuat ini bukan
- * kasus langka: dua HR menyunting daftar yang sama adalah hari kerja biasa.
+ * `expectedVersion` comes from the data the client read. A mismatch means
+ * somebody saved first — and overwriting them means their change disappears
+ * without anyone knowing (doc. 03 §4.6). The Excel-like grid makes this no rare
+ * case: two HR staff editing the same list is an ordinary working day.
  */
 export async function updateEmployee(
   tx: TenantClient,
@@ -361,8 +362,8 @@ export async function updateEmployee(
     entityId: employeeId,
     actorUserId: ctx.actorUserId,
     before: { fullName: before.fullName, status: before.status },
-    // Hanya nama kolom PII yang dicatat, bukan nilainya — cukup untuk menjawab
-    // "siapa mengubah rekening siapa dan kapan" tanpa menyimpan nomornya.
+    // Only the PII column names are recorded, not their values — enough to answer
+    // "who changed whose account and when" without storing the number.
     after: {
       fullName: input.fullName ?? before.fullName,
       status: input.status ?? before.status,
@@ -377,10 +378,10 @@ export async function updateEmployee(
 }
 
 /**
- * Mencari karyawan berdasarkan NIK tanpa mendekripsi apa pun.
+ * Finds an employee by national ID without decrypting anything.
  *
- * Inilah gunanya indeks buta: pencarian dilakukan atas HMAC, dan basis data tidak
- * pernah melihat NIK dalam bentuk yang dapat dibaca.
+ * This is what the blind index is for: the search runs over an HMAC, and the
+ * database never sees the national ID in a readable form.
  */
 export async function findByNationalId(
   tx: TenantClient,

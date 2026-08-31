@@ -2,17 +2,17 @@ import { Prisma, writeAudit, type TenantClient } from '@hrms/db';
 import { checkFormula } from './formula.ts';
 
 /**
- * Komponen gaji dan struktur gaji per karyawan (PLAN/12 F5).
+ * Salary components and per-employee salary structures (PLAN/12 P5).
  *
- * Dua penjagaan yang dilakukan di sini, dan keduanya mencegah kegagalan yang
- * baru terlihat pada tanggal 25 ketika seribu slip harus keluar besok:
+ * Two guards live here, and both prevent a failure that only appears on the 25th
+ * when a thousand payslips are due tomorrow:
  *
- *   1. **Formula diperiksa saat DISIMPAN**, bukan saat run berjalan. Formula
- *      yang merujuk variabel tidak dikenal ditolak di layar konfigurasi.
- *   2. **Siklus ketergantungan ditolak.** Komponen A yang memakai B yang
- *      memakai A akan membuat perhitungan berputar tanpa henti — dan pada run
- *      seribu karyawan, "berputar tanpa henti" berarti seluruh proses payroll
- *      berhenti tanpa satu pun slip terbit.
+ *   1. **A formula is validated when SAVED**, not when the run happens. A
+ *      formula referencing an unknown variable is refused on the configuration
+ *      screen.
+ *   2. **Dependency cycles are refused.** Component A using B using A would make
+ *      the calculation loop forever — and on a thousand-employee run, "loop
+ *      forever" means the whole payroll process stops with not one payslip issued.
  */
 
 export class ComponentError extends Error {
@@ -26,29 +26,29 @@ export class ComponentError extends Error {
 }
 
 /**
- * Variabel yang tersedia bagi formula.
+ * The variables available to a formula.
  *
- * Daftar ini adalah kontrak antara layar konfigurasi dan mesin perhitungan.
- * Menambahkan variabel di sini tanpa menyediakannya di `buildScope` akan
- * meloloskan formula yang lalu gagal saat run — yaitu tepat kegagalan yang
- * pemeriksaan formula ini ada untuk mencegahnya.
+ * This list is the contract between the configuration screen and the calculation
+ * engine. Adding a variable here without providing it in `buildScope` would let
+ * through a formula that then fails during a run — precisely the failure this
+ * formula validation exists to prevent.
  */
 export const BASE_VARIABLES = [
-  /** Hari kerja terjadwal pada periode ini. */
+  /** Scheduled working days in this period. */
   'HARI_KERJA',
-  /** Hari hadir menurut rekap presensi. */
+  /** Days present according to the attendance recap. */
   'HARI_HADIR',
-  /** Hari tidak hadir tanpa keterangan. */
+  /** Days absent with no explanation. */
   'HARI_ALFA',
-  /** Hari cuti tanpa gaji. */
+  /** Days of unpaid leave. */
   'HARI_CUTI_TANPA_GAJI',
-  /** Menit keterlambatan terakumulasi. */
+  /** Accumulated minutes late. */
   'MENIT_TERLAMBAT',
-  /** Menit lembur terakumulasi. */
+  /** Accumulated minutes of overtime. */
   'MENIT_LEMBUR',
-  /** Masa kerja dalam bulan, pada akhir periode. */
+  /** Length of service in months, at the end of the period. */
   'MASA_KERJA_BULAN',
-  /** Jumlah hari kalender dalam periode. */
+  /** The number of calendar days in the period. */
   'HARI_KALENDER',
 ] as const;
 
@@ -66,7 +66,7 @@ export interface ComponentInput {
   sortOrder: number;
 }
 
-/** Variabel yang tersedia bagi sebuah komponen: variabel dasar + kode komponen lain. */
+/** The variables available to a component: the base variables plus other component codes. */
 export async function availableVariables(
   tx: TenantClient,
   tenantId: string,
@@ -94,17 +94,17 @@ export async function upsertComponent(
     const check = checkFormula(input.expression ?? '', variables);
 
     if (!check.ok) {
-      // Ditolak DI SINI, bukan saat run. Formula yang salah ditemukan pada
-      // tanggal 25 berarti seribu slip tertahan sampai seseorang memperbaikinya.
+      // Refused HERE, not during a run. A bad formula found on the 25th means a
+      // thousand payslips held up until somebody fixes it.
       throw new ComponentError(
         `Formula tidak sah: ${check.error?.message ?? 'tidak dapat dibaca'}`,
         'invalid_formula',
       );
     }
 
-    // Komponen yang merujuk dirinya sendiri sudah tertolak lewat `exceptCode`,
-    // tetapi siklus tidak langsung — A→B→A — baru terlihat setelah seluruh
-    // grafnya diperiksa. Itu dilakukan di bawah, setelah barisnya tersimpan.
+    // A component referencing itself is already refused through `exceptCode`, but
+    // an indirect cycle — A→B→A — only appears once the whole graph is examined.
+    // That happens below, after its row is stored.
   }
 
   if (input.calcMethod === 'PERCENTAGE') {
@@ -154,15 +154,15 @@ export async function upsertComponent(
 }
 
 /**
- * Menolak siklus ketergantungan antar komponen.
+ * Refuses dependency cycles between components.
  *
- * A memakai B, B memakai A. Perhitungannya tidak akan pernah selesai, dan pada
- * run seribu karyawan itu berarti seluruh proses payroll berhenti tanpa satu
- * pun slip terbit — pada tanggal ketika slip itu paling dibutuhkan.
+ * A uses B, B uses A. Its calculation would never finish, and on a
+ * thousand-employee run that means the whole payroll process stops with not one
+ * payslip issued — on the date those payslips are needed most.
  *
- * Diperiksa setiap kali komponen disimpan, bukan saat run. Siklus terbentuk
- * dari SATU perubahan, dan itulah momen paling murah untuk menolaknya: yang
- * menyimpannya masih ada di layar dan masih ingat apa yang baru ia ubah.
+ * Checked every time a component is saved, not during a run. A cycle is formed
+ * by ONE change, and that is the cheapest moment to refuse it: whoever saved it
+ * is still on the screen and still remembers what they just changed.
  */
 export async function assertNoCycles(tx: TenantClient, tenantId: string): Promise<void> {
   const components = await tx.payrollComponent.findMany({
@@ -212,11 +212,11 @@ export async function assertNoCycles(tx: TenantClient, tenantId: string): Promis
 }
 
 /**
- * Mengurutkan komponen sesuai ketergantungannya.
+ * Orders components by their dependencies.
  *
- * `sortOrder` yang ditetapkan admin dipakai sebagai pemecah seri, bukan sebagai
- * urutan utama. Admin yang memberi nomor urut salah akan menghasilkan komponen
- * yang dihitung sebelum yang dijadikan dasarnya — dan hasilnya nol, bukan galat.
+ * The `sortOrder` an admin sets is used as a tie-breaker, not as the primary
+ * order. An admin numbering them wrongly would have a component computed before
+ * the one it is based on — and the result is zero, not an error.
  */
 export function orderComponents<
   T extends { code: string; calcMethod: string; expression: string | null; baseComponentCode: string | null; sortOrder: number },
@@ -266,11 +266,11 @@ export interface SalaryAssignment {
 }
 
 /**
- * Menetapkan nilai komponen untuk seorang karyawan, menutup baris sebelumnya.
+ * Sets a component's value for an employee, closing the previous row.
  *
- * Baris lama DITUTUP, tidak ditimpa (P13). Kenaikan gaji bulan Juli tidak boleh
- * mengubah slip bulan Juni — dan slip Juni harus tetap dapat dihitung ulang
- * dengan angka yang berlaku saat itu, misalnya ketika ada koreksi presensi.
+ * The old row is CLOSED, not overwritten (P13). A July raise must not change a
+ * June payslip — and the June payslip must remain recomputable with the figures
+ * that applied then, for instance when an attendance correction arrives.
  */
 export async function assignSalary(
   tx: TenantClient,
@@ -305,8 +305,8 @@ export async function assignSalary(
       );
     }
 
-    // Ditutup sehari sebelum yang baru berlaku, sehingga tidak ada hari yang
-    // dicakup dua baris sekaligus maupun hari yang tidak tercakup sama sekali.
+    // Closed the day before the new one takes effect, so no day is covered by two
+    // rows at once and no day is left uncovered.
     const closeAt = new Date(input.effectiveFrom);
     closeAt.setUTCDate(closeAt.getUTCDate() - 1);
 
@@ -334,8 +334,8 @@ export async function assignSalary(
     entityType: 'salary_structure',
     entityId: created.id,
     actorUserId,
-    // Nilai gaji TIDAK dicatat di jejak audit, hanya kolomnya. Jejak audit
-    // dibaca lebih banyak orang daripada struktur gaji itu sendiri.
+    // Salary values are NOT recorded in the audit trail, only their column names.
+    // The audit trail is read by more people than the salary structure itself.
     before: open ? { adaNilaiSebelumnya: true } : { adaNilaiSebelumnya: false },
     after: {
       employeeId: input.employeeId,
@@ -347,7 +347,7 @@ export async function assignSalary(
   return created;
 }
 
-/** Nilai komponen yang berlaku bagi seorang karyawan pada satu tanggal. */
+/** The component values in force for an employee on one date. */
 export async function salaryAt(
   tx: TenantClient,
   tenantId: string,

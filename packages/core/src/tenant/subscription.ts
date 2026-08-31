@@ -2,22 +2,22 @@ import { EventTopic } from '@hrms/contracts';
 import { publishEvent, writeAudit, type TenantClient } from '@hrms/db';
 
 /**
- * Aktivasi dan penonaktifan modul secara mandiri (PLAN/12 F6).
+ * Self-service module activation and deactivation (PLAN/12 P6).
  *
- * Sifat yang menanggung seluruh beban DoD Fase 6:
+ * The property carrying the whole weight of the Phase 6 DoD:
  *
- *   **Menonaktifkan modul menyembunyikan menu dan menolak API-nya, tetapi DATA
- *   TETAP UTUH dan pulih saat diaktifkan kembali.**
+ *   **Disabling a module hides its menu and refuses its API, but the DATA STAYS
+ *   INTACT and returns when it is enabled again.**
  *
- * Karena itu penonaktifan menulis status `DISABLED`, bukan menghapus baris —
- * dan tidak pernah menyentuh satu pun tabel modulnya. Ini penerapan aturan M4
- * dokumen 09 (tidak ada penghapusan data di produksi) pada kasus yang paling
- * mudah salah: pelanggan yang berhenti berlangganan presensi selama tiga bulan
- * lalu kembali harus menemukan seluruh riwayat presensinya masih ada.
+ * So disabling writes a `DISABLED` status rather than deleting the row — and it
+ * never touches one of that module's tables. This is rule M4 of document 09 (no
+ * data deletion in production) applied to the case easiest to get wrong: a
+ * customer who stops subscribing to attendance for three months and then comes
+ * back must find their entire attendance history still there.
  *
- * Kegagalan sebaliknya — menghapus data saat modul dinonaktifkan — tidak dapat
- * dipulihkan, tidak terlihat sampai pelanggan kembali, dan hampir pasti
- * mengakhiri hubungan dengan pelanggan itu.
+ * The opposite failure — deleting data when a module is disabled — cannot be
+ * undone, is invisible until the customer returns, and almost certainly ends the
+ * relationship with that customer.
  */
 
 export class SubscriptionError extends Error {
@@ -37,22 +37,22 @@ export interface ModuleState {
   tier: string;
   isCore: boolean;
   sortOrder: number;
-  /** Aktif untuk tenant ini saat ini. */
+  /** Enabled for this tenant right now. */
   enabled: boolean;
-  /** Termasuk dalam paket yang dilanggan. */
+  /** Included in the subscribed plan. */
   inPlan: boolean;
-  /** Pernah aktif sebelumnya — datanya masih ada bila diaktifkan kembali. */
+  /** Was enabled before — its data is still there if it is enabled again. */
   hasData: boolean;
   disabledAt: string | null;
 }
 
 /**
- * Ketergantungan antarmodul.
+ * Inter-module dependencies.
  *
- * Penggajian membaca rekap presensi dan cuti tanpa gaji. Menonaktifkan presensi
- * sementara penggajian masih aktif akan menghasilkan slip yang menghitung nol
- * hari hadir untuk semua orang — angka yang terlihat seperti keputusan, dan
- * yang baru ketahuan setelah gaji dibayarkan.
+ * Payroll reads the attendance and unpaid leave recaps. Disabling attendance
+ * while payroll is still enabled would produce payslips counting zero days
+ * present for everyone — a figure that looks like a decision, and one only
+ * discovered after the salaries have been paid.
  */
 const REQUIRES: Record<string, string[]> = {
   payroll: ['attendance'],
@@ -86,16 +86,16 @@ export async function listModules(
       tier: module.tier,
       isCore: module.isCore,
       sortOrder: module.sortOrder,
-      // `enabled` adalah keadaan EFEKTIF: diaktifkan tenant DAN termasuk paket.
-      // Modul yang barisnya ENABLED tetapi di luar paket ditampilkan nonaktif,
-      // karena memang itulah yang dialami penggunanya — dan `inPlan: false` di
-      // sebelahnya menjelaskan mengapa.
+      // `enabled` is the EFFECTIVE state: enabled by the tenant AND included in
+      // the plan. A module whose row is ENABLED but is outside the plan is shown
+      // as disabled, because that is what its users experience — and the
+      // `inPlan: false` beside it explains why.
       enabled:
         module.isCore || (row?.status === 'ENABLED' && planModules.has(module.code)),
       inPlan: module.isCore || planModules.has(module.code),
-      // Baris yang pernah ada berarti modul itu pernah aktif, dan datanya masih
-      // di tempatnya. Ditampilkan supaya orang yang mengaktifkan kembali tahu
-      // ia akan menemukan datanya, bukan memulai dari kosong.
+      // An existing row means that module was once enabled, and its data is still
+      // in place. Shown so whoever re-enables it knows they will find their data
+      // rather than starting from nothing.
       hasData: row !== undefined,
       disabledAt: row?.disabledAt?.toISOString() ?? null,
     };
@@ -105,7 +105,7 @@ export async function listModules(
 export interface ToggleResult {
   code: string;
   enabled: boolean;
-  /** True bila data sebelumnya ditemukan dan dipulihkan. */
+  /** True when previous data was found and restored. */
   dataRestored: boolean;
 }
 
@@ -147,9 +147,9 @@ export async function setModuleEnabled(
       );
     }
 
-    // Prasyarat diaktifkan lebih dulu, bukan ditolak. Orang yang mengaktifkan
-    // penggajian menginginkan penggajian; memaksanya menebak bahwa presensi
-    // harus dinyalakan dulu hanya menambah langkah tanpa menambah kejelasan.
+    // A prerequisite is enabled first rather than refused. Someone enabling
+    // payroll wants payroll; making them guess that attendance has to be turned
+    // on first adds a step without adding clarity.
     for (const required of REQUIRES[moduleCode] ?? []) {
       const requiredRow = await tx.tenantModule.findUnique({
         where: { tenantId_moduleCode: { tenantId, moduleCode: required } },
@@ -169,20 +169,20 @@ export async function setModuleEnabled(
       update: { status: 'ENABLED', disabledAt: null },
     });
   } else {
-    // Modul lain yang bergantung padanya ikut dinonaktifkan, dan itu dikatakan
-    // lewat galat alih-alih dilakukan diam-diam. Mematikan presensi diam-diam
-    // ketika penggajian masih aktif akan menghasilkan slip yang menghitung nol
-    // hari hadir untuk semua orang.
+    // Other modules depending on it are disabled with it, and that is said in an
+    // error rather than done silently. Quietly switching off attendance while
+    // payroll is still enabled would produce payslips counting zero days present
+    // for everyone.
     const dependents = Object.entries(REQUIRES)
       .filter(([, requires]) => requires.includes(moduleCode))
       .map(([code]) => code);
 
-    // Yang diperiksa keadaan EFEKTIF, bukan status baris.
+    // What is checked is the EFFECTIVE state, not the row's status.
     //
-    // Modul yang barisnya ENABLED tetapi di luar paket sudah tidak berfungsi
-    // apa pun. Membiarkannya memblokir penonaktifan modul lain berarti tenant
-    // terhalang oleh sesuatu yang bahkan tidak dapat ia pakai — dan pesan
-    // galatnya akan menyuruh ia menonaktifkan modul yang di layarnya sudah
+    // A module whose row is ENABLED but is outside the plan already does nothing.
+    // Letting it block the disabling of another module means the tenant is held
+    // up by something they cannot even use — and the error message would tell
+    // them to disable a module their screen already shows as disabled.
     // tertulis nonaktif.
     const tenantForDeps = await tx.tenant.findFirst({
       where: { id: tenantId },
@@ -210,7 +210,7 @@ export async function setModuleEnabled(
       }
     }
 
-    // Status DISABLED, bukan baris dihapus. Datanya tidak disentuh sama sekali.
+    // A DISABLED status, not a deleted row. Its data is not touched at all.
     await tx.tenantModule.upsert({
       where: { tenantId_moduleCode: { tenantId, moduleCode } },
       create: { tenantId, moduleCode, status: 'DISABLED', disabledAt: new Date() },
@@ -235,8 +235,8 @@ export async function setModuleEnabled(
   return {
     code: moduleCode,
     enabled,
-    // Baris yang sudah ada sebelumnya berarti modul ini pernah aktif, sehingga
-    // mengaktifkannya kembali memulihkan data — bukan memulai dari kosong.
+    // A row that already existed means this module was once enabled, so
+    // re-enabling it restores the data rather than starting from nothing.
     dataRestored: enabled && existing !== null && existing.status === 'DISABLED',
   };
 }
