@@ -997,9 +997,34 @@ Yang tidak terkunci Gerbang C tetapi belum dibangun:
   "semua". Rekap presensi tanpa batas tanggal adalah seluruh riwayat kehadiran
   setiap orang di perusahaan: berkas yang tidak dibutuhkan siapa pun dan tidak
   seharusnya beredar.
-- **Laporan siap pakai** (grafik, ringkasan periodik) belum ada. Yang ada ekspor
-  data mentah, dan itu berbeda: ekspor menjawab "berikan datanya", laporan
-  menjawab "apa yang terjadi bulan ini".
+- **Rekap presensi bulanan** — **selesai.** Satu baris per karyawan: hadir,
+  terlambat, alfa, cuti, menit terlambat, menit lembur, jam kerja. Inilah
+  laporan yang benar-benar dicetak, ditandatangani, dan diarsipkan setiap bulan,
+  dan yang dipakai keuangan memeriksa potongan sebelum payroll dijalankan.
+
+  Sebelumnya yang ada hanya **daftar hari** — untuk 100 karyawan sebulan itu
+  3.000 baris, dan HR yang membutuhkan 100 angka menjumlahkannya sendiri di
+  Excel. Penjumlahan tangan adalah tempat angka berubah tanpa ada yang tahu, dan
+  angka yang berubah di sini menjadi potongan gaji.
+
+  Agregasinya di basis data, bukan dengan menarik 3.000 baris ke memori proses.
+  Satu endpoint melayani layar dan unduhan, dibedakan `format` — dua endpoint
+  yang menghitung hal yang sama adalah dua tempat yang dapat berbeda hasilnya,
+  dan perbedaan antara angka di layar dan angka di berkas yang ditandatangani
+  adalah perbedaan yang paling mahal untuk ditemukan.
+
+  **Karyawan tanpa satu pun baris rekap dilaporkan terpisah**, bukan ditampilkan
+  sebagai baris nol. Rekap presensi dibuat saat dihitung, bukan otomatis setiap
+  malam; nol yang berasal dari "belum dihitung" dan nol yang berasal dari
+  "memang tidak hadir" adalah dua hal yang sangat berbeda, dan menampilkannya
+  sama akan membuat yang pertama terbaca sebagai yang kedua — lalu masuk ke
+  potongan gaji. Terbukti pada uji: 3 karyawan, satu di antaranya tanpa data,
+  dan layar menyebutkannya.
+
+  Terlambat **tetap dihitung hadir**, dan ditampilkan sebagai kolom tambahan.
+  Menghitungnya terpisah membuat "hadir + terlambat + alfa" tidak sama dengan
+  hari kerja, dan yang membacanya akan mengira ada hari yang hilang.
+- **Grafik dan tren antar-bulan belum ada.** Yang ada satu bulan sekali lihat.
 - **Pengerasan F6 sudah selesai**: kuota per tenant (600/menit, dengan
   penolakan yang tercatat), `statement_timeout`/`lock_timeout`/
   `idle_in_transaction_session_timeout` per peran, deteksi drift skema harian

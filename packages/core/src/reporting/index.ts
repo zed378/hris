@@ -12,3 +12,10 @@ export {
   type LeaveExportOptions,
   type PayrollExportOptions,
 } from './export.ts';
+export {
+  buildMonthlyAttendance,
+  monthlyAttendanceRows,
+  MONTHLY_ATTENDANCE_HEADERS,
+  type MonthlyAttendanceReport,
+  type MonthlyAttendanceRow,
+} from './monthly.ts';

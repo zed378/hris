@@ -264,6 +264,10 @@ export const ROUTE_MANIFEST = {
     permission: 'attendance.record.correct',
   },
   'GET /api/attendance/records': { module: 'attendance', permission: 'attendance.record.read.all' },
+  'GET /api/reports/attendance-monthly': {
+    module: 'attendance',
+    permission: 'attendance.record.read.all',
+  },
   'GET /api/attendance/records/export': {
     module: 'attendance',
     permission: 'attendance.record.read.all',
