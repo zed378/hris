@@ -48,6 +48,14 @@ interface Holiday {
   isJointLeave: boolean;
 }
 
+interface Policy {
+  requireLocation: boolean;
+  requirePhoto: boolean;
+  onPermissionDenied: 'BLOCK' | 'ALLOW_FLAGGED' | 'FALLBACK_ONLY';
+  autoApproveThreshold: number;
+  photoRetentionDays: number;
+}
+
 interface GenerateResult {
   created: number;
   updated: number;
@@ -95,6 +103,10 @@ export default function ShiftsPage() {
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [policy, setPolicy] = useState<Policy | null>(null);
+  const [policyBusy, setPolicyBusy] = useState(false);
+  const [policyMsg, setPolicyMsg] = useState<string | null>(null);
+
   const [tahun, setTahun] = useState(() => new Date().getUTCFullYear());
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [holidayForm, setHolidayForm] = useState({ date: '', name: '', isJointLeave: false });
@@ -111,6 +123,42 @@ export default function ShiftsPage() {
     setLoading(false);
   }, [api]);
 
+  const loadPolicy = useCallback(async () => {
+    const response = await api('/api/attendance/policy');
+    if (response.ok) setPolicy((await response.json()) as Policy);
+  }, [api]);
+
+  /**
+   * Menyimpan satu perubahan sekaligus menerapkannya di layar.
+   *
+   * Yang dikirim hanya field yang berubah, bukan seluruh kebijakan. Mengirim
+   * semuanya berarti dua orang yang menyunting bersamaan saling menimpa
+   * setelan yang tidak mereka sentuh.
+   */
+  const simpanPolicy = useCallback(
+    async (perubahan: Partial<Policy>) => {
+      setPolicyBusy(true);
+      setPolicyMsg(null);
+
+      const response = await api('/api/attendance/policy', {
+        method: 'PUT',
+        body: JSON.stringify(perubahan),
+      });
+
+      if (response.ok) {
+        setPolicy((await response.json()) as Policy);
+        setPolicyMsg('Tersimpan. Berlaku untuk ketukan berikutnya.');
+      } else {
+        const json = (await response.json().catch(() => null)) as
+          | { error?: { message?: string } }
+          | null;
+        setPolicyMsg(json?.error?.message ?? 'Penyimpanan gagal.');
+      }
+      setPolicyBusy(false);
+    },
+    [api],
+  );
+
   const loadHolidays = useCallback(async () => {
     const response = await api(`/api/attendance/holidays?year=${tahun}`);
     if (response.ok) setHolidays(((await response.json()) as { holidays: Holiday[] }).holidays);
@@ -123,6 +171,10 @@ export default function ShiftsPage() {
   useEffect(() => {
     void loadHolidays();
   }, [loadHolidays]);
+
+  useEffect(() => {
+    void loadPolicy();
+  }, [loadPolicy]);
 
   const simpanHoliday = useCallback(async () => {
     setHolidayMsg(null);
@@ -245,6 +297,156 @@ export default function ShiftsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-10 max-w-4xl">
+        <h2 className="text-lg font-medium">Kebijakan presensi</h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Keempat setelan ini menentukan berapa banyak presensi yang masuk
+          antrean tinjauan dan berapa lama foto wajah disimpan. Keputusannya
+          milik perusahaan Anda — proyek konstruksi dan kantor konsultan punya
+          jawaban yang berbeda.
+        </p>
+
+        {policy && (
+          <div className="mt-4 space-y-4">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={policy.requirePhoto}
+                disabled={policyBusy}
+                onChange={(e) => void simpanPolicy({ requirePhoto: e.target.checked })}
+                className="mt-1"
+              />
+              <span>
+                Wajib foto swafoto
+                <span className="block text-xs text-slate-500">
+                  Dimatikan berarti ketiadaan foto tidak lagi menurunkan skor
+                  kepercayaan — tandanya tetap muncul, tetapi tidak lagi
+                  membanjiri antrean tinjauan.
+                </span>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={policy.requireLocation}
+                disabled={policyBusy}
+                onChange={(e) => void simpanPolicy({ requireLocation: e.target.checked })}
+                className="mt-1"
+              />
+              <span>
+                Wajib data lokasi
+                <span className="block text-xs text-slate-500">
+                  Matikan untuk staf yang bekerja dari rumah atau berpindah-pindah.
+                </span>
+              </span>
+            </label>
+
+            <label className="block text-sm">
+              <span className="block text-slate-600 dark:text-slate-400">
+                Bila karyawan menolak izin lokasi atau kamera
+              </span>
+              <select
+                value={policy.onPermissionDenied}
+                disabled={policyBusy}
+                onChange={(e) =>
+                  void simpanPolicy({
+                    onPermissionDenied: e.target.value as Policy['onPermissionDenied'],
+                  })
+                }
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 sm:w-96"
+              >
+                <option value="ALLOW_FLAGGED">
+                  Tetap catat, tandai untuk ditinjau (disarankan)
+                </option>
+                <option value="BLOCK">Tolak — arahkan ke mesin absensi atau koreksi manual</option>
+                <option value="FALLBACK_ONLY">Hanya dari jaringan kantor</option>
+              </select>
+              {/*
+                Peringatan ini muncul karena BLOCK adalah satu-satunya pilihan
+                yang dapat menghentikan seseorang bekerja. Karyawan yang ditolak
+                di gerbang pabrik pukul tujuh pagi tidak dapat berbuat apa-apa
+                dengan pesan yang tidak memberitahunya harus ke mana.
+              */}
+              {policy.onPermissionDenied === 'BLOCK' && (
+                <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">
+                  Karyawan tanpa izin lokasi atau kamera tidak akan dapat
+                  mengetuk presensi sama sekali. Pastikan mesin absensi tersedia,
+                  atau HR siap memasukkan koreksi manual.
+                </span>
+              )}
+              {policy.onPermissionDenied === 'FALLBACK_ONLY' && (
+                <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">
+                  Daftar IP jaringan kantor belum dapat disetel — sampai itu ada,
+                  pilihan ini berperilaku sama dengan &ldquo;tetap catat, tandai&rdquo;.
+                </span>
+              )}
+            </label>
+
+            <label className="block text-sm">
+              <span className="block text-slate-600 dark:text-slate-400">
+                Ambang tinjauan — skor di bawah ini masuk antrean HR
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                defaultValue={policy.autoApproveThreshold}
+                disabled={policyBusy}
+                onBlur={(e) => {
+                  const nilai = Number(e.target.value);
+                  if (nilai !== policy.autoApproveThreshold) {
+                    void simpanPolicy({ autoApproveThreshold: nilai });
+                  }
+                }}
+                className="mt-1 w-24 rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
+              />
+              {/*
+                Angka 12% berasal dari PLAN/12 §11: bila lebih dari itu masuk
+                antrean, HR berhenti meninjau dan skornya menjadi teater. Itu
+                kegagalan yang tidak menghasilkan galat apa pun — ia terlihat
+                seperti sistem yang bekerja.
+              */}
+              <span className="mt-1 block text-xs text-slate-500">
+                Semakin tinggi, semakin banyak yang ditinjau. Bila lebih dari 12%
+                presensi masuk antrean, HR akan berhenti meninjau — dan pada saat
+                itu skornya berhenti berarti apa pun.
+              </span>
+            </label>
+
+            <label className="block text-sm">
+              <span className="block text-slate-600 dark:text-slate-400">
+                Retensi foto presensi (hari)
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={730}
+                defaultValue={policy.photoRetentionDays}
+                disabled={policyBusy}
+                onBlur={(e) => {
+                  const nilai = Number(e.target.value);
+                  if (nilai !== policy.photoRetentionDays) {
+                    void simpanPolicy({ photoRetentionDays: nilai });
+                  }
+                }}
+                className="mt-1 w-24 rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
+              />
+              <span className="mt-1 block text-xs text-slate-500">
+                Foto wajah adalah data pribadi; UU PDP menuntutnya tidak disimpan
+                lebih lama dari keperluannya. Perubahan berlaku untuk foto yang
+                diambil setelah ini — foto yang sudah ada tunduk pada janji yang
+                berlaku saat ia diambil.
+              </span>
+            </label>
+
+            {policyMsg && (
+              <p className="text-sm text-slate-600 dark:text-slate-400">{policyMsg}</p>
+            )}
           </div>
         )}
       </section>

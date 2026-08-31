@@ -271,6 +271,12 @@ export const ROUTE_MANIFEST = {
   'POST /api/attendance/records': { module: 'attendance', permission: 'attendance.record.correct' },
   'GET /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.record.read.own' },
   'POST /api/attendance/work-sites': { module: 'attendance', permission: 'attendance.shift.manage' },
+  'GET /api/attendance/policy': {
+    module: 'attendance',
+    // Layar presensi perlu tahu apakah foto wajib SEBELUM meminta izin kamera.
+    permission: 'attendance.punch.create.own',
+  },
+  'PUT /api/attendance/policy': { module: 'attendance', permission: 'attendance.shift.manage' },
   'GET /api/attendance/holidays': {
     module: 'attendance',
     // Semua orang perlu melihatnya: kalender cuti menampilkannya, dan karyawan

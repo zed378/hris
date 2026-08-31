@@ -73,3 +73,11 @@ export {
   type GenerateInput,
   type GenerateResult,
 } from './schedule.ts';
+export {
+  readPolicy,
+  updatePolicy,
+  DEFAULT_POLICY,
+  type AttendancePolicyView,
+  type PolicyUpdate,
+  type OnPermissionDenied,
+} from './policy.ts';

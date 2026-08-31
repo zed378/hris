@@ -1,5 +1,6 @@
 import { EventTopic } from '@hrms/contracts';
 import { writeAudit, publishEvent, Prisma, type TenantClient } from '@hrms/db';
+import { readPolicy } from './policy.ts';
 import { assessTrust, haversineMeters, type TrustFlag } from './trust.ts';
 import { resolveWorkDate, tenantTimeZone } from './workdate.ts';
 import { punchPermissions } from './consent.ts';
@@ -19,7 +20,7 @@ import { punchPermissions } from './consent.ts';
 export class PunchError extends Error {
   constructor(
     message: string,
-    readonly kind: 'not_found' | 'duplicate' | 'locked',
+    readonly kind: 'not_found' | 'duplicate' | 'locked' | 'blocked',
   ) {
     super(message);
     this.name = 'PunchError';
@@ -68,9 +69,6 @@ export interface PunchResult {
   duplicate: boolean;
 }
 
-/** Retensi foto presensi. Dokumen 10 §4.4. */
-const PHOTO_RETENTION_DAYS = 90;
-
 export async function recordPunch(
   tx: TenantClient,
   tenantId: string,
@@ -117,6 +115,30 @@ export async function recordPunch(
   //
   // Constraint unique tetap ada dan tetap menjadi penjamin sesungguhnya; yang
   // berubah hanya bahwa jalur yang lazim tidak lagi lewat galat.
+  /**
+   * Kunci dedupe wajib ada, dan diperiksa saat berjalan meski tipenya sudah
+   * mewajibkannya.
+   *
+   * `where: { dedupeKey: undefined }` pada Prisma **mengabaikan syaratnya** —
+   * ia tidak mencari baris ber-kunci null, melainkan mencocokkan baris mana pun
+   * di tenant itu. Ketukan yang datang tanpa kunci karenanya akan dijawab
+   * "sudah tercatat" beserta skor kepercayaan milik ketukan orang lain, dan
+   * tidak ada satu pun baris baru yang tersimpan.
+   *
+   * TypeScript sudah mencegahnya pada seluruh pemanggil yang ada. Penjagaan ini
+   * untuk yang tidak dilihat TypeScript: badan JSON yang lolos validasi karena
+   * skemanya kelak dilonggarkan, dan pemanggilan dari berkas yang dijalankan
+   * dengan transform-types — yang menghapus tipe tanpa memeriksanya.
+   *
+   * Ditemukan justru lewat berkas seperti itu: sebuah skrip verifikasi yang
+   * lupa menyertakan kuncinya menerima "duplikat" untuk setiap ketukan, dan
+   * selama beberapa menit hasilnya terbaca seperti kebijakan tenant yang tidak
+   * berfungsi.
+   */
+  if (!input.dedupeKey) {
+    throw new PunchError('Ketukan tanpa kunci dedupe tidak dapat diproses', 'not_found');
+  }
+
   const alreadyRecorded = await tx.punchLog.findFirst({
     where: { tenantId, dedupeKey: input.dedupeKey },
     select: { id: true, workDate: true, trustScore: true, review: true, trustFlags: true },
@@ -203,6 +225,38 @@ export async function recordPunch(
     }
   }
 
+  // --- Kebijakan tenant ------------------------------------------------------
+  const policy = await readPolicy(tx, tenantId);
+
+  /**
+   * Kebijakan saat izin ditolak (dokumen 10 §2.4).
+   *
+   * `BLOCK` berarti presensi mobile tidak dapat dilakukan tanpa bukti yang
+   * diwajibkan — dan penolakannya harus menyebut **apa yang kurang dan apa
+   * jalan keluarnya**, bukan sekadar "gagal". Karyawan yang ditolak di gerbang
+   * pabrik pukul tujuh pagi tidak dapat berbuat apa-apa dengan pesan yang tidak
+   * memberitahunya harus ke mana.
+   *
+   * Ketukan dari mesin absensi dan entri manual HR dikecualikan: keduanya
+   * memang tidak membawa lokasi maupun foto menurut sifatnya, dan
+   * memblokirnya berarti mematikan dua jalur koreksi yang justru dibutuhkan
+   * ketika ponsel karyawan bermasalah.
+   */
+  if (policy.onPermissionDenied === 'BLOCK' && input.source !== 'DEVICE' && input.source !== 'MANUAL') {
+    const kurang: string[] = [];
+    if (policy.requireLocation && distanceM === null) kurang.push('lokasi');
+    if (policy.requirePhoto && !photoKey) kurang.push('foto');
+
+    if (kurang.length > 0) {
+      throw new PunchError(
+        `Presensi membutuhkan ${kurang.join(' dan ')}. ` +
+          'Aktifkan izinnya di setelan peramban, gunakan mesin absensi, ' +
+          'atau minta HR memasukkan koreksi manual.',
+        'blocked',
+      );
+    }
+  }
+
   // --- Penilaian kepercayaan -------------------------------------------------
   const serverNow = new Date();
   const clockSkewSeconds = Math.round(
@@ -221,6 +275,11 @@ export async function recordPunch(
     clockSkewSeconds: input.source === 'DEVICE' ? null : clockSkewSeconds,
     mockLocationReported: input.mockLocationReported ?? false,
     consentWithheld: { location: !consent.location, photo: !consent.photo },
+    policy: {
+      requireLocation: policy.requireLocation,
+      requirePhoto: policy.requirePhoto,
+      autoApproveThreshold: policy.autoApproveThreshold,
+    },
   });
 
   // --- Tanggal kerja ---------------------------------------------------------
@@ -241,8 +300,12 @@ export async function recordPunch(
         workSiteId,
         distanceM,
         photoKey,
+        // Retensi dari kebijakan tenant, bukan konstanta. Angkanya dihitung
+        // SAAT MENYIMPAN, bukan saat menghapus — sehingga menaikkan retensi
+        // tidak memperpanjang umur foto yang sudah ada, dan menurunkannya tidak
+        // memendekkannya. Foto tunduk pada janji yang berlaku saat ia diambil.
         photoExpiresAt: photoKey
-          ? new Date(Date.now() + PHOTO_RETENTION_DAYS * 86_400_000)
+          ? new Date(Date.now() + policy.photoRetentionDays * 86_400_000)
           : null,
         trustScore: assessment.score,
         trustFlags: assessment.flags.length > 0 ? (assessment.flags as never) : Prisma.DbNull,

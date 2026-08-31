@@ -33,6 +33,19 @@ export interface TrustInput {
   /** Akurasi yang dilaporkan perangkat, meter. */
   accuracyM: number | null;
   maxAccuracyM: number | null;
+  /**
+   * Kebijakan tenant. Dihilangkan berarti nilai bawaan.
+   *
+   * `requireLocation`/`requirePhoto` yang `false` berarti ketiadaannya TIDAK
+   * menurunkan skor — bukan berarti buktinya diabaikan bila ada. Kantor
+   * konsultan yang stafnya bekerja dari rumah tidak membutuhkan foto pada
+   * setiap ketukan; proyek konstruksi membutuhkannya.
+   */
+  policy?: {
+    requireLocation: boolean;
+    requirePhoto: boolean;
+    autoApproveThreshold: number;
+  };
   hasPhoto: boolean;
   /** Selisih jam perangkat terhadap jam server, detik. */
   clockSkewSeconds: number | null;
@@ -62,13 +75,17 @@ export interface TrustAssessment {
 }
 
 /**
- * Ambang tinjauan.
+ * Ambang tinjauan bawaan.
  *
  * Dipilih supaya satu sinyal lemah saja tidak memicu tinjauan, tetapi kombinasi
  * dua sinyal memicu. Metrik yang harus dipantau: bila lebih dari 12% presensi
  * masuk antrean, HR berhenti meninjau dan skornya menjadi teater (PLAN/12 §11).
+ *
+ * Kini dapat disetel per tenant — justru karena metrik itu. Ambang yang tepat
+ * untuk proyek konstruksi bukan ambang yang tepat untuk kantor konsultan, dan
+ * satu angka untuk keduanya berarti salah satunya membanjiri antreannya.
  */
-const REVIEW_THRESHOLD = 60;
+const DEFAULT_REVIEW_THRESHOLD = 60;
 
 export function assessTrust(input: TrustInput): TrustAssessment {
   const flags: TrustFlag[] = [];
@@ -121,7 +138,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     });
 
     const score = Math.max(0, 100 - flags.reduce((sum, flag) => sum + flag.penalty, 0));
-    return { score, flags, needsReview: score < REVIEW_THRESHOLD };
+    return { score, flags, needsReview: score < threshold(input) };
   }
 
   // --- Lokasi ----------------------------------------------------------------
@@ -133,7 +150,15 @@ export function assessTrust(input: TrustInput): TrustAssessment {
             penalty: 0,
             message: 'Tanpa lokasi — persetujuan lokasi tidak diberikan',
           }
-        : { code: 'NO_LOCATION', penalty: 30, message: 'Tanpa data lokasi' },
+        : {
+            code: 'NO_LOCATION',
+            // Tenant yang memang tidak mewajibkan lokasi tidak menghasilkan
+            // penalti — tetapi tandanya TETAP muncul. Menghilangkan tandanya
+            // akan membuat "tanpa lokasi" tidak dapat dibedakan dari "di dalam
+            // pagar", dan itu keterangan yang hilang tanpa ada yang memintanya.
+            penalty: input.policy?.requireLocation === false ? 0 : 30,
+            message: 'Tanpa data lokasi',
+          },
     );
   } else if (input.radiusM !== null && input.distanceM > input.radiusM) {
     const excess = input.distanceM - input.radiusM;
@@ -173,7 +198,11 @@ export function assessTrust(input: TrustInput): TrustAssessment {
             penalty: 0,
             message: 'Tanpa foto — persetujuan foto tidak diberikan',
           }
-        : { code: 'NO_PHOTO', penalty: 20, message: 'Tanpa foto swafoto' },
+        : {
+            code: 'NO_PHOTO',
+            penalty: input.policy?.requirePhoto === false ? 0 : 20,
+            message: 'Tanpa foto swafoto',
+          },
     );
   }
 
@@ -202,7 +231,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
 
   const score = Math.max(0, 100 - flags.reduce((sum, flag) => sum + flag.penalty, 0));
 
-  return { score, flags, needsReview: score < REVIEW_THRESHOLD };
+  return { score, flags, needsReview: score < threshold(input) };
 }
 
 function formatDistance(meters: number): string {
@@ -233,4 +262,9 @@ export function haversineMeters(
     Math.sin(dLat / 2) ** 2 + Math.sin(dLon / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
 
   return Math.round(2 * R * Math.asin(Math.min(1, Math.sqrt(h))));
+}
+
+/** Ambang tinjauan yang berlaku untuk satu penilaian. */
+function threshold(input: TrustInput): number {
+  return input.policy?.autoApproveThreshold ?? DEFAULT_REVIEW_THRESHOLD;
 }

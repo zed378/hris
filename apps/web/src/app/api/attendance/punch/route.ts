@@ -75,6 +75,26 @@ export const POST = defineRoute('POST /api/attendance/punch', async (req, ctx) =
       if (error.kind === 'duplicate') {
         return NextResponse.json({ duplicate: true }, { status: 200 });
       }
+
+      /**
+       * Setiap sebab penolakan dijawab kodenya sendiri.
+       *
+       * Sebelumnya seluruhnya menjadi 404 — termasuk periode yang sudah
+       * ditutup, yang bukan "tidak ditemukan" melainkan "tidak boleh diubah
+       * lagi". Klien yang menerima 404 akan mengira ketukannya hilang dan
+       * mencoba lagi; klien yang menerima 409 tahu mencoba lagi tidak akan
+       * mengubah apa pun.
+       *
+       * `blocked` menjadi 400: permintaannya memang kurang lengkap menurut
+       * kebijakan tenant, dan pesannya menyebutkan apa yang kurang beserta
+       * jalan keluarnya.
+       */
+      if (error.kind === 'locked') {
+        return apiError(409, ErrorCode.CONFLICT, error.message, ctx.correlationId);
+      }
+      if (error.kind === 'blocked') {
+        return apiError(400, ErrorCode.VALIDATION_FAILED, error.message, ctx.correlationId);
+      }
       return apiError(404, ErrorCode.NOT_FOUND, error.message, ctx.correlationId);
     }
     throw error;

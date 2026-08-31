@@ -637,9 +637,10 @@ Tiga batasnya perlu diketahui:
   zona waktu membawa tanggal kerja yang salah. Belum ada produksi, jadi belum
   di-backfill. **Wajib dijalankan sebelum rilis pertama** bila ada data yang
   dipertahankan.
-- **Ambang rasio bertanda 12% belum terkalibrasi** — pengujian menghasilkan
-  angka jauh di atas ambang karena presensi uji tanpa foto. Kalibrasi menuntut
-  data pilot.
+- **Ambang rasio bertanda 12% belum terkalibrasi** — kalibrasi menuntut data
+  pilot. Sebabnya yang paling besar sudah hilang: tenant kini dapat menyatakan
+  bahwa foto atau lokasi memang tidak diwajibkan, sehingga ketiadaannya berhenti
+  membanjiri antrean.
 - **Pengingat kedaluwarsa dokumen sudah ada** (nomor 23), **penghapusannya
   belum — dan sengaja ditunda.** Periodenya keputusan hukum, bukan keputusan
   teknis: UU KUP Pasal 28 ayat (11) menuntut dokumen perpajakan disimpan 10
@@ -660,8 +661,56 @@ Tiga batasnya perlu diketahui:
   seluruh PII benar-benar hanya ada dalam bentuk terenkripsi, sehingga
   kehilangan kunci berarti kehilangan data — bukan lagi sekadar kehilangan satu
   salinan yang kebetulan tersisa di staging impor.
-- **`attendance_policies` belum ada** — kebijakan `on_permission_denied`
-  (`BLOCK` / `FALLBACK_ONLY`) pada dokumen `10` §114 belum dapat disetel tenant.
+- ~~**`attendance_policies` belum ada**~~ — **selesai.** Empat perilaku yang
+  menentukan presensi adalah konstanta di dalam kode: ambang tinjauan 60,
+  retensi foto 90 hari, dan keharusan lokasi serta foto yang berlaku bagi semua
+  orang. Dokumen 10 §2.4 menyatakan alasannya dengan tepat: *"Keputusan ini
+  milik tenant, bukan milik sistem — perusahaan konstruksi dan perusahaan
+  konsultan punya jawaban berbeda."*
+
+  Ini juga menutup salah satu utang teknis yang tercatat sendiri di dokumen ini:
+  rasio bertanda yang jauh di atas ambang 12% **karena presensi ujinya tanpa
+  foto**, bukan karena ada yang mencurigakan. Tenant yang memang tidak meminta
+  foto akan mengalaminya setiap hari — dan HR yang antrean tinjauannya penuh
+  berhenti meninjau, yang membuat skor kepercayaan berubah menjadi teater
+  (PLAN/12 §11).
+
+  Nilai bawaannya **sama persis** dengan konstanta yang digantikannya: tenant
+  yang tidak pernah menyentuh layar setelan berperilaku seperti sebelum tabel ini
+  ada. Perubahan perilaku yang datang bersama fitur konfigurasi adalah perubahan
+  yang tidak diminta siapa pun.
+
+  Diverifikasi lewat jalur `recordPunch` sungguhan:
+
+  | Perubahan kebijakan | Akibat terukur |
+  |---|---|
+  | `requireLocation` true → false | `NO_LOCATION` 30 → **0**, skor 20 → 50 |
+  | `photoRetentionDays` 90 → 30 | kedaluwarsa foto 2026-11-29 → **2026-09-30** |
+  | `autoApproveThreshold` → 95 | skor 50 kini masuk antrean tinjauan |
+  | `onPermissionDenied` → BLOCK | ketukan ditolak, pesannya menyebut **apa yang kurang** |
+
+  Tandanya **tetap muncul** meski penaltinya nol. Menghilangkan tandanya akan
+  membuat "tanpa lokasi" tidak dapat dibedakan dari "di dalam pagar", dan itu
+  keterangan yang hilang tanpa ada yang memintanya.
+
+  Retensi dihitung **saat foto disimpan**, bukan saat dihapus — menaikkannya
+  tidak memperpanjang umur foto yang sudah ada, dan menurunkannya tidak
+  memendekkannya. Foto tunduk pada janji yang berlaku saat ia diambil.
+
+  `FALLBACK_ONLY` diterima tetapi **belum berperilaku berbeda** dari
+  `ALLOW_FLAGGED`: ia menuntut daftar IP jaringan kantor yang belum dapat
+  disetel. Dinyatakan di layarnya, bukan didiamkan.
+- **Kunci dedupe ketukan kini dijaga saat berjalan**, bukan hanya oleh tipe.
+  `where: { dedupeKey: undefined }` pada Prisma **mengabaikan syaratnya** — ia
+  mencocokkan baris mana pun di tenant itu, sehingga ketukan tanpa kunci dijawab
+  "sudah tercatat" beserta skor kepercayaan milik ketukan orang lain, dan tidak
+  ada baris baru yang tersimpan. TypeScript mencegahnya pada seluruh pemanggil
+  yang ada; penjagaan ini untuk yang tidak dilihat TypeScript.
+
+  Ditemukan lewat skrip verifikasi yang lupa menyertakan kuncinya — dijalankan
+  dengan `--experimental-transform-types`, yang **menghapus tipe tanpa
+  memeriksanya**. Selama beberapa menit hasilnya terbaca persis seperti
+  kebijakan tenant yang tidak berfungsi.
 - **Aliran SSE belum diuji di balik proxy nyata** — `x-accel-buffering: no`
   sudah dipasang, tetapi belum diverifikasi terhadap nginx sungguhan.
 

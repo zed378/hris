@@ -1094,6 +1094,35 @@ model Schedule {
   @@schema("attendance")
 }
 
+/// Kebijakan presensi per tenant (dokumen 10 §2.4).
+///
+/// "Keputusan ini milik tenant, bukan milik sistem — perusahaan konstruksi dan
+/// perusahaan konsultan punya jawaban berbeda."
+///
+/// Ketiadaan barisnya berarti nilai bawaan, sehingga tenant yang tidak pernah
+/// menyentuh layar setelan berperilaku persis seperti sebelum tabel ini ada.
+model AttendancePolicy {
+  tenantId String @id @map("tenant_id") @db.Uuid
+
+  /// `false` berarti ketiadaannya tidak menurunkan skor — bukan berarti
+  /// buktinya diabaikan bila ada.
+  requireLocation Boolean @default(true) @map("require_location")
+  requirePhoto    Boolean @default(true) @map("require_photo")
+
+  /// BLOCK, ALLOW_FLAGGED, atau FALLBACK_ONLY.
+  onPermissionDenied String @default("ALLOW_FLAGGED") @map("on_permission_denied")
+
+  /// Di bawah ambang ini, ketukan masuk antrean tinjauan HR.
+  autoApproveThreshold Int @default(60) @map("auto_approve_threshold") @db.SmallInt
+  photoRetentionDays   Int @default(90) @map("photo_retention_days")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("attendance_policies")
+  @@schema("attendance")
+}
+
 /// Hari libur nasional dan cuti bersama.
 model Holiday {
   id       String   @id @default(uuid()) @db.Uuid
