@@ -1,18 +1,17 @@
 import { platformClient } from '@hrms/db';
 
 /**
- * Kemampuan operasional control plane (PLAN/07 §4.5).
+ * Control plane operational capabilities (PLAN/07 §4.5).
  *
- * Aturan yang mengikat seluruh berkas ini: **hanya metadata dan agregat, tidak
- * pernah data pribadi.** Superuser boleh tahu sebuah tenant punya 250 pengguna;
- * ia tidak boleh tahu satu pun nama, email, atau gaji mereka.
+ * The rule binding this whole file: **metadata and aggregates only, never
+ * personal data.** A superuser may know a tenant has 250 users; they must not
+ * know one of their names, emails, or salaries.
  *
- * Garis itu bukan sekadar niat. `platform_db` pada rancangan terdistribusi tidak
- * punya kredensial ke basis data domain sama sekali; di sini padanannya adalah
- * cakupan berkas ini ditambah pemisahan hak akses schema. Bila kelak ada yang
- * menambahkan pembacaan data pribadi ke sini, itu perubahan yang harus terlihat
- * jelas saat review — dan itulah sebabnya berkas ini pendek dan tidak mengekspor
- * apa pun yang generik.
+ * That line is more than an intention. In the distributed design `platform_db`
+ * has no credentials to a domain database at all; here its equivalent is the
+ * scope of this file plus the schema grant separation. If someone later adds a
+ * read of personal data here, that has to be a change plainly visible at review
+ * — which is why this file is short and exports nothing generic.
  */
 
 export interface TenantSummary {
@@ -28,16 +27,16 @@ export interface TenantSummary {
 }
 
 /**
- * Daftar tenant untuk dashboard global.
+ * The tenant list for the global dashboard.
  *
- * Jumlah pengguna diambil lewat `platform.tenant_user_counts()`, bukan dengan
- * meng-`_count` relasi `users`. Selisihnya bukan gaya: relasi akan menuntut
- * SELECT pada `auth.users`, dan hak itu memberi seluruh isi tabelnya sekaligus.
- * Fungsi tersebut mengembalikan angka, dan hanya angka.
+ * The user count comes from `platform.tenant_user_counts()`, not from `_count`
+ * on the `users` relation. The difference is not style: the relation would
+ * require SELECT on `auth.users`, and that right hands over the whole table's
+ * contents. The function returns a number, and only a number.
  *
- * Dicoba lebih dulu dengan cara yang keliru, lalu ditolak PostgreSQL karena
- * `hrms_platform` memang tidak memiliki hibahnya — pemisahan yang menolak dirinya
- * sendiri saat dilanggar jauh lebih berguna daripada komentar yang mengingatkan.
+ * It was tried the wrong way first, and PostgreSQL refused it because
+ * `hrms_platform` genuinely holds no such grant — a separation that refuses
+ * itself when violated is far more useful than a comment reminding someone.
  */
 export async function listTenants(options: {
   limit?: number;
@@ -92,12 +91,12 @@ export async function listTenants(options: {
 }
 
 /**
- * Ringkasan platform.
+ * The platform summary.
  *
- * Ambang anonimitas belum relevan di sini karena seluruh angkanya lintas tenant.
- * Ia akan menjadi relevan begitu ada agregat per tenant yang berasal dari data
- * karyawan — dan pada saat itu ambang 5 subjek (PLAN/07 §4.4) harus dipasang
- * sebelum widget-nya dirilis, bukan sesudah.
+ * The anonymity threshold is not relevant here because every figure is
+ * cross-tenant. It becomes relevant the moment there is a per-tenant aggregate
+ * derived from employee data — and at that point the 5-subject threshold
+ * (PLAN/07 §4.4) has to be fitted before the widget ships, not after.
  */
 export async function platformOverview(): Promise<{
   tenants: Record<string, number>;
@@ -142,14 +141,14 @@ export class ModuleToggleError extends Error {
 }
 
 /**
- * Mengaktifkan atau menonaktifkan satu modul untuk satu tenant.
+ * Enables or disables one module for one tenant.
  *
- * Menonaktifkan menulis status `DISABLED` — barisnya tidak pernah dihapus.
- * Akibatnya menu modul itu menghilang dan endpoint-nya menolak dengan 402,
- * tetapi seluruh datanya tetap utuh dan kembali persis saat diaktifkan lagi.
+ * Disabling writes a `DISABLED` status — the row is never deleted. That module's
+ * menu disappears and its endpoints refuse with 402, but all of its data stays
+ * intact and returns exactly as it was when it is enabled again.
  *
- * Ini butir DoD Fase 6, tetapi mekanismenya dipasang sekarang karena mengubahnya
- * belakangan berarti mengubah arti kolom yang sudah berisi data.
+ * This is a Phase 6 DoD item, but the mechanism is fitted now because changing
+ * it later means changing the meaning of a column that already holds data.
  */
 export async function setTenantModule(input: {
   tenantId: string;
@@ -178,18 +177,18 @@ export async function setTenantModule(input: {
       enabledAt: input.enabled ? now : null,
       disabledAt: input.enabled ? null : now,
     },
-    // Hanya stempel waktu yang relevan yang disentuh. Menulis `null` ke sisi
-    // lain akan menghapus riwayat: kapan modul ini pernah aktif sebelumnya
-    // adalah pertanyaan yang akan ditanyakan saat ada sengketa tagihan.
+    // Only the relevant timestamp is touched. Writing `null` to the other side
+    // would erase history: when this module was previously active is a question
+    // that gets asked during a billing dispute.
     update: input.enabled
       ? { status: 'ENABLED' as const, enabledAt: now }
       : { status: 'DISABLED' as const, disabledAt: now },
     select: { moduleCode: true, status: true },
   });
 
-  // Aksi superuser dicatat di jejak platform, bukan di audit tenant: pelakunya
-  // bukan pengguna tenant, dan mencampurnya akan membuat audit tenant memuat
-  // aktor yang tidak dapat mereka kenali.
+  // A superuser action is recorded in the platform trail, not the tenant audit:
+  // its actor is not a tenant user, and mixing them would fill the tenant's audit
+  // with actors they cannot recognise.
   await db.$executeRaw`
     INSERT INTO platform.platform_audit_logs (superuser_id, action, target_type, target_id, detail)
     VALUES (${input.actorSuperuserId}::uuid, ${'tenant.module.' + (input.enabled ? 'enabled' : 'disabled')},
@@ -209,39 +208,39 @@ export class TenantStatusError extends Error {
 export type TenantLifecycleStatus = 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CHURNED';
 
 /**
- * Mengubah status siklus hidup satu tenant.
+ * Changes one tenant's lifecycle status.
  *
- * `SUSPENDED` dan `CHURNED` **diperiksa sejak awal** pada login, refresh token,
- * dan permintaan reset kata sandi — seluruhnya fail-closed dan benar. Yang tidak
- * ada adalah **satu pun jalur yang menghasilkan status itu.** Keduanya nilai
- * enum tanpa produsen, pola yang sama dengan `LEAVE`, `MANUAL`, `DISCARDED`, dan
- * metode akrual cuti.
+ * `SUSPENDED` and `CHURNED` have been **checked from the start** on login, token
+ * refresh, and password reset requests — all of it fail-closed and correct. What
+ * was missing was **any path that produces those statuses.** Both were enum
+ * values with no producer, the same pattern as `LEAVE`, `MANUAL`, `DISCARDED`,
+ * and the leave accrual methods.
  *
- * Akibatnya langsung mengenai sisi komersial: pelanggan yang berhenti membayar
- * **tidak dapat dinonaktifkan**. Seluruh mesin langganan — paket, entitlement,
- * uji coba 14 hari, penolakan 402 per modul — bekerja, tetapi tidak ada tombol
- * terakhir yang menghentikan akses ketika tagihan tidak dibayar. Demikian pula
- * pelanggan yang meminta pengakhiran layanan: `CHURNED` tidak dapat dicapai,
- * sehingga permintaan itu hanya dapat dipenuhi dengan menghapus data — tindakan
- * yang tidak dapat dibatalkan, dan bukan yang diminta.
+ * The consequence lands directly on the commercial side: a customer who stops
+ * paying **cannot be deactivated**. The entire subscription machinery — plans,
+ * entitlement, the 14-day trial, the per-module 402 — works, but there is no
+ * final switch stopping access when the bill goes unpaid. The same for a
+ * customer requesting termination: `CHURNED` was unreachable, so the request
+ * could only be met by deleting data — an irreversible act, and not the one
+ * that was asked for.
  *
- * ## Yang sengaja TIDAK dilakukan
+ * ## What is deliberately NOT done
  *
- * **Tidak menghapus apa pun.** Penangguhan adalah keadaan, bukan penghapusan.
- * Pelanggan yang membayar tunggakannya pada hari ketiga harus menemukan seluruh
- * datanya utuh — dan pelanggan yang tidak kembali tetap berhak atas ekspor
+ * **Nothing is deleted.** Suspension is a state, not a deletion. A customer who
+ * pays their arrears on the third day must find all of their data intact — and a
+ * customer who never returns still has a right to their portability export.
  * portabilitasnya.
  *
- * **Tidak mencabut sesi yang sedang berjalan secara paksa.** Access token yang
- * sudah terbit tetap berlaku sampai kedaluwarsa; login dan refresh ditolak
- * sejak detik ini. Jendelanya selebar umur access token, dan itu diterima:
- * mencabut paksa menuntut daftar pencabutan yang dibaca setiap permintaan, dan
- * biaya itu ditanggung seluruh pelanggan yang tidak pernah ditangguhkan.
+ * **Sessions already running are not force-revoked.** An access token already
+ * issued stays valid until it expires; login and refresh are refused from this
+ * second on. The window is as wide as an access token's lifetime, and that is
+ * accepted: forced revocation demands a revocation list read on every request,
+ * and that cost is borne by every customer who is never suspended.
  */
 export async function setTenantStatus(input: {
   tenantId: string;
   status: TenantLifecycleStatus;
-  /** Alasan wajib. Penangguhan tanpa alasan tidak dapat dijelaskan kepada pelanggan yang menelepon. */
+  /** The reason is mandatory. A suspension with no reason cannot be explained to the customer who calls. */
   reason: string;
   actorSuperuserId: string;
 }): Promise<{ tenantId: string; status: string; previousStatus: string }> {
@@ -259,11 +258,10 @@ export async function setTenantStatus(input: {
 
   const now = new Date();
 
-  // Stempel waktu hanya DIPASANG, tidak pernah dikosongkan.
+  // A timestamp is only ever SET, never cleared.
   //
-  // "Kapan tenant ini pernah ditangguhkan" adalah pertanyaan yang akan
-  // ditanyakan saat ada sengketa tagihan, dan mengaktifkan kembali bukan alasan
-  // untuk menghapus jawabannya.
+  // "When was this tenant suspended" is a question that gets asked during a
+  // billing dispute, and reactivating is no reason to delete the answer.
   const stamps =
     input.status === 'SUSPENDED'
       ? { suspendedAt: now }
@@ -294,31 +292,31 @@ export async function setTenantStatus(input: {
 export interface TenantDetail extends TenantSummary {
   suspendedAt: string | null;
   churnedAt: string | null;
-  /** Seluruh modul katalog, beserta keadaannya pada tenant ini. */
+  /** Every catalogue module, with its state for this tenant. */
   modules: Array<{
     code: string;
     name: string;
     tier: string;
     isCore: boolean;
-    /** Termasuk dalam paket yang dilanggan tenant ini. */
+    /** Included in the plan this tenant subscribes to. */
     inPlan: boolean;
-    /** Diaktifkan tenant. Modul inti selalu aktif. */
+    /** Enabled by the tenant. Core modules are always enabled. */
     enabled: boolean;
   }>;
 }
 
 /**
- * Satu tenant beserta keadaan seluruh modulnya.
+ * One tenant with the state of all of its modules.
  *
- * Yang dikembalikan adalah **katalog penuh**, bukan hanya modul yang aktif.
- * Layar yang hanya menerima modul aktif tidak dapat menawarkan yang belum
- * aktif — dan menyalakan modul justru satu-satunya alasan layar itu dibuka.
+ * What is returned is the **full catalogue**, not only the enabled modules. A
+ * screen that receives only enabled modules cannot offer the ones that are not
+ * — and enabling a module is the only reason that screen is ever opened.
  *
- * `inPlan` dan `enabled` dipisah karena keduanya memang berbeda, dan
- * perbedaannya menentukan apa yang dilihat tenant: entitlement adalah
- * **irisan** keduanya (lihat `resolveEffectiveAccess`). Modul yang aktif tetapi
- * di luar paket akan menolak dengan 402, dan tanpa pemisahan ini superuser yang
- * melihat "aktif" tidak akan mengerti mengapa pelanggannya tetap ditolak.
+ * `inPlan` and `enabled` are separated because they genuinely differ, and the
+ * difference decides what the tenant sees: entitlement is the **intersection**
+ * of the two (see `resolveEffectiveAccess`). A module that is enabled but
+ * outside the plan refuses with 402, and without this separation a superuser
+ * seeing "enabled" would not understand why their customer is still refused.
  */
 export async function tenantDetail(tenantId: string): Promise<TenantDetail | null> {
   const db = platformClient();

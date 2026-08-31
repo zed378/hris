@@ -1,30 +1,30 @@
 # =============================================================================
-# HRMS — tumpukan lengkap
+# HRMS — the full stack
 #
-# Tiga kontainer, dan tidak lebih. Itu keputusan sadar, bukan tahap sementara
-# (PLAN/12 §3.2): setiap komponen infrastruktur tambahan adalah sesuatu yang
-# harus dijaga hidup oleh tim yang tidak punya SRE.
+# Three containers, and no more. That is a conscious decision, not a temporary
+# stage (PLAN/12 §3.2): every additional infrastructure component is something a
+# team with no SRE has to keep alive.
 #
-#   postgres  DATA      — satu basis data, schema per modul, RLS aktif.
-#                         Merangkap sebagai antrean pekerjaan lewat pg-boss,
-#                         sehingga tidak ada RabbitMQ maupun Redis yang perlu
-#                         dijaga terpisah.
-#   web       FRONTEND  — antarmuka pengguna DAN seluruh endpoint REST.
-#                         Yang dilihat pengguna, dan yang dipanggil PWA nanti.
-#   worker    BACKEND   — proses latar. Tidak menyajikan HTTP dan tidak dapat
-#                         dijangkau dari luar; ia hanya menarik pekerjaan dari
-#                         antrean. Di sinilah payroll dan impor Excel akan berjalan.
+#   postgres  DATA      — one database, a schema per module, RLS on. It doubles
+#                         as the job queue through pg-boss, so there is no
+#                         RabbitMQ and no Redis to keep alive separately.
 #
-# Pemisahan web/worker adalah satu-satunya pemisahan proses dalam sistem, dan
-# alasannya tunggal: pekerjaan berat tidak boleh menahan request pengguna.
+#   web       FRONTEND  — the user interface AND every REST endpoint. What the
+#                         user sees, and what the PWA calls later.
+#   worker    BACKEND   — the background process. It serves no HTTP and cannot
+#                         be reached from outside; it only pulls work from the
+#                         queue. This is where payroll and Excel import run.
 #
-# Untuk pengembangan sehari-hari, jangan pakai berkas ini — pakai
-# `docker-compose.dev.yml` yang hanya menjalankan PostgreSQL, lalu jalankan web
-# dan worker langsung di mesin. Hot reload jauh lebih cepat daripada membangun
-# ulang image pada setiap perubahan.
+# The web/worker split is the only process split in the system, and its reason is
+# single: heavy work must not hold up a user request.
 #
-#   Pengembangan : pnpm db:up            (postgres saja)
-#   Tumpukan penuh: docker compose -f ops/docker-compose.yml up --build
+# For day-to-day development, do not use this file — use
+# `docker-compose.dev.yml`, which runs only PostgreSQL, then run web and worker
+# directly on the machine. Hot reload is far faster than rebuilding an image on
+# every change.
+#
+#   Development : pnpm db:up            (postgres only)
+#   Full stack  : docker compose -f ops/docker-compose.yml up --build
 # =============================================================================
 
 name: hrms
@@ -34,23 +34,23 @@ services:
   # DATA
   # ---------------------------------------------------------------------------
   # ---------------------------------------------------------------------------
-  # PENYIAP VOLUME ARSIP WAL
+  # THE WAL ARCHIVE VOLUME PREPARER
   #
-  # Volume Docker bernama lahir dimiliki root. PostgreSQL berjalan sebagai
-  # pengguna `postgres` (uid 70 pada image alpine), sehingga `archive_command`
-  # yang menulis ke sana **gagal — dan gagal secara diam-diam.**
+  # A named Docker volume is born owned by root. PostgreSQL runs as the
+  # `postgres` user (uid 70 on the alpine image), so an `archive_command`
+  # writing there **fails — and fails silently.**
   #
-  # Bentuk kegagalannya persis yang paling berbahaya: `archive_mode=on` terpasang,
-  # konfigurasinya terlihat benar di setiap tempat yang diperiksa orang, dan
-  # tidak satu pun segmen pernah terarsip. Yang naik hanyalah
-  # `pg_stat_archiver.failed_count`, dan tidak ada yang membacanya sampai ada
-  # yang benar-benar mencoba memulihkan.
+  # The failure takes precisely the most dangerous shape: `archive_mode=on` is
+  # set, the configuration looks right everywhere anyone checks, and not one
+  # segment is ever archived. The only thing that rises is
+  # `pg_stat_archiver.failed_count`, and nobody reads that until someone
+  # genuinely tries to restore.
   #
-  # Lebih buruk lagi: PostgreSQL MENAHAN segmen yang gagal diarsipkan dan
-  # mencoba lagi selamanya. Disk penuh perlahan-lahan, dan penyebabnya tidak
-  # terlihat dari mana pun kecuali dari log yang sudah tergulung.
+  # Worse still: PostgreSQL RETAINS a segment that failed to archive and retries
+  # forever. The disk fills slowly, and the cause is invisible from anywhere
+  # except logs that have already rotated away.
   #
-  # Ditemukan saat menguji PITR, sebelum konfigurasi ini pernah dipakai.
+  # Found while testing PITR, before this configuration was ever used.
   wal-init:
     image: postgres:16-alpine
     container_name: hrms-wal-init
@@ -73,31 +73,31 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-hrms}
     volumes:
       - hrms-pgdata:/var/lib/postgresql/data
-      # Membuat role runtime saat basis data pertama kali dibuat. Skrip ini
-      # hanya berjalan pada volume kosong — pada volume yang sudah ada, role
-      # dibuat oleh migrasi dan kata sandinya dipasang lewat runbook.
+      # Creates the runtime roles when the database is first created. This script
+      # only runs on an empty volume — on an existing one the roles are created by
+      # migrations and their passwords set through the runbook.
       - ./initdb:/docker-entrypoint-initdb.d:ro
-      # Arsip WAL. Volume TERPISAH dari data, dan itu bukan kerapian: arsip yang
-      # berada di volume yang sama dengan datanya akan ikut hilang bersama
-      # kerusakan yang membuatnya dibutuhkan.
+      # The WAL archive. A SEPARATE volume from the data, and that is not
+      # tidiness: an archive sitting on the same volume as the data would be lost
+      # along with the damage that made it necessary.
       - hrms-wal:/wal
     # -------------------------------------------------------------------------
     # Point-in-time recovery
     #
-    # Tanpa arsip WAL, kehilangan data maksimum sama dengan jarak antar-cadangan
-    # — untuk cadangan harian, itu berarti sampai 24 jam pekerjaan hilang.
-    # Dengan arsip WAL, kehilangannya turun menjadi selisih satu segmen, dan
-    # pemulihan dapat diarahkan ke DETIK tertentu: tepat sebelum `DELETE` tanpa
-    # `WHERE`, tepat sebelum migrasi yang salah.
+    # Without a WAL archive, maximum data loss equals the interval between
+    # backups — for a daily backup, that means up to 24 hours of work lost. With
+    # a WAL archive the loss drops to one segment, and recovery can be aimed at a
+    # particular SECOND: just before the `DELETE` without a `WHERE`, just before
+    # the bad migration.
     #
-    # `archive_command` memakai `test ! -f` lebih dulu. Menimpa segmen arsip yang
-    # sudah ada berarti menghancurkan rantai pemulihan tanpa satu pun galat —
-    # PostgreSQL menganggap arsipnya berhasil, dan yang rusak baru ketahuan saat
-    # pemulihan pertama yang sungguh-sungguh dibutuhkan.
+    # `archive_command` runs `test ! -f` first. Overwriting an archive segment
+    # that already exists destroys the recovery chain with not one error —
+    # PostgreSQL considers the archive successful, and the damage only surfaces
+    # during the first restore that is genuinely needed.
     #
-    # `archive_command` yang gagal membuat PostgreSQL MENAHAN segmennya dan
-    # mencoba lagi. Itu perilaku yang benar dan berbahaya sekaligus: disk penuh
-    # bila arsipnya tidak pernah berhasil. Runbook §7 menyebutkan cara
+    # An `archive_command` that fails makes PostgreSQL RETAIN the segment and try
+    # again. That is both correct and dangerous: the disk fills if the archive
+    # never succeeds. Runbook §7 describes how to monitor it.
     # memantaunya.
     command:
       - postgres
@@ -112,8 +112,8 @@ services:
       - -c
       - max_wal_senders=3
     ports:
-      # Dipetakan ke 5433 supaya tidak bentrok dengan PostgreSQL yang mungkin
-      # sudah berjalan di mesin pengembang.
+      # Mapped to 5433 so it does not clash with a PostgreSQL that may already be
+      # running on a developer's machine.
       - '${POSTGRES_PORT:-5433}:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-hrms_owner} -d ${POSTGRES_DB:-hrms}']
@@ -122,14 +122,13 @@ services:
       retries: 20
 
   # ---------------------------------------------------------------------------
-  # MIGRASI
+  # MIGRATIONS
   #
-  # Berjalan sekali sampai selesai, lalu berhenti. web dan worker menunggunya
-  # sukses sebelum dimulai — supaya tidak ada proses yang sempat menyentuh skema
-  # versi lama.
+  # Runs once to completion, then stops. web and worker wait for it to succeed
+  # before starting — so no process ever touches an older schema version.
   #
-  # Memakai role owner, satu-satunya tempat kredensial itu dipakai. web dan
-  # worker tidak pernah memilikinya.
+  # Uses the owner role, the only place those credentials are used. web and
+  # worker never hold them.
   # ---------------------------------------------------------------------------
   migrate:
     build:
@@ -147,16 +146,16 @@ services:
     restart: 'no'
 
   # ---------------------------------------------------------------------------
-  # FRONTEND — antarmuka pengguna + REST API
+  # FRONTEND — the user interface + REST API
   #
-  # Ini satu-satunya kontainer yang terbuka ke luar. Ia melayani:
-  #   /                halaman aplikasi (UI menyusul di Fase 2)
-  #   /api/**          bidang tenant  — token audience `hrms-tenant`
-  #   /admin/api/**    control plane  — token audience `hrms-admin`, TOTP wajib
+  # This is the only container exposed to the outside. It serves:
+  #   /                the application pages (the UI arrives in Phase 2)
+  #   /api/**          the tenant plane  — token audience `hrms-tenant`
+  #   /admin/api/**    the control plane — token audience `hrms-admin`, TOTP required
   #
-  # Kedua bidang itu memakai guard yang berbeda dan koneksi basis data yang
-  # berbeda pula. `hrms_app` tidak dapat menyentuh schema `platform`, dan
-  # `hrms_platform` tidak dapat membaca `auth.users` (P11).
+  # The two planes use different guards and different database connections.
+  # `hrms_app` cannot touch the `platform` schema, and `hrms_platform` cannot
+  # read `auth.users` (P11).
   # ---------------------------------------------------------------------------
   web:
     build:
@@ -171,14 +170,14 @@ services:
         condition: service_completed_successfully
     environment:
       NODE_ENV: production
-      # Runtime memakai role aplikasi, bukan owner. Inilah yang membuat RLS
-      # selalu berlaku: `hrms_app` bersifat NOBYPASSRLS dan bukan pemilik tabel.
+      # The runtime uses the application role, not the owner. This is what keeps
+      # RLS always in force: `hrms_app` is NOBYPASSRLS and is not the table owner.
       DATABASE_URL_APP: postgresql://hrms_app:${APP_DB_PASSWORD:-hrms_app_password}@postgres:5432/${POSTGRES_DB:-hrms}
-      # Principal control plane. Hak aksesnya sengaja sempit: schema `platform`
-      # dan metadata tenant, tanpa satu pun GRANT ke auth.users / iam.* / audit.*.
+      # The control plane principal. Its rights are deliberately narrow: the
+      # `platform` schema and tenant metadata, with no GRANT into auth/iam/audit.
       DATABASE_URL_PLATFORM: postgresql://hrms_platform:${PLATFORM_DB_PASSWORD:-hrms_platform_password}@postgres:5432/${POSTGRES_DB:-hrms}
-      # WAJIB diganti di produksi. Dua rahasia berbeda, supaya token tenant dan
-      # token admin tidak pernah dapat saling diverifikasi.
+      # MUST be changed in production. Two different secrets, so a tenant token
+      # and an admin token can never verify against each other.
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib dipasang}
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET wajib dipasang}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
@@ -187,18 +186,18 @@ services:
       - '${WEB_PORT:-3000}:3000'
 
   # ---------------------------------------------------------------------------
-  # BACKEND — proses latar
+  # BACKEND — the background process
   #
-  # Tidak membuka satu pun port. Tidak dapat dijangkau dari internet, dan tidak
-  # perlu: ia menarik pekerjaan dari antrean, bukan menerima panggilan.
+  # Opens no port at all. Unreachable from the internet, and it does not need to
+  # be: it pulls work from a queue rather than receiving calls.
   #
-  # Memakai principal `hrms_worker` yang punya satu pengecualian sempit — boleh
-  # membaca outbox lintas tenant, karena pompa event adalah infrastruktur. Pada
-  # seluruh tabel lain ia sama terkurungnya dengan `hrms_app`.
+  # Uses the `hrms_worker` principal, which has one narrow exception — it may
+  # read the outbox across tenants, because the event pump is infrastructure. On
+  # every other table it is as boxed in as `hrms_app`.
   #
-  # Menskala pada panjang antrean, bukan jumlah request. Menambah replika di
-  # sini aman: `FOR UPDATE SKIP LOCKED` membuat dua pompa mengambil baris yang
-  # berlainan, bukan berebut baris yang sama.
+  # It scales on queue length, not request count. Adding replicas here is safe:
+  # `FOR UPDATE SKIP LOCKED` makes two pumps take different rows rather than
+  # fight over the same one.
   # ---------------------------------------------------------------------------
   worker:
     build:
@@ -213,34 +212,34 @@ services:
         condition: service_completed_successfully
     environment:
       NODE_ENV: production
-      # pg-boss mengelola schema antreannya sendiri, sehingga butuh hak DDL.
+      # pg-boss manages its own queue schema, so it needs DDL rights.
       DATABASE_URL: postgresql://hrms_owner:${POSTGRES_PASSWORD:-hrms_dev_password}@postgres:5432/${POSTGRES_DB:-hrms}
       DATABASE_URL_APP: postgresql://hrms_app:${APP_DB_PASSWORD:-hrms_app_password}@postgres:5432/${POSTGRES_DB:-hrms}
       DATABASE_URL_WORKER: postgresql://hrms_worker:${WORKER_DB_PASSWORD:-hrms_worker_password}@postgres:5432/${POSTGRES_DB:-hrms}
 
   # ---------------------------------------------------------------------------
-  # Cadangan terjadwal
+  # Scheduled backups
   # ---------------------------------------------------------------------------
   #
-  # Berada di balik profil `backup`, sehingga tidak ikut menyala pada
-  # `docker compose up` biasa:
+  # Behind the `backup` profile, so it does not start on an ordinary
+  # `docker compose up`:
   #
   #     docker compose --profile backup up -d
   #
-  # **Tidak memasang socket Docker.** Memasang `/var/run/docker.sock` ke dalam
-  # kontainer memberinya kendali penuh atas seluruh mesin — akses itu setara
-  # root di host, dan menukarnya demi kenyamanan penjadwalan adalah pertukaran
-  # yang buruk. Layanan ini memakai `pg_dump` yang sudah ada di dalam image
-  # PostgreSQL, terhubung lewat jaringan seperti klien biasa.
+  # **It mounts no Docker socket.** Mounting `/var/run/docker.sock` into a
+  # container gives it full control of the whole machine — that access is
+  # equivalent to root on the host, and trading it for scheduling convenience is
+  # a bad trade. This service uses the `pg_dump` already inside the PostgreSQL
+  # image, connecting over the network like any other client.
   #
-  # Penjadwalnya berupa gelung tidur, bukan cron. Alasannya bukan kesederhanaan:
-  # cron di dalam kontainer menuntut proses init tersendiri, dan wadah dengan
-  # dua proses membuat `docker logs` maupun sinyal berhenti berperilaku aneh.
+  # Its scheduler is a sleep loop, not cron. The reason is not simplicity: cron
+  # inside a container demands an init process of its own, and a container with
+  # two processes makes both `docker logs` and stop signals behave strangely.
   #
-  # Yang harus diketahui sebagai gantinya: gelung tidur BERGESER. Bila cadangan
-  # memakan lima menit, cadangan berikutnya mundur lima menit, dan setelah
-  # sebulan waktunya sudah jauh dari yang dimaksud. Untuk penjadwalan yang harus
-  # tepat waktu, pakai cron di host — lihat ops/RUNBOOK.md §6.
+  # What has to be known instead: a sleep loop DRIFTS. If a backup takes five
+  # minutes, the next one starts five minutes later, and after a month its time
+  # is far from what was intended. For scheduling that must be punctual, use cron
+  # on the host — see ops/RUNBOOK.md §6.
   backup:
     image: postgres:16-alpine
     profiles: ['backup']
@@ -253,15 +252,15 @@ services:
       PGUSER: hrms_owner
       PGPASSWORD: ${POSTGRES_PASSWORD:-hrms_dev_password}
       PGDATABASE: ${POSTGRES_DB:-hrms}
-      # Jarak antar-cadangan. Ini juga kehilangan data maksimum bila terjadi
-      # kerusakan — belum ada PITR, sehingga angka ini adalah RPO yang nyata.
+      # The interval between backups. It is also the maximum data loss in a
+      # disaster — there is no PITR yet, so this number is the real RPO.
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
       BACKUP_KEEP: ${BACKUP_KEEP:-14}
     volumes:
       - hrms-backups:/backups
-      # Berkas foto dan dokumen. Hanya-baca: proses cadangan tidak punya alasan
-      # menulis ke sana, dan hak tulis yang tidak dipakai adalah hak yang dapat
-      # disalahgunakan bila kontainer ini kelak dikompromikan.
+      # Photo and document files. Read-only: the backup process has no reason to
+      # write there, and an unused write right is a right that can be abused if
+      # this container is ever compromised.
       - hrms-storage:/storage:ro
     command:
       - sh
@@ -277,9 +276,9 @@ services:
             TABLES=$$(pg_restore --list "$$FILE" 2>/dev/null | grep -c "TABLE DATA" || true)
             SIZE=$$(du -h "$$FILE" | cut -f1)
 
-            # Cadangan yang gagal separuh jalan tetap meninggalkan berkas.
-            # Memeriksa daftar isinya sekarang jauh lebih murah daripada
-            # menemukannya kosong saat sedang memulihkan.
+            # A backup that failed halfway still leaves a file behind. Checking its
+            # table of contents now is far cheaper than finding it empty during a
+            # restore.
             if [ "$$TABLES" -lt 10 ]; then
               echo '{"scope":"backup","level":"error","event":"suspect","tables":'"$$TABLES"'}' >&2
               rm -f "$$FILE"
@@ -292,9 +291,9 @@ services:
             rm -f "$$FILE"
           fi
 
-          # Retensi per JUMLAH, bukan umur. Retensi berbasis umur menghapus
-          # semuanya sekaligus bila layanan ini berhenti dua pekan lalu menyala
-          # lagi — tepat ketika cadangan lama paling dibutuhkan.
+          # Retention by COUNT, not age. Age-based retention deletes everything at
+          # once if this service stops for two weeks and then starts again —
+          # exactly when the old backups are needed most.
           ls -1t /backups/hrms-*.dump 2>/dev/null | tail -n +$$((BACKUP_KEEP + 1)) | while read -r old; do
             rm -f "$$old" "$${old%.dump}-storage.tar.gz"
             echo '{"scope":"backup","event":"pruned","file":"'"$$old"'"}'
