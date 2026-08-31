@@ -3,23 +3,23 @@ import { writeAudit, type TenantClient } from '@hrms/db';
 import { createBlobStore, BlobError } from '../storage/index.ts';
 
 /**
- * Dokumen karyawan (PLAN/12 F2).
+ * Employee documents (PLAN/12 P2).
  *
- * Yang disimpan di sini bukan lampiran biasa: pindaian KTP, kartu keluarga,
- * ijazah, surat kontrak. Seluruhnya data pribadi menurut UU PDP No. 27/2022,
- * dan sebagiannya cukup untuk membuka rekening bank atas nama orang lain.
+ * What is stored here is not an ordinary attachment: scans of an ID card, a
+ * family card, a diploma, a contract. All of it is personal data under Personal
+ * Data Protection Act No. 27/2022, and some of it is enough to open a bank
+ * account in someone else's name.
  *
- * Tiga sifat yang mengikuti dari kenyataan itu:
+ * Three properties follow from that:
  *
- *   1. **Jenis berkas dibatasi.** Hanya PDF dan gambar. Menerima berkas
- *      sembarang berarti menyimpan lampiran yang dapat dieksekusi di server
- *      yang sama dengan data gaji.
- *   2. **Pembacaan dicatat.** Sejajar dengan foto presensi: pertanyaan "siapa
- *      saja yang pernah membuka pindaian KTP saya" harus dapat dijawab.
- *   3. **Tidak ada penghapusan, hanya pengarsipan.** Aturan M4 dokumen 09.
- *      Berkas fisiknya boleh hilang; barisnya bertahan supaya riwayat
- *      "pernah ada dokumen ini, diunggah siapa" tidak ikut hilang.
- */
+ *   1. **File types are restricted.** PDF and images only. Accepting arbitrary
+ *      files means storing an executable attachment on the same server as the
+ *      salary data.
+ *   2. **Reads are logged.** In line with attendance photos: the question "who
+ *      has opened the scan of my ID card" has to be answerable.
+ *   3. **Nothing is deleted, only archived.** Rule M4 of document 09. The
+ *      physical file may go; its row survives so the history of "this document
+ *      existed, uploaded by whom" does not go with it.
 
 export class DocumentError extends Error {
   constructor(
@@ -31,25 +31,25 @@ export class DocumentError extends Error {
   }
 }
 
-// Daftar jenisnya tinggal di `@hrms/contracts` supaya layar unggah — komponen
-// klien — dapat memakainya tanpa menarik Prisma ke dalam bundel peramban.
-// Di-ekspor ulang di sini agar pemanggil di modul karyawan tidak perlu tahu itu.
+// The kind list lives in `@hrms/contracts` so the upload screen — a client
+// component — can use it without pulling Prisma into the browser bundle.
+// Re-exported here so callers in the employee module need not know that.
 export { DOCUMENT_KINDS, type DocumentKind } from '@hrms/contracts';
 
 
-/** Pindaian KTP resolusi wajar ≈ 1-3 MB; ijazah berwarna bisa 8 MB. */
+/** A reasonable-resolution ID card scan ≈ 1-3 MB; a colour diploma can be 8 MB. */
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 /**
- * Jenis berkas yang diterima, beserta ekstensi penyimpanannya.
+ * The accepted file types, with their storage extensions.
  *
- * Daftar putih, bukan daftar hitam. Daftar hitam selalu tertinggal satu langkah
- * dari format berikutnya yang ternyata dapat membawa skrip, dan yang menanggung
- * akibatnya adalah server yang juga memegang data gaji.
+ * An allowlist, not a blocklist. A blocklist is always one step behind the next
+ * format that turns out to be able to carry a script, and who bears that is the
+ * server also holding the salary data.
  *
- * `content-type` dari klien TIDAK dipercaya sendirian — ia hanya menentukan
- * ekstensi. Isi berkasnya diperiksa terhadap angka ajaibnya di `sniffType`.
- */
+ * The client's `content-type` is NOT trusted on its own — it only decides the
+ * extension. The file's contents are checked against its magic bytes in
+ * `sniffType`.
 const ACCEPTED: Record<string, string> = {
   'application/pdf': 'pdf',
   'image/jpeg': 'jpg',
@@ -65,15 +65,15 @@ const store = createBlobStore({
 });
 
 /**
- * Menentukan jenis berkas dari isinya, bukan dari namanya.
+ * Determines a file's type from its contents, not from its name.
  *
- * Nama berkas dan `content-type` sama-sama dikirim klien, sehingga keduanya
- * dapat berbohong. Sebuah skrip bernama `ktp.pdf` yang dikirim dengan
- * `content-type: application/pdf` akan lolos pemeriksaan apa pun yang hanya
- * membaca metadata — dan tersimpan di server sebagai dokumen yang tampak sah.
+ * The file name and the `content-type` are both sent by the client, so both can
+ * lie. A script named `ktp.pdf` sent with `content-type: application/pdf` would
+ * pass any check that reads only metadata — and be stored on the server as a
+ * document that looks legitimate.
  *
- * Angka ajaib di beberapa byte pertama tidak dapat dipalsukan tanpa membuat
- * berkasnya benar-benar menjadi jenis itu.
+ * The magic bytes in the first few bytes cannot be faked without making the file
+ * genuinely that type.
  */
 export function sniffType(content: Buffer): string | null {
   if (content.length < 12) return null;
@@ -106,7 +106,7 @@ export interface DocumentSummary {
   mimeType: string;
   sizeBytes: number;
   expiresAt: string | null;
-  /** True bila `expiresAt` sudah lewat. Dihitung, bukan disimpan. */
+  /** True when `expiresAt` has passed. Computed, not stored. */
   expired: boolean;
   uploadedBy: string;
   createdAt: string;
@@ -208,8 +208,8 @@ export async function uploadDocument(
       employeeId: input.employeeId,
       kind: input.kind,
       title: input.title.trim(),
-      // Nama asli disimpan untuk ditampilkan, TIDAK dipakai sebagai path.
-      // Nama berkas dari klien dapat memuat "../" dan karakter apa pun.
+      // The original name is stored for display, NOT used as a path. A client's
+      // file name can contain "../" and any character at all.
       fileName: input.fileName.trim().slice(0, 255),
       storageKey: stored.key,
       mimeType,
@@ -232,12 +232,12 @@ export async function uploadDocument(
 }
 
 /**
- * Membaca isi dokumen, sekaligus mencatat siapa yang membacanya.
+ * Reads a document's contents, and records who read it at the same time.
  *
- * Pencatatan dan pembacaan digabung dalam satu fungsi dengan sengaja. Bila
- * keduanya terpisah, akan ada satu jalur pemanggilan yang membaca tanpa
- * mencatat — dan jalur itulah yang akan dipakai ketika seseorang menambahkan
- * fitur ekspor massal enam bulan dari sekarang.
+ * The logging and the read are combined into one function deliberately. If the
+ * two were separate, there would be one call path that reads without logging —
+ * and that is the path someone will use when they add a bulk export feature six
+ * months from now.
  */
 export async function readDocument(
   tx: TenantClient,
@@ -251,9 +251,9 @@ export async function readDocument(
   if (!row) throw new DocumentError('Dokumen tidak ditemukan', 'not_found');
   if (row.archivedAt) throw new DocumentError('Dokumen sudah diarsipkan', 'archived');
 
-  // Karyawan yang membuka dokumennya sendiri tidak dicatat. Yang hendak dijawab
-  // tabel ini adalah "siapa LAGI yang pernah membukanya", dan mengisinya dengan
-  // kunjungan pemiliknya sendiri hanya membuat jawabannya sulit dibaca.
+  // An employee opening their own document is not logged. What this table exists
+  // to answer is "who ELSE has opened it", and filling it with the owner's own
+  // visits only makes that answer harder to read.
   if (!reader.isOwner) {
     await tx.documentAccessLog.create({
       data: {
@@ -280,12 +280,12 @@ export async function readDocument(
 }
 
 /**
- * Mengarsipkan dokumen.
+ * Archives a document.
  *
- * Bukan menghapus (aturan M4 dokumen 09). Berkas fisiknya dibuang — ia data
- * pribadi yang tidak lagi diperlukan — tetapi barisnya bertahan, sehingga
- * pertanyaan "siapa yang pernah mengunggah pindaian KTP ini dan kapan
- * dibuang" tetap punya jawaban.
+ * Not deletion (rule M4 of document 09). The physical file is discarded — it is
+ * personal data that is no longer needed — but its row survives, so the question
+ * "who uploaded this ID card scan and when was it discarded" still has an
+ * answer.
  */
 export async function archiveDocument(
   tx: TenantClient,
@@ -301,8 +301,8 @@ export async function archiveDocument(
   if (!row) throw new DocumentError('Dokumen tidak ditemukan', 'not_found');
   if (row.archivedAt) return;
 
-  // Berkas dihapus lebih dulu, baru barisnya ditandai. Urutan sebaliknya akan
-  // meninggalkan berkas yatim bila proses mati di antaranya.
+  // The file is deleted first, then its row is marked. The reverse order would
+  // leave an orphan file if the process died in between.
   const outcome = await store.remove(row.storageKey);
 
   await tx.employeeDocument.update({
@@ -321,7 +321,7 @@ export async function archiveDocument(
   });
 }
 
-/** Dokumen yang kedaluwarsa dalam sekian hari ke depan, untuk pengingat HR. */
+/** Documents expiring within the next so many days, for HR reminders. */
 export async function expiringDocuments(
   tx: TenantClient,
   tenantId: string,

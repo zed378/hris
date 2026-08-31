@@ -3,32 +3,31 @@ import { log } from '@hrms/observability';
 import { type TenantClient } from '@hrms/db';
 
 /**
- * Web Push (dokumen 11 §7).
+ * Web Push (document 11 §7).
  *
- * `NotificationChannel.WEB_PUSH` ada di enum sejak modul notifikasi dibangun,
- * tanpa satu pun produsen. Berkas ini yang mengisinya.
+ * `NotificationChannel.WEB_PUSH` has been in the enum since the notification
+ * module was built, with not one producer. This file is what fills it.
  *
- * ## Push TIDAK PERNAH menjadi satu-satunya jalur
+ * ## Push is NEVER the only path
  *
- * Dokumen 04 §R52 menyebutnya sebagai risiko tinggi, dan alasannya bukan
- * kerapuhan jaringan: **Web Push tidak berfungsi di iOS kecuali PWA sudah
- * dipasang ke Layar Utama.** Sebagian besar pengguna tidak akan memasangnya, dan
- * bagi mereka push yang "terkirim" tidak pernah muncul di mana pun.
+ * Document 04 §R52 names it a high risk, and the reason is not network
+ * fragility: **Web Push does not work on iOS unless the PWA has been installed
+ * to the Home Screen.** Most users will not install it, and for them a push that
+ * was "delivered" never appears anywhere.
  *
- * Karena itu bentuknya di sini adalah **tambahan, bukan pengganti**. Email tetap
- * dikirim untuk hal yang penting; push hanya membuatnya sampai lebih cepat bagi
- * yang perangkatnya mendukung. Mengganti email dengan push berarti memindahkan
- * kabar "cuti Anda ditolak" ke saluran yang diam-diam tidak sampai untuk
- * separuh pengguna.
+ * So its shape here is an **addition, not a replacement**. Email is still sent
+ * for anything important; push only makes it arrive faster for those whose
+ * device supports it. Replacing email with push means moving the news "your leave
+ * was refused" onto a channel that silently fails to arrive for half the users.
  *
- * ## Kegagalan diperlakukan sebagai fakta, bukan galat
+ * ## A failure is treated as a fact, not an error
  *
- * Langganan push mati tanpa memberi tahu siapa pun: pengguna menghapus
- * peramban, mencabut izin, atau perangkatnya diganti. Layanan push menjawab
- * 404/410 untuk endpoint yang sudah tidak berlaku, dan jawaban itu **bukan
- * masalah yang perlu dicatat sebagai kegagalan** — ia keterangan bahwa barisnya
- * layak dihapus. Memperlakukannya sebagai galat akan mengisi log dengan
- * kejadian yang tidak dapat ditindaklanjuti siapa pun.
+ * A push subscription dies without telling anyone: the user clears their
+ * browser, revokes the permission, or replaces the device. The push service
+ * answers 404/410 for an endpoint that is no longer valid, and that answer is
+ * **not a problem worth recording as a failure** — it is information that the
+ * row deserves deleting. Treating it as an error would fill the logs with events
+ * nobody can act on.
  */
 
 export interface PushSubscriptionInput {
@@ -40,18 +39,18 @@ export interface PushSubscriptionInput {
 export interface PushPayload {
   title: string;
   body: string;
-  /** Notifikasi ber-tag sama saling menimpa, bukan menumpuk. */
+  /** Notifications with the same tag replace each other rather than stacking. */
   tag: string;
-  /** Dibuka saat notifikasinya diklik. */
+  /** Opened when the notification is clicked. */
   url: string;
 }
 
 /**
- * Kunci VAPID, dibaca sekali.
+ * The VAPID keys, read once.
  *
- * Ketiadaannya **bukan galat** — ia berarti push belum dikonfigurasi, dan
- * sistem harus tetap berjalan tanpanya. Melempar di sini akan menjatuhkan
- * seluruh pengiriman notifikasi hanya karena satu saluran opsional tidak
+ * Their absence is **not an error** — it means push is not configured, and the
+ * system has to keep working without it. Throwing here would bring down all
+ * notification delivery just because one optional channel is unset.
  * disetel.
  */
 function vapid(): { publicKey: string; privateKey: string; subject: string } | null {
@@ -67,7 +66,7 @@ export function pushConfigured(): boolean {
   return vapid() !== null;
 }
 
-/** Kunci publik untuk klien. Aman dibagikan — memang harus. */
+/** The public key for the client. Safe to share — it has to be. */
 export function pushPublicKey(): string | null {
   return vapid()?.publicKey ?? null;
 }
@@ -78,15 +77,15 @@ export async function saveSubscription(
   userId: string,
   input: PushSubscriptionInput,
 ): Promise<{ id: string }> {
-  // Upsert atas endpoint, bukan create. Peramban mengembalikan endpoint yang
-  // SAMA bila langganannya masih hidup, dan `subscribe()` dipanggil setiap kali
-  // aplikasi dimuat — create akan gagal pada muat kedua.
+  // An upsert on the endpoint, not a create. The browser returns the SAME
+  // endpoint while its subscription is alive, and `subscribe()` is called every
+  // time the app loads — a create would fail on the second load.
   //
-  // Pemiliknya ikut diperbarui: satu perangkat bersama yang berpindah pengguna
-  // harus mengirim notifikasi kepada yang sekarang memakainya, bukan kepada yang
-  // kemarin. Ini kelas yang sama dengan antrean presensi luring, dan di sini
-  // jawabannya berbeda karena langganan push memang milik sesi peramban, bukan
-  // milik perangkat.
+  // Its owner is updated too: one shared device changing hands must send
+  // notifications to whoever is using it now, not to yesterday's user. This is
+  // the same class as the offline punch queue, and here the answer differs
+  // because a push subscription genuinely belongs to a browser session rather
+  // than to the device.
   const row = await tx.pushSubscription.upsert({
     where: { endpoint: input.endpoint },
     create: {
@@ -120,7 +119,7 @@ export async function removeSubscription(
   return removed.count > 0;
 }
 
-/** Menghapus seluruh langganan seorang pengguna. Dipakai saat logout. */
+/** Deletes all of a user's subscriptions. Used at logout. */
 export async function removeUserSubscriptions(
   tx: TenantClient,
   tenantId: string,
@@ -132,16 +131,16 @@ export async function removeUserSubscriptions(
 
 export interface PushResult {
   sent: number;
-  /** Langganan mati yang dihapus. Bukan kegagalan. */
+  /** Dead subscriptions removed. Not a failure. */
   pruned: number;
   failed: number;
 }
 
 /**
- * Mengirim satu notifikasi ke seluruh perangkat seorang pengguna.
+ * Sends one notification to all of a user's devices.
  *
- * Mengembalikan `sent: 0` bila push belum dikonfigurasi atau penggunanya tidak
- * punya langganan. Keduanya keadaan normal, bukan kegagalan.
+ * Returns `sent: 0` when push is not configured or the user has no subscription.
+ * Both are normal states, not failures.
  */
 export async function sendPush(
   tx: TenantClient,
@@ -170,8 +169,8 @@ export async function sendPush(
           keys: { p256dh: subscription.p256dh, auth: subscription.auth },
         },
         body,
-        // TTL: notifikasi cuti yang sampai tiga hari kemudian tidak berguna.
-        // Layanan push menyimpannya selama ini bila perangkatnya sedang mati.
+        // TTL: a leave notification arriving three days later is useless. The push
+        // service stores it this long while the device is switched off.
         { TTL: 12 * 3600 },
       );
 
@@ -183,18 +182,18 @@ export async function sendPush(
     } catch (error) {
       const status = (error as { statusCode?: number }).statusCode;
 
-      // 404/410 berarti endpoint-nya sudah tidak berlaku — pengguna menghapus
-      // peramban, mencabut izin, atau perangkatnya diganti. Barisnya dihapus,
-      // dan itu BUKAN kegagalan: mencatatnya sebagai galat akan mengisi log
-      // dengan kejadian yang tidak dapat ditindaklanjuti siapa pun.
+      // 404/410 means the endpoint is no longer valid — the user cleared their
+      // browser, revoked the permission, or replaced the device. Its row is
+      // deleted, and that is NOT a failure: recording it as an error would fill
+      // the logs with events nobody can act on.
       if (status === 404 || status === 410) {
         await tx.pushSubscription.delete({ where: { id: subscription.id } });
         result.pruned += 1;
         continue;
       }
 
-      // Sisanya dihitung, dan langganan yang gagal berulang kali dibuang.
-      // Tanpa batas ini, endpoint yang rusak diam-diam akan dicoba selamanya.
+      // The rest are counted, and a subscription that fails repeatedly is dropped.
+      // Without this limit, a quietly broken endpoint would be retried forever.
       const failed = await tx.pushSubscription.update({
         where: { id: subscription.id },
         data: { failureCount: { increment: 1 } },

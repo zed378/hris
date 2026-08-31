@@ -1,22 +1,22 @@
 'use client';
 
 /**
- * Antrean presensi luring (dokumen 11 §6).
+ * The offline punch queue (document 11 §6).
  *
- * Satu-satunya tulis luring dalam sistem, dan itu disengaja (P16). Pengajuan
- * cuti dapat menunggu sampai ada sinyal; orang yang berdiri di gerbang pabrik
- * pukul tujuh pagi tanpa sinyal tidak dapat.
+ * The only offline write in the system, and that is deliberate (P16). A leave
+ * request can wait for signal; a person standing at the factory gate at seven in
+ * the morning with no signal cannot.
  *
- * TIDAK memakai Background Sync. Dukungannya tidak ada di iOS sama sekali, dan
- * membangun keandalan di atas API yang absen pada separuh perangkat pengguna
- * berarti membangun keandalan yang hanya terlihat bekerja saat diuji di Android.
- * Yang dipakai adalah pemicu berlapis: saat kembali online, saat halaman
- * terlihat lagi, dan saat aplikasi dibuka.
+ * It does NOT use Background Sync. There is no support for it on iOS at all, and
+ * building reliability on an API absent from half the user devices means
+ * building reliability that only appears to work when tested on Android. What is
+ * used instead are layered triggers: when connectivity returns, when the page
+ * becomes visible again, and when the app is opened.
  *
- * Batas yang harus dinyatakan jujur (risiko R48): iOS menghapus penyimpanan
- * situs yang tidak dibuka selama tujuh hari. Antrean yang menumpuk selama
- * seminggu tanpa sinyal DAPAT HILANG. `navigator.storage.persist()` mengurangi
- * risikonya, dan pengguna diberi tahu bila permintaan itu ditolak.
+ * The limit that has to be stated honestly (risk R48): iOS evicts the storage of
+ * a site not opened for seven days. A queue that has built up over a week without
+ * signal CAN BE LOST. `navigator.storage.persist()` reduces the risk, and the
+ * user is told when that request is refused.
  */
 
 const DB_NAME = 'hrms-offline';
@@ -25,29 +25,29 @@ const STORE = 'punch-queue';
 
 export interface QueuedPunch {
   /**
-   * Pemilik ketukan ini — id pengguna yang mengantrekannya.
+   * The owner of this punch — the id of the user who queued it.
    *
-   * Wajib, dan alasannya adalah bug yang ditemukan saat menutup DoD Fase 3.
+   * Mandatory, and its reason is a bug found while closing the Phase 3 DoD.
    *
-   * Antrean luring SENGAJA bertahan setelah logout: ia milik perangkat, bukan
-   * milik sesi, dan menghapusnya berarti membuang presensi yang belum sempat
-   * terkirim milik orang yang baru saja keluar. Keputusan itu tetap benar.
+   * The offline queue DELIBERATELY survives a logout: it belongs to the device,
+   * not to the session, and clearing it would throw away the unsent punches of
+   * whoever just logged out. That decision remains right.
    *
-   * Yang salah adalah akibatnya bila tidak ada penanda pemilik. Server
-   * menurunkan `employeeId` dari SESI, bukan dari isi ketukan. Pada perangkat
-   * bersama — ponsel gudang yang dipakai tiga shift, komputer pos satpam —
-   * urutannya menjadi:
+   * What was wrong is its consequence without an owner marker. The server
+   * derived the `employeeId` from the SESSION, not from the punch contents. On a
+   * shared device — a warehouse phone used across three shifts, a security post
+   * computer — the sequence becomes:
    *
-   *   1. A mengetuk saat jaringan mati. Ketukannya masuk antrean.
-   *   2. A keluar. Antrean bertahan, sesuai rancangan.
-   *   3. B masuk. Pemicu sinkronisasi berjalan.
-   *   4. Ketukan A terkirim dengan token B, dan tercatat sebagai kehadiran B.
+   *   1. A punches while the network is down. Their punch enters the queue.
+   *   2. A logs out. The queue survives, by design.
+   *   3. B logs in. The sync trigger runs.
+   *   4. A's punch is sent with B's token, and recorded as B's attendance.
    *
-   * Presensi A lenyap; B menerima kehadiran yang tidak ia lakukan. Tidak ada
-   * galat yang muncul, dan keduanya baru terlihat saat slip gaji terbit.
+   * A's attendance vanishes; B receives an attendance they did not perform. No
+   * error appears, and both only become visible when the payslips are issued.
    */
   ownerUserId: string;
-  /** Dibangkitkan SEBELUM pengiriman pertama. Kunci idempotensi di server. */
+  /** Generated BEFORE the first send. The idempotency key on the server. */
   dedupeKey: string;
   type: 'IN' | 'OUT' | 'BREAK_START' | 'BREAK_END';
   punchedAt: string;
@@ -103,32 +103,31 @@ export async function dequeuePunch(dedupeKey: string): Promise<void> {
 export interface FlushResult {
   sent: number;
   failed: number;
-  /** Milik pengguna saat ini yang masih tertahan. */
+  /** The current user's punches still held. */
   remaining: number;
-  /** Milik pengguna lain di perangkat yang sama. */
+  /** Punches belonging to another user on the same device. */
   otherUsers: number;
 }
 
 /**
- * Mengirim seluruh antrean.
+ * Sends the whole queue.
  *
- * Ketukan yang ditolak server dengan galat permanen (4xx selain 401/429) dibuang
- * dari antrean. Menyimpannya selamanya berarti antrean yang tidak pernah kosong
- * dan indikator "belum terkirim" yang tidak pernah hilang — sehingga pengguna
+ * A punch the server refuses with a permanent error (4xx other than 401/429) is
+ * dropped from the queue. Keeping it forever means a queue that is never empty
+ * and an "unsent" indicator that never clears — so the user stops trusting it.
  * berhenti memercayainya.
- *
- * Aman dijalankan dua kali bersamaan: server memakai `dedupeKey` sebagai kunci
- * unik, sehingga pengiriman ganda menghasilkan satu baris dan balasan sukses.
+ * Safe to run twice at once: the server uses `dedupeKey` as a unique key, so a
+ * double send produces one row and a success response.
  */
 export async function flushQueue(
   send: (punch: QueuedPunch) => Promise<Response>,
   /**
-   * Pengguna yang sedang masuk. Hanya ketukan miliknya yang dikirim.
+   * The user currently logged in. Only their punches are sent.
    *
-   * Ketukan milik orang lain DITINGGALKAN di antrean, bukan dibuang: pemiliknya
-   * mungkin masuk lagi nanti di perangkat yang sama, dan presensinya masih
-   * dapat terkirim. Membuangnya berarti menghilangkan kehadiran seseorang
-   * karena orang lain kebetulan memakai perangkat itu lebih dulu.
+   * Another person's punches are LEFT in the queue rather than discarded: their
+   * owner may log in again later on the same device, and their attendance can
+   * still be sent. Discarding them would erase someone's attendance because
+   * another person happened to use the device first.
    */
   currentUserId: string,
 ): Promise<FlushResult> {
@@ -137,8 +136,8 @@ export async function flushQueue(
   let failed = 0;
 
   for (const punch of queue) {
-    // Milik orang lain — dilewati diam-diam, tanpa dihitung gagal. Ia bukan
-    // kegagalan; ia sekadar bukan giliran ketukan ini.
+    // Someone else's — skipped silently, and not counted as a failure. It is not
+    // a failure; it is simply not this punch's turn.
     if (punch.ownerUserId !== currentUserId) continue;
 
     try {
@@ -150,19 +149,19 @@ export async function flushQueue(
         continue;
       }
 
-      // 401 dan 429 bersifat sementara: sesi dapat disegarkan, batas laju akan
-      // reda. Ketukan tetap di antrean.
+      // 401 and 429 are temporary: a session can be refreshed, a rate limit will
+      // ease. The punch stays in the queue.
       if (response.status === 401 || response.status === 429 || response.status >= 500) {
         failed += 1;
         await enqueuePunch({ ...punch, attempts: punch.attempts + 1 });
         continue;
       }
 
-      // Sisanya permanen — data yang tidak akan pernah diterima server.
+      // The rest are permanent — data the server will never accept.
       await dequeuePunch(punch.dedupeKey);
       failed += 1;
     } catch {
-      // Jaringan masih mati. Biarkan di antrean.
+      // The network is still down. Leave it in the queue.
       failed += 1;
     }
   }
@@ -172,21 +171,21 @@ export async function flushQueue(
   return {
     sent,
     failed,
-    // Yang dihitung hanya milik pengguna saat ini. Indikator "3 belum terkirim"
-    // yang sebenarnya milik rekan shift sebelumnya akan membuat orang menunggu
-    // sesuatu yang tidak akan pernah terkirim untuknya.
+    // Only the current user's are counted. An "3 unsent" indicator that actually
+    // belongs to the previous shift's colleague would make someone wait for
+    // something that will never be sent for them.
     remaining: remainingAll.filter((punch) => punch.ownerUserId === currentUserId).length,
-    /** Milik pengguna lain di perangkat ini. Ditampilkan terpisah, bukan disembunyikan. */
+    /** Belonging to another user on this device. Shown separately, not hidden. */
     otherUsers: remainingAll.filter((punch) => punch.ownerUserId !== currentUserId).length,
   };
 }
 
 /**
- * Meminta penyimpanan persisten.
+ * Requests persistent storage.
  *
- * Mengembalikan false bila peramban menolak — dan itu bukan galat, melainkan
- * informasi yang harus diteruskan ke pengguna. Pada iOS, penolakan berarti
- * antrean dapat hilang setelah tujuh hari tidak dibuka.
+ * Returns false when the browser refuses — and that is not an error but
+ * information that has to be passed on to the user. On iOS, a refusal means the
+ * queue can be lost after seven days without being opened.
  */
 export async function requestPersistentStorage(): Promise<boolean> {
   if (!navigator.storage?.persist) return false;
