@@ -202,3 +202,123 @@ export async function bumpAccessVersion(
   });
   return row.version;
 }
+
+export interface PermissionHolder {
+  userId: string;
+  email: string;
+  fullName: string | null;
+}
+
+/**
+ * Every user in the tenant who effectively holds one permission.
+ *
+ * This exists because the leave screen offered **every user in the tenant** as a
+ * possible approver. Nominating someone without `leave.request.approve` produced
+ * no error anywhere: the request was created, it named an approver, and it
+ * appeared in nobody's inbox. It simply sat at PENDING until a person noticed —
+ * the freeze that document 13 warns automatic routing could cause, arriving
+ * instead through the manual picker.
+ *
+ * ## It reuses the same precedence, and must
+ *
+ * Roles, plus GRANTs, minus DENYs — with DENY winning — and then filtered by the
+ * tenant's subscription. That is the precedence in `resolveEffectiveAccess`, and
+ * this function delegates to it rather than restating it in SQL.
+ *
+ * Restating it would be faster and would eventually disagree. The gateway would
+ * refuse an approval by someone this list offered, and the list is the more
+ * visible of the two, so the bug would be read as "approval is broken" rather
+ * than "the list is wrong". One definition of who holds a permission is worth
+ * more than the query count.
+ *
+ * ## The query count, honestly
+ *
+ * One `resolveEffectiveAccess` per user. At a few hundred users that is fine —
+ * they are short, indexed reads inside one transaction — and it is bounded by
+ * `MAX_CANDIDATES` so a tenant with thousands cannot turn a picker into a table
+ * scan. If it ever becomes hot, the fix is caching the resolution (PLAN/14 §5),
+ * not a second copy of the precedence rules.
+ */
+const MAX_CANDIDATES = 500;
+
+export async function findPermissionHolders(
+  tx: TenantClient,
+  tenantId: string,
+  permissionCode: string,
+): Promise<PermissionHolder[]> {
+  /**
+   * Only ACTIVE users are considered.
+   *
+   * A disabled account cannot log in, so routing an approval to one produces
+   * exactly the silent stall this function exists to remove — and a departed
+   * manager is the most likely way to reach that state.
+   */
+  const candidates = await tx.user.findMany({
+    where: { tenantId, status: 'ACTIVE' },
+    select: { id: true, email: true, fullName: true },
+    orderBy: { email: 'asc' },
+    take: MAX_CANDIDATES,
+  });
+
+  const holders: PermissionHolder[] = [];
+
+  for (const candidate of candidates) {
+    const access = await resolveEffectiveAccess(tx, tenantId, candidate.id);
+    if (access.permissions.includes(permissionCode)) {
+      holders.push({ userId: candidate.id, email: candidate.email, fullName: candidate.fullName });
+    }
+  }
+
+  return holders;
+}
+
+/**
+ * The user account belonging to an employee's designated line manager.
+ *
+ * `Employment.managerId` has existed since the org module was built and nothing
+ * has ever read it (document 13). Two hops are needed to make it usable, and
+ * each can legitimately come up empty:
+ *
+ *   employment.managerId → employee → email → user
+ *
+ * The employee → user hop is the same soft mapping the attendance punch route
+ * uses. It is soft because the attendance and employee modules hold no foreign
+ * key to `auth.users` — they are meant to be separable (PLAN/01 §4.2) — so this
+ * is a join by email, not by key.
+ *
+ * **`null` is an ordinary answer, not a failure.** A manager who has not been
+ * designated, an employee record with no user account, a manager who has left —
+ * all three return null, and the caller falls back to letting the requester
+ * choose. Document 13 states the reason plainly: routing to a manager nobody
+ * ever designated would freeze every request. The column becomes a DEFAULT, and
+ * never a requirement.
+ */
+export async function findManagerUserId(
+  tx: TenantClient,
+  tenantId: string,
+  employeeId: string,
+): Promise<string | null> {
+  // The employment period currently open. Exactly one row per employee may have
+  // `effectiveTo = null`, enforced by a partial unique index — so "who is this
+  // person's manager now" has one answer, or none.
+  const employment = await tx.employment.findFirst({
+    where: { tenantId, employeeId, effectiveTo: null },
+    select: { managerId: true },
+  });
+
+  if (!employment?.managerId) return null;
+
+  const manager = await tx.employee.findFirst({
+    where: { tenantId, id: employment.managerId },
+    select: { email: true },
+  });
+
+  if (!manager?.email) return null;
+
+  const user = await tx.user.findFirst({
+    where: { tenantId, email: manager.email, status: 'ACTIVE' },
+    select: { id: true },
+  });
+
+  return user?.id ?? null;
+}

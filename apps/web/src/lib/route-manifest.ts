@@ -229,6 +229,10 @@ export const ROUTE_MANIFEST = {
   'POST /api/leave/types': { module: 'leave', permission: 'leave.policy.manage' },
   // List scope is decided by permissions inside the handler, not by a parameter:
   // a client asking for `all` without the permission receives its own list, not an error.
+  // Readable by anyone who may request leave: everyone who can ask has to see
+  // who can grant. The alternative was the screen listing every user in the
+  // tenant, most of whom cannot approve anything.
+  'GET /api/leave/approvers': { module: 'leave', permission: 'leave.request.create.own' },
   'GET /api/leave/requests': { module: 'leave', permission: 'leave.request.read.own' },
   'GET /api/leave/requests/export': { module: 'leave', permission: 'leave.request.read.all' },
   'POST /api/leave/requests': { module: 'leave', permission: 'leave.request.create.own' },

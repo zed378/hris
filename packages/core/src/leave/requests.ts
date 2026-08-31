@@ -1,5 +1,6 @@
 import { EventTopic } from '@hrms/contracts';
 import { Prisma, publishEvent, writeAudit, type TenantClient } from '@hrms/db';
+import { resolveEffectiveAccess } from '../iam/index.ts';
 import { attachToRequest, claimAttachment } from './attachments.ts';
 import {
   LeaveError,
@@ -280,6 +281,34 @@ export async function submitRequest(
         'insufficient_balance',
       );
     }
+  }
+
+  /**
+   * The nominated approver must actually be able to approve.
+   *
+   * P9 — the screen hides, the server refuses. The leave screen now offers only
+   * holders of `leave.request.approve`, and that alone would leave the rule
+   * enforced in exactly one place: the API accepts any UUID, and the Excel
+   * import, a script, or a stale browser tab all reach the same endpoint.
+   *
+   * Nominating someone who cannot approve produced no error anywhere. The request
+   * was created, it recorded its approver, and it appeared in NOBODY's inbox —
+   * PENDING until a person eventually noticed their leave had never been decided.
+   * A refusal here costs one clear message; the silence cost a lost request.
+   *
+   * Checked through `resolveEffectiveAccess`, the same function the gateway uses,
+   * so "can approve" has one definition. A second definition written in SQL would
+   * be faster and would eventually disagree with the gateway — and the gateway
+   * wins at decision time, so the disagreement would surface as an approval
+   * refused for a request the system itself had addressed to that person.
+   */
+  const approverAccess = await resolveEffectiveAccess(tx, tenantId, input.approverId);
+  if (!approverAccess.permissions.includes('leave.request.approve')) {
+    throw new LeaveError(
+      'Penyetuju yang dipilih tidak memiliki wewenang menyetujui cuti. ' +
+        'Pilih dari daftar penyetuju yang tersedia.',
+      'invalid_state',
+    );
   }
 
   const requestNumber = await nextRequestNumber(tx, tenantId, periodYear);

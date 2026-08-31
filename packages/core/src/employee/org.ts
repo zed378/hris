@@ -229,6 +229,34 @@ export async function placeEmployee(
   if (!department) throw new OrgError('Departemen tidak ditemukan', 'not_found');
   if (!position) throw new OrgError('Jabatan tidak ditemukan', 'not_found');
 
+  /**
+   * The manager is checked, now that something reads the column.
+   *
+   * `managerId` is a soft reference — no foreign key, because employee and
+   * attendance are meant to be separable (PLAN/01 §4.2) — and for as long as
+   * nothing read it, an id pointing nowhere was merely untidy. It is now the
+   * default approver for that person's leave, so a wrong id no longer sits
+   * still: it silently means "this employee has no manager", and the difference
+   * between a manager who was never set and one whose id is wrong is invisible
+   * from every screen.
+   *
+   * Self-management is refused for the same reason a requester cannot approve
+   * their own leave (control failure 39). Left permitted, it would preselect the
+   * requester as their own approver and the request would be refused a screen
+   * later, with nothing explaining why.
+   */
+  if (input.managerId) {
+    if (input.managerId === input.employeeId) {
+      throw new OrgError('Karyawan tidak dapat menjadi atasan langsung dirinya sendiri', 'invalid');
+    }
+
+    const manager = await tx.employee.findFirst({
+      where: { id: input.managerId, tenantId },
+      select: { id: true },
+    });
+    if (!manager) throw new OrgError('Atasan langsung tidak ditemukan', 'not_found');
+  }
+
   const current = await tx.employment.findFirst({
     where: { tenantId, employeeId: input.employeeId, effectiveTo: null },
     select: { id: true, effectiveFrom: true },

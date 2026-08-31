@@ -2,7 +2,10 @@ export {
   resolveEffectiveAccess,
   buildMenuTree,
   bumpAccessVersion,
+  findPermissionHolders,
+  findManagerUserId,
   type EffectiveAccess,
+  type PermissionHolder,
 } from './resolve-access.ts';
 export {
   listUsers,

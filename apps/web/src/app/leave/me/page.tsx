@@ -81,7 +81,10 @@ export default function MyLeavePage() {
   const [balances, setBalances] = useState<Balance[]>([]);
   const [types, setTypes] = useState<LeaveType[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
-  const [approvers, setApprovers] = useState<Array<{ id: string; label: string }>>([]);
+  const [approvers, setApprovers] = useState<
+    Array<{ id: string; label: string; isManager: boolean }>
+  >([]);
+  const [managerDesignated, setManagerDesignated] = useState(true);
 
   const [push, setPush] = useState<PushOutcome | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
@@ -110,7 +113,7 @@ export default function MyLeavePage() {
       api('/api/leave/balances'),
       api('/api/leave/types'),
       api('/api/leave/requests'),
-      api('/api/users?limit=200'),
+      api('/api/leave/approvers'),
     ]);
 
     if (balanceRes.ok) setBalances(((await balanceRes.json()) as { balances: Balance[] }).balances);
@@ -121,10 +124,25 @@ export default function MyLeavePage() {
     }
     if (requestRes.ok) setRequests(((await requestRes.json()) as { requests: Request[] }).requests);
     if (userRes.ok) {
+      /**
+       * Only users who can actually approve, with the line manager first.
+       *
+       * This used to read `/api/users`, which lists everyone. Nominating a
+       * colleague without the approval permission was accepted everywhere and
+       * silently produced a request that appeared in nobody's inbox.
+       */
       const json = (await userRes.json()) as {
-        users?: Array<{ id: string; email: string; fullName?: string }>;
+        approvers: Array<{ id: string; label: string; isManager: boolean }>;
+        managerDesignated: boolean;
       };
-      setApprovers((json.users ?? []).map((u) => ({ id: u.id, label: u.fullName ?? u.email })));
+      setApprovers(json.approvers);
+      setManagerDesignated(json.managerDesignated);
+
+      // The manager is PRESELECTED, not imposed. An existing choice is never
+      // overwritten — reloading the list mid-form must not silently change who
+      // the request is addressed to.
+      const manager = json.approvers.find((a) => a.isManager);
+      if (manager) setForm((f) => (f.approverId ? f : { ...f, approverId: manager.id }));
     }
   }, [api]);
 
@@ -395,10 +413,26 @@ export default function MyLeavePage() {
             {approvers.map((approver) => (
               <option key={approver.id} value={approver.id}>
                 {approver.label}
+                {approver.isManager ? ' — atasan langsung' : ''}
               </option>
             ))}
           </select>
         </div>
+
+        {approvers.length === 0 ? (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+            Belum ada pengguna yang berwenang menyetujui cuti. Minta admin memberi
+            izin persetujuan cuti kepada minimal satu orang — tanpa itu pengajuan
+            tidak dapat diputuskan siapa pun.
+          </p>
+        ) : (
+          !managerDesignated && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Atasan langsung Anda belum ditetapkan, jadi penyetuju harus dipilih
+              sendiri. Admin dapat menetapkannya pada data penempatan.
+            </p>
+          )
+        )}
 
         <input
           value={form.reason}

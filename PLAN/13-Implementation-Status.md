@@ -888,11 +888,59 @@ are worth knowing:
   failures in that single step are now closed** (numbers 38 and 39 below): a
   requester can no longer approve their own leave, and replacing the designated
   approver is now recorded.
-- **`Employment.managerId` is never read** — the column exists, can be set
-  through the assignment endpoint, and no path uses it. Until it is, the approver
-  must be **chosen by the requester** from the list of permission holders.
-  Automatic tiering (manager → HR) waits for that column to actually be filled;
-  routing to a manager nobody ever designated would freeze every request.
+- ~~**`Employment.managerId` is never read**~~ — **done**, and reading it
+  uncovered a worse problem sitting next to it.
+
+  The approver was supposedly "chosen by the requester from the list of
+  permission holders". **There was no such list.** The screen built its dropdown
+  from `GET /api/users?limit=200` — every user in the tenant — and nominating
+  somebody without `leave.request.approve` was accepted at every layer: the
+  request was created, it recorded its approver, and it appeared in **nobody's
+  inbox**. It stayed PENDING until a human eventually noticed their leave had
+  never been decided.
+
+  That is exactly the freeze this entry warned automatic routing would cause,
+  arriving instead through the manual picker that was meant to be the safe
+  option.
+
+  | Piece | Where |
+  |---|---|
+  | `findPermissionHolders` — who effectively holds a permission | `packages/core/src/iam/resolve-access.ts` |
+  | `findManagerUserId` — `employment.managerId → employee → email → user` | same |
+  | `GET /api/leave/approvers` — the list, manager marked and sorted first | new route |
+  | The server refusing an approver who cannot approve | `createRequest`, P9 |
+
+  Both new functions delegate to `resolveEffectiveAccess` rather than restating
+  its precedence in SQL. A second definition of "holds this permission" would be
+  faster and would eventually disagree with the gateway — and the gateway decides,
+  so the disagreement would surface as an approval refused for a request the
+  system itself had addressed to that person.
+
+  **The manager is a default, never a requirement.** A manager who was never
+  designated, whose id points nowhere, who has no user account, or who has left
+  all resolve to `null`, and the requester simply picks from the list as before.
+  Requiring it would freeze every request in the tenants — most of them — that
+  never filled the column in. Six ways of failing that chain are pinned down in
+  `leave-approver.test.ts`, and the property under test is that all six produce
+  the same answer and none of them throws.
+
+  Verified against a running server:
+
+  | Situation | Result |
+  |---|---|
+  | Approver list, no manager designated | the 3 permission holders, requester excluded, `managerDesignated: false` |
+  | Same after designating one | manager **first and marked**, `managerDesignated: true` |
+  | Request naming an approver without the permission | **refused**, naming what to do instead |
+  | Request naming the designated manager | created, and **present in that manager's inbox** |
+
+  `managerId` is also now **validated when written** — it is a soft reference
+  with no foreign key, and while nothing read it a dangling id was merely untidy.
+  It now silently means "no manager", indistinguishable from never having set
+  one. Self-management is refused for the same reason a requester cannot approve
+  their own leave.
+
+  Still single-step: **tiered** approval (manager → HR) remains unbuilt. What has
+  changed is that the column it depends on is now filled, read, and trusted.
 - ~~**Monthly accrual**~~ — **done.** Number 21 above. `MONTHLY_ACCRUAL` accrues
   1/12 of the quota on each monthiversary of the join date; `ANNIVERSARY` grants
   the full quota on the service anniversary and nothing before it. The
