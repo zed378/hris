@@ -2,95 +2,95 @@
 
 ---
 
-## 1. Keputusan & Ruang Lingkup
+## 1. The Decision & Its Scope
 
-### 1.1 Aplikasi Mana yang Menjadi PWA
+### 1.1 Which Application Becomes a PWA
 
-| Aplikasi | PWA? | Alasan |
-|----------|:----:|--------|
-| `app.hrms.id` — aplikasi tenant | ✅ Ya | Dipakai HR dan karyawan setiap hari, sering dari perangkat seluler, sering di jaringan tidak stabil |
-| `admin.hrms.id` — dashboard global | ❌ **Tidak** | Control plane dengan CSP paling ketat, sesi 8 jam, IP allowlist. Service worker menambah permukaan serangan tanpa manfaat: superuser tidak butuh mode luring |
+| Application | PWA? | Reason |
+|-------------|:----:|--------|
+| `app.hrms.id` — the tenant application | ✅ Yes | Used by HR and employees every day, often from a phone, often on an unstable network |
+| `admin.hrms.id` — the global dashboard | ❌ **No** | A control plane with the strictest CSP, 8-hour sessions, and an IP allowlist. A service worker adds attack surface with no benefit: a superuser needs no offline mode |
 
-Keputusan untuk `admin.hrms.id` bukan kelalaian. Dokumen `07` §7 memisahkan control plane secara fisik justru agar dapat menerapkan kebijakan keamanan yang lebih keras. Menambahkan service worker — kode yang berjalan di luar siklus hidup halaman dan dapat mencegat setiap permintaan jaringan — bertentangan dengan tujuan itu.
+The decision about `admin.hrms.id` is not an oversight. Document `07` §7 separates the control plane physically precisely so a harder security policy can be applied. Adding a service worker — code that runs outside the page lifecycle and can intercept every network request — works against that goal.
 
-### 1.2 Apa yang Berfungsi Luring
+### 1.2 What Works Offline
 
-Menentukan ini di depan mencegah kekecewaan pengguna dan pekerjaan yang sia-sia.
+Deciding this up front prevents both user disappointment and wasted work.
 
-| Kemampuan | Luring | Catatan |
-|-----------|:------:|---------|
-| Membuka aplikasi, navigasi, shell UI | ✅ | App shell di-cache |
-| Melihat profil diri, jadwal shift, saldo cuti | ✅ | Data pribadi, di-cache dengan TTL pendek |
-| **Melakukan presensi** | ✅ | Antrean lokal, dikirim saat online (§6) |
-| Mengajukan cuti | ✅ | Antrean lokal, butuh validasi saldo server saat sinkron |
-| Melihat riwayat absensi 30 hari | ✅ | Cache |
-| Melihat slip gaji | ❌ | **Sengaja tidak di-cache** — lihat §5.4 |
-| Dashboard tenant / tim | ❌ | Data agregat lintas perusahaan; basi berbahaya, bukan sekadar tidak berguna |
-| Menyetujui cuti, menjalankan payroll, mengelola karyawan | ❌ | Operasi yang butuh konkurensi dan otorisasi terkini |
+| Capability | Offline | Note |
+|------------|:-------:|------|
+| Opening the app, navigation, the UI shell | ✅ | The app shell is cached |
+| Viewing your own profile, shift schedule, leave balance | ✅ | Personal data, cached with a short TTL |
+| **Punching in** | ✅ | Queued locally, sent when online (§6) |
+| Requesting leave | ✅ | Queued locally; needs server balance validation on sync |
+| Viewing 30 days of attendance history | ✅ | Cached |
+| Viewing a payslip | ❌ | **Deliberately not cached** — see §5.4 |
+| The tenant / team dashboard | ❌ | Company-wide aggregate data; stale here is dangerous, not merely useless |
+| Approving leave, running payroll, managing employees | ❌ | Operations that need concurrency and up-to-date authorisation |
 
-**Prinsip yang dipakai:** luring diberikan untuk **membaca data milik sendiri** dan **satu jenis tulis yang benar-benar terhalang jaringan** (presensi). Selebihnya menampilkan status jelas, bukan gagal diam-diam.
+**The principle applied:** offline is granted for **reading your own data** and for **one kind of write that is genuinely blocked by the network** (punching in). Everything else shows a clear status rather than failing silently.
 
 ---
 
-## 2. Batas Nyata PWA untuk Kasus Ini
+## 2. The Real Limits of a PWA for This Case
 
-Bagian ini ditulis lebih dulu karena menentukan keputusan di §3.
+This section comes first because it determines the decisions in §3.
 
-### 2.1 Tabel Dukungan Platform
+### 2.1 The Platform Support Table
 
-| Kemampuan | Chrome / Android | Safari / iOS 17+ | Dampak pada produk |
-|-----------|:----------------:|:----------------:|--------------------|
-| Instal ke layar utama | ✅ Otomatis (prompt) | ⚠️ Manual via Bagikan → Tambah ke Layar Utama | Adopsi iOS lebih rendah; butuh panduan dalam aplikasi |
+| Capability | Chrome / Android | Safari / iOS 17+ | Effect on the product |
+|------------|:----------------:|:----------------:|-----------------------|
+| Install to the home screen | ✅ Automatic (prompt) | ⚠️ Manual via Share → Add to Home Screen | Lower iOS adoption; an in-app guide is needed |
 | Service worker & cache | ✅ | ✅ | — |
-| Kamera (`getUserMedia`) | ✅ | ✅ | Presensi foto berfungsi |
-| Geolokasi | ✅ | ✅ | Koordinat tertangkap |
-| **Deteksi mock GPS** | ❌ | ❌ | **Skor kepercayaan melemah signifikan (§2.2)** |
-| Background Sync API | ✅ | ❌ | Antrean luring hanya terkirim saat aplikasi dibuka |
-| Periodic Background Sync | ✅ | ❌ | Tidak dipakai sama sekali |
-| Web Push | ✅ | ⚠️ Hanya bila PWA sudah diinstal | Notifikasi iOS tidak andal untuk pengguna yang tidak menginstal |
-| Persistent storage | ✅ (`navigator.storage.persist()`) | ⚠️ Terbatas | **Data terhapus setelah 7 hari tidak dipakai bila tidak diinstal** |
-| Deteksi perangkat root | ❌ | ❌ | Sinyal `ROOTED_DEVICE` tidak tersedia di web |
+| Camera (`getUserMedia`) | ✅ | ✅ | Photo punching works |
+| Geolocation | ✅ | ✅ | Coordinates are captured |
+| **Mock GPS detection** | ❌ | ❌ | **The trust score weakens significantly (§2.2)** |
+| Background Sync API | ✅ | ❌ | The offline queue only sends when the app is open |
+| Periodic Background Sync | ✅ | ❌ | Not used at all |
+| Web Push | ✅ | ⚠️ Only once the PWA is installed | iOS notifications are unreliable for users who do not install |
+| Persistent storage | ✅ (`navigator.storage.persist()`) | ⚠️ Limited | **Data is evicted after 7 unused days if not installed** |
+| Rooted device detection | ❌ | ❌ | The `ROOTED_DEVICE` signal is unavailable on the web |
 
-### 2.2 Konsekuensi Terbesar: Bukti Presensi Melemah
+### 2.2 The Biggest Consequence: Attendance Evidence Is Weaker
 
-Dokumen `10` §5 membangun skor kepercayaan dari beberapa sinyal. Tiga di antaranya **tidak tersedia di web sama sekali**:
+Document `10` §5 builds a trust score from several signals. Three of them are **entirely unavailable on the web**:
 
-| Sinyal | Native | Web |
+| Signal | Native | Web |
 |--------|:------:|:---:|
-| `isFromMockProvider` | ✅ | ❌ Tidak ada API-nya |
-| Deteksi root/jailbreak | ✅ | ❌ |
-| SSID Wi-Fi | ✅ | ❌ Tidak diekspos ke JavaScript |
+| `isFromMockProvider` | ✅ | ❌ No API for it |
+| Root/jailbreak detection | ✅ | ❌ |
+| Wi-Fi SSID | ✅ | ❌ Not exposed to JavaScript |
 
-Di web, memalsukan lokasi bahkan lebih mudah daripada di Android: cukup buka DevTools → Sensors → set koordinat. Tidak perlu memasang apa pun.
+On the web, faking a location is even easier than on Android: open DevTools → Sensors → set the coordinates. Nothing needs installing.
 
-**Penyesuaian yang wajib dilakukan:**
+**The mandatory adjustment:**
 
 ```typescript
-// services/attendance-service/src/domain/trust-scoring.ts (penambahan)
+// services/attendance-service/src/domain/trust-scoring.ts (addition)
 export function scorePunch(ctx: PunchContext): TrustAssessment {
   let score = 100;
   const flags: string[] = [];
 
-  // Presensi dari browser dinilai dengan dasar lebih rendah, bukan dengan
-  // aturan yang sama. Ketiadaan tanda MOCK_LOCATION di web tidak berarti
-  // lokasinya asli — hanya berarti kita tidak bisa memeriksanya.
+  // A browser punch is scored from a lower base, not by the same rules.
+  // The absence of a MOCK_LOCATION flag on the web does not mean the location
+  // is genuine — it only means we could not check.
   if (ctx.source === 'WEB') {
     score -= 20;
     flags.push('WEB_UNVERIFIED_DEVICE');
-    // Kompensasi: verifikasi IP jaringan kantor jauh lebih berarti di web
+    // Compensation: office network IP verification means far more on the web
     if (ctx.ipMatchesSiteRange) { score += 25; flags.push('OFFICE_IP_VERIFIED'); }
   }
-  // ... sisa penilaian seperti dokumen 10 §5.1
+  // ... the rest of the assessment as in document 10 §5.1
 }
 ```
 
-Bagi tenant yang menuntut kepastian, kebijakan `FALLBACK_ONLY` (presensi web hanya dari IP kantor) menjadi pilihan yang masuk akal — dan itu sudah ada di `attendance_policies`.
+For tenants who demand certainty, the `FALLBACK_ONLY` policy (web punching only from an office IP) becomes a sensible choice — and it already exists in `attendance_policies`.
 
-### 2.3 Konsekuensi Kedua: Antrean Luring iOS Bisa Hilang
+### 2.3 The Second Consequence: an iOS Offline Queue Can Vanish
 
-Safari menghapus penyimpanan situs setelah **7 hari tanpa interaksi** untuk PWA yang tidak diinstal ke layar utama. Presensi luring yang tersimpan di IndexedDB dapat lenyap sebelum sempat terkirim.
+Safari evicts site storage after **7 days without interaction** for a PWA that has not been installed to the home screen. Offline punches stored in IndexedDB can disappear before they are ever sent.
 
-Mitigasi berlapis:
+Layered mitigation:
 
 ```typescript
 // apps/web/src/lib/offline/storage-guard.ts
@@ -100,14 +100,14 @@ export async function ensureDurableStorage(): Promise<StorageStatus> {
   const already = await navigator.storage.persisted();
   if (already) return { persistent: true };
 
-  // Chrome memberikannya otomatis bila PWA diinstal & sering dipakai.
-  // Safari mengabaikan permintaan ini sepenuhnya.
+  // Chrome grants it automatically when the PWA is installed and used often.
+  // Safari ignores this request entirely.
   const granted = await navigator.storage.persist();
   return { persistent: granted, reason: granted ? undefined : 'DENIED_BY_BROWSER' };
 }
 
-// Bila penyimpanan tidak dijamin DAN ada antrean menunggu,
-// pengguna harus tahu — bukan diberi rasa aman palsu.
+// If storage is not guaranteed AND there is a queue waiting,
+// the user has to know — not be given a false sense of security.
 export function OfflineQueueBanner() {
   const { pending, storageStatus } = useOfflineQueue();
   if (pending === 0) return null;
@@ -125,47 +125,47 @@ export function OfflineQueueBanner() {
 }
 ```
 
-### 2.4 Rekomendasi: PWA Dulu, Native untuk Kasus Tertentu
+### 2.4 The Recommendation: PWA First, Native for Specific Cases
 
-| Segmen pengguna | Rekomendasi |
-|-----------------|-------------|
-| HR & admin (mayoritas pemakaian di desktop) | **PWA saja.** Native tidak memberi nilai tambah |
-| Karyawan kantor dengan lokasi tetap | **PWA cukup.** Presensi dari IP kantor sudah memberi kepastian memadai |
-| Pekerja lapangan, sales, proyek | **Native tetap dibutuhkan** — antrean luring andal, deteksi mock GPS, push notifikasi |
-| Tenant dengan kepatuhan ketat (manufaktur, konstruksi) | Native, atau mesin absensi di lokasi |
+| User segment | Recommendation |
+|--------------|----------------|
+| HR & admins (mostly desktop use) | **PWA only.** Native adds nothing |
+| Office employees at a fixed location | **The PWA is enough.** Punching from an office IP already gives adequate certainty |
+| Field workers, sales, project staff | **Native is still needed** — a reliable offline queue, mock GPS detection, push notifications |
+| Tenants with strict compliance needs (manufacturing, construction) | Native, or an on-site attendance machine |
 
-**Dampak roadmap:** PWA dibangun di Fase 1 dan **menggantikan sebagian besar kebutuhan yang semula direncanakan untuk ESS Mobile di Fase 3**. Aplikasi React Native tetap dibangun, tetapi lingkupnya menyempit menjadi kasus yang benar-benar memerlukan kemampuan native — sehingga estimasinya turun, bukan bertambah (§9).
+**Roadmap effect:** the PWA is built in Phase 1 and **replaces most of what was originally planned for ESS Mobile in Phase 3**. The React Native app is still built, but its scope narrows to the cases that genuinely need native capabilities — so the estimate falls rather than rises (§9).
 
 ---
 
-## 3. Arsitektur PWA
+## 3. PWA Architecture
 
 ```mermaid
 graph TB
     subgraph Browser
         UI[Next.js App Shell<br/>React 19]
         SW[Service Worker<br/>Workbox]
-        IDB[(IndexedDB<br/>antrean & data pribadi)]
-        CS[(Cache Storage<br/>aset & shell)]
+        IDB[(IndexedDB<br/>queue & personal data)]
+        CS[(Cache Storage<br/>assets & shell)]
     end
 
-    subgraph Jaringan
+    subgraph Network
         CDN[CDN / Cloudflare]
         GW[api-gateway]
     end
 
     UI -->|fetch| SW
     SW -->|cache hit| CS
-    SW -->|cache miss / mutasi| CDN
+    SW -->|cache miss / mutation| CDN
     CDN --> GW
     SW <--> IDB
-    UI <-->|status antrean, konflik| IDB
+    UI <-->|queue status, conflicts| IDB
 
     SW -.push event.-> UI
     GW -.Web Push.-> SW
 ```
 
-### 3.1 Manifest
+### 3.1 The Manifest
 
 ```json
 // apps/web/public/manifest.webmanifest
@@ -208,12 +208,12 @@ graph TB
 }
 ```
 
-> `shortcuts` menempatkan tombol Presensi satu ketukan dari layar utama — pintasan yang secara langsung menangani keluhan paling umum pada aplikasi absensi: terlalu banyak langkah saat terburu-buru pagi hari.
+> `shortcuts` puts the punch button one tap from the home screen — a shortcut that directly addresses the most common complaint about attendance apps: too many steps when you are in a hurry in the morning.
 
-### 3.2 Strategi Caching
+### 3.2 The Caching Strategy
 
 ```typescript
-// apps/web/src/sw.ts — dibangun dengan Workbox
+// apps/web/src/sw.ts — built with Workbox
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, StaleWhileRevalidate, NetworkOnly } from 'workbox-strategies';
@@ -224,9 +224,9 @@ import { BackgroundSyncPlugin } from 'workbox-background-sync';
 declare const self: ServiceWorkerGlobalScope;
 
 cleanupOutdatedCaches();
-precacheAndRoute(self.__WB_MANIFEST);          // aset build ber-hash
+precacheAndRoute(self.__WB_MANIFEST);          // hashed build assets
 
-// ── 1. Aset statis ber-hash: tidak pernah berubah isinya ──
+// ── 1. Hashed static assets: their contents never change ──
 registerRoute(
   ({ request, url }) => url.pathname.startsWith('/_next/static/'),
   new CacheFirst({
@@ -235,7 +235,7 @@ registerRoute(
   }),
 );
 
-// ── 2. Font & ikon ──
+// ── 2. Fonts & icons ──
 registerRoute(
   ({ request }) => ['font', 'image'].includes(request.destination),
   new CacheFirst({
@@ -247,17 +247,17 @@ registerRoute(
   }),
 );
 
-// ── 3. Navigasi: app shell ──
+// ── 3. Navigation: the app shell ──
 registerRoute(new NavigationRoute(
   new NetworkFirst({
     cacheName: 'pages-v1',
-    networkTimeoutSeconds: 3,                  // jaringan lambat → langsung pakai cache
+    networkTimeoutSeconds: 3,                  // a slow network → fall straight back to the cache
     plugins: [new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 })],
   }),
   { denylist: [/^\/api\//, /^\/auth\//] },
 ));
 
-// ── 4. Data pribadi yang boleh basi sebentar ──
+// ── 4. Personal data that may be briefly stale ──
 const PERSONAL_CACHEABLE = [
   '/api/me/bootstrap',
   '/api/attendance/me/summary',
@@ -273,25 +273,25 @@ registerRoute(
     plugins: [
       new CacheableResponsePlugin({ statuses: [200] }),
       new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 60 * 60 * 12 }),
-      tenantScopePlugin,                        // §5.2 — kunci cache dipisah per tenant & pengguna
+      tenantScopePlugin,                        // §5.2 — cache keys separated per tenant and user
     ],
   }),
 );
 
-// ── 5. Yang TIDAK PERNAH di-cache ──
+// ── 5. What is NEVER cached ──
 registerRoute(
   ({ url }) =>
-    url.pathname.startsWith('/api/payroll/') ||       // data gaji (§5.4)
-    url.pathname.startsWith('/api/dashboard/') ||     // agregat; basi menyesatkan
-    url.pathname.startsWith('/api/relation/') ||      // kasus rahasia
+    url.pathname.startsWith('/api/payroll/') ||       // salary data (§5.4)
+    url.pathname.startsWith('/api/dashboard/') ||     // aggregates; stale is misleading
+    url.pathname.startsWith('/api/relation/') ||      // confidential cases
     url.pathname.startsWith('/auth/') ||
     url.pathname.startsWith('/api/iam/'),
   new NetworkOnly(),
 );
 
-// ── 6. Mutasi: antrean latar belakang (Chromium) ──
+// ── 6. Mutations: the background queue (Chromium) ──
 const punchQueue = new BackgroundSyncPlugin('punch-queue', {
-  maxRetentionTime: 7 * 24 * 60,               // menit
+  maxRetentionTime: 7 * 24 * 60,               // minutes
   onSync: async ({ queue }) => {
     let entry;
     while ((entry = await queue.shiftRequest())) {
@@ -299,7 +299,7 @@ const punchQueue = new BackgroundSyncPlugin('punch-queue', {
         await fetch(entry.request.clone());
         await notifyClients({ type: 'PUNCH_SYNCED' });
       } catch (err) {
-        await queue.unshiftRequest(entry);      // kembalikan ke antrean, coba lagi nanti
+        await queue.unshiftRequest(entry);      // put it back on the queue, retry later
         throw err;
       }
     }
@@ -312,25 +312,25 @@ registerRoute(
   'POST',
 );
 
-// ── 7. Fallback luring ──
+// ── 7. The offline fallback ──
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open('pages-v1').then((c) => c.addAll(['/offline'])));
 });
 ```
 
-> **Catatan penting tentang `BackgroundSyncPlugin`:** ia hanya bekerja di Chromium. Safari akan gagal diam-diam. Karena itu antrean di §6 **tidak bergantung padanya** — Background Sync adalah percepatan, bukan mekanisme utama.
+> **An important note on `BackgroundSyncPlugin`:** it works only in Chromium. Safari fails silently. That is why the queue in §6 **does not depend on it** — Background Sync is an accelerant, not the primary mechanism.
 
 ---
 
-## 4. Pembaruan Aplikasi
+## 4. Application Updates
 
-### 4.1 Masalah Khas Microservices
+### 4.1 A Problem Peculiar to Microservices
 
-Service worker menyajikan bundel yang di-cache. Bila `api-gateway` dan service backend sudah di versi baru sementara browser masih menjalankan bundel lama, kontrak API bisa tidak cocok — dan pengguna melihat galat yang tidak masuk akal.
+A service worker serves a cached bundle. If `api-gateway` and the backend services are already on a new version while the browser still runs the old bundle, the API contract can mismatch — and the user sees an error that makes no sense.
 
-Ini bukan hipotesis: dengan deploy per service (dokumen `01` §8.1), backend berubah lebih sering daripada frontend.
+This is not hypothetical: with per-service deploys (document `01` §8.1), the backend changes more often than the frontend.
 
-### 4.2 Solusi: Negosiasi Versi + Pembaruan Terkendali
+### 4.2 The Solution: Version Negotiation + a Controlled Update
 
 ```typescript
 // apps/web/src/lib/pwa/update-manager.ts
@@ -338,7 +338,7 @@ export function useAppUpdate() {
   const [state, setState] = useState<'idle' | 'available' | 'required'>('idle');
 
   useEffect(() => {
-    // 1. Service worker baru terdeteksi
+    // 1. A new service worker was detected
     navigator.serviceWorker.ready.then((reg) => {
       reg.addEventListener('updatefound', () => {
         const sw = reg.installing;
@@ -348,15 +348,15 @@ export function useAppUpdate() {
           }
         });
       });
-      // Periksa setiap 30 menit dan setiap kali tab kembali aktif
+      // Check every 30 minutes and every time the tab becomes active again
       setInterval(() => reg.update(), 30 * 60_000);
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) reg.update();
       });
     });
 
-    // 2. Backend memberi tahu bahwa versi klien ini terlalu tua.
-    //    Gateway menyertakan header X-Min-Client-Version pada setiap respons.
+    // 2. The backend signals that this client version is too old.
+    //    The gateway includes an X-Min-Client-Version header on every response.
     api.interceptors.response.use((res) => {
       const min = res.headers['x-min-client-version'];
       if (min && semverLt(APP_VERSION, min)) setState('required');
@@ -367,7 +367,7 @@ export function useAppUpdate() {
   const applyUpdate = async () => {
     const reg = await navigator.serviceWorker.ready;
     reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
-    // Muat ulang setelah controller berganti
+    // Reload once the controller has changed
     navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
   };
 
@@ -376,14 +376,14 @@ export function useAppUpdate() {
 ```
 
 ```tsx
-// Pembaruan opsional: tawarkan, jangan paksa — pengguna mungkin sedang mengisi formulir
+// An optional update: offer it, do not force it — the user may be filling in a form
 {state === 'available' && (
   <Toast action={{ label: 'Muat ulang', onClick: applyUpdate }}>
     Versi baru tersedia.
   </Toast>
 )}
 
-// Pembaruan wajib: jelaskan, lalu paksa
+// A required update: explain, then force it
 {state === 'required' && (
   <BlockingDialog title="Pembaruan diperlukan"
     description="Versi aplikasi Anda tidak lagi kompatibel dengan server. Muat ulang untuk melanjutkan."
@@ -391,57 +391,57 @@ export function useAppUpdate() {
 )}
 ```
 
-> **`skipWaiting()` tidak dipanggil otomatis.** Mengganti service worker di tengah sesi dapat mengganti bundel JavaScript saat pengguna sedang mengisi formulir cuti, dan potongan kode lama yang dimuat lazy bisa tidak ditemukan lagi. Pembaruan hanya diterapkan atas tindakan pengguna, atau saat backend menyatakan versi lama sudah tidak didukung.
+> **`skipWaiting()` is never called automatically.** Swapping the service worker mid-session can replace the JavaScript bundle while the user is filling in a leave form, and a lazily loaded old chunk may no longer be found. An update is applied only on a user action, or when the backend declares the old version unsupported.
 
-### 4.3 Kompatibilitas Kontrak
+### 4.3 Contract Compatibility
 
-Aturan yang sama dengan migrasi non-destruktif (dokumen `09`) berlaku untuk API yang dikonsumsi klien PWA:
+The same rules as non-destructive migration (document `09`) apply to the API the PWA client consumes:
 
 ```typescript
 // services/api-gateway/src/middleware/client-version.middleware.ts
-const MIN_SUPPORTED_CLIENT = '2.0.0';       // dinaikkan hanya saat ada perubahan yang merusak
+const MIN_SUPPORTED_CLIENT = '2.0.0';       // raised only when there is a breaking change
 
 res.header('X-Min-Client-Version', MIN_SUPPORTED_CLIENT);
 res.header('X-Server-Version', APP_VERSION);
 ```
 
-Karena perubahan API bersifat aditif, `MIN_SUPPORTED_CLIENT` jarang dinaikkan. Bila pernah dinaikkan, itu tanda ada perubahan yang merusak — dan sebaiknya ditinjau ulang apakah benar-benar perlu.
+Because API changes are additive, `MIN_SUPPORTED_CLIENT` is rarely raised. If it ever is, that signals a breaking change — and it is worth reviewing whether it was really necessary.
 
 ---
 
-## 5. Keamanan & Multitenancy
+## 5. Security & Multitenancy
 
-### 5.1 Service Worker Adalah Kode Istimewa
+### 5.1 A Service Worker Is Privileged Code
 
-Service worker mencegat setiap permintaan jaringan dalam scope-nya dan bertahan setelah tab ditutup. Karena itu:
+A service worker intercepts every network request in its scope and survives after the tab is closed. Therefore:
 
-| Aturan | Alasan |
-|--------|--------|
-| Disajikan dari origin yang sama, scope `/` | Tidak pernah dari CDN pihak ketiga |
-| `Service-Worker-Allowed` tidak diperluas | Scope tetap dalam kendali aplikasi |
-| CSP ketat pada berkas SW | Mencegah injeksi |
-| Tidak pernah menyimpan token akses di Cache Storage atau IndexedDB | §5.3 |
-| Versi SW dipublikasikan dengan integrity hash | Deteksi perubahan tak sah |
+| Rule | Reason |
+|------|--------|
+| Served from the same origin, scope `/` | Never from a third-party CDN |
+| `Service-Worker-Allowed` is not widened | The scope stays under the application's control |
+| A strict CSP on the SW file | Prevents injection |
+| Never store an access token in Cache Storage or IndexedDB | §5.3 |
+| The SW version is published with an integrity hash | Detects unauthorised change |
 
 ```nginx
 location /sw.js {
     add_header Cache-Control "no-cache, no-store, must-revalidate";
     add_header Content-Security-Policy "default-src 'none'; connect-src 'self'";
-    # SW tidak boleh di-cache: kalau ter-cache, pembaruan bisa tertahan berhari-hari
+    # The SW must not be cached: if it is, an update can be held back for days
 }
 ```
 
-### 5.2 Cache Dipisah per Tenant dan per Pengguna
+### 5.2 Caches Separated per Tenant and per User
 
-Ini masalah nyata pada perangkat bersama, misalnya tablet presensi di pabrik atau komputer bersama di kantor cabang.
+This is a real problem on a shared device — an attendance tablet in a factory, or a shared computer in a branch office.
 
 ```typescript
 // apps/web/src/lib/pwa/tenant-scope-plugin.ts
 export const tenantScopePlugin: WorkboxPlugin = {
-  // Kunci cache disisipi tenantId dan userId. Dua pengguna berbeda
-  // pada perangkat yang sama tidak pernah berbagi entri cache.
+  // The cache key is stamped with the tenantId and userId. Two different users
+  // on the same device never share a cache entry.
   cacheKeyWillBeUsed: async ({ request }) => {
-    const session = await getSessionMeta();      // dari IndexedDB, bukan token
+    const session = await getSessionMeta();      // from IndexedDB, not the token
     if (!session) return request;
     const url = new URL(request.url);
     url.searchParams.set('__t', session.tenantId);
@@ -452,57 +452,57 @@ export const tenantScopePlugin: WorkboxPlugin = {
 ```
 
 ```typescript
-// Pembersihan total saat logout atau pergantian tenant
+// A full wipe on logout or a tenant switch
 export async function purgeAllClientData(reason: 'LOGOUT' | 'TENANT_SWITCH' | 'SESSION_REVOKED') {
-  // 1. Seluruh Cache Storage
+  // 1. All of Cache Storage
   const names = await caches.keys();
   await Promise.all(names.map((n) => caches.delete(n)));
 
-  // 2. IndexedDB — KECUALI antrean presensi yang belum terkirim.
-  //    Menghapus presensi yang belum tersinkron berarti menghilangkan
-  //    kehadiran karyawan yang sudah benar-benar terjadi.
+  // 2. IndexedDB — EXCEPT the punch queue that has not been sent.
+  //    Deleting an unsynced punch means erasing an attendance that
+  //    genuinely happened.
   await idb.clearAllExcept(['pendingPunches']);
 
-  // 3. Beri tahu service worker
+  // 3. Tell the service worker
   const reg = await navigator.serviceWorker.ready;
   reg.active?.postMessage({ type: 'PURGE_CACHES', reason });
 
-  // 4. Batalkan langganan push agar notifikasi tidak sampai ke orang berikutnya
+  // 4. Unsubscribe from push so notifications do not reach the next person
   const sub = await reg.pushManager.getSubscription();
   await sub?.unsubscribe();
 }
 ```
 
-> Pengecualian `pendingPunches` disengaja dan perlu dijelaskan ke pengguna: bila ada presensi belum terkirim saat logout, aplikasi menampilkan peringatan dan menawarkan mengirimnya lebih dulu.
+> The `pendingPunches` exception is deliberate and must be explained to the user: if a punch has not been sent at logout time, the app shows a warning and offers to send it first.
 
-### 5.3 Token Tidak Pernah Menyentuh Penyimpanan Persisten
+### 5.3 Tokens Never Touch Persistent Storage
 
 ```
-Access token   → variabel di memori saja. Hilang saat tab ditutup — memang seharusnya
-Refresh token  → cookie HttpOnly + Secure + SameSite=Strict. JavaScript tidak bisa membacanya
-Metadata sesi  → IndexedDB, hanya { tenantId, userId, expiresAt }. Tidak ada kredensial
+Access token   → an in-memory variable only. Lost when the tab closes — as it should be
+Refresh token  → an HttpOnly + Secure + SameSite=Strict cookie. JavaScript cannot read it
+Session metadata → IndexedDB, only { tenantId, userId, expiresAt }. No credentials
 ```
 
-Service worker tidak pernah menambahkan header `Authorization` sendiri. Ia meneruskan permintaan apa adanya; token disisipkan lapisan aplikasi. Ini mencegah service worker yang tersusupi mengirim permintaan terautentikasi atas nama pengguna.
+The service worker never adds an `Authorization` header of its own. It forwards requests as they are; the token is injected by the application layer. This stops a compromised service worker from making authenticated requests on the user's behalf.
 
-### 5.4 Mengapa Slip Gaji Tidak Di-cache
+### 5.4 Why Payslips Are Not Cached
 
-Ini pilihan sadar yang mengorbankan kenyamanan demi alasan yang jelas:
+A conscious choice that trades convenience for a clear reason:
 
-- Slip gaji adalah data paling sensitif yang dapat diakses karyawan biasa.
-- PWA sering dipasang di perangkat bersama.
-- Cache Storage dapat dibaca siapa pun yang memegang perangkat dalam keadaan tidak terkunci.
-- Nilai luringnya rendah — slip gaji dibuka sekali sebulan, hampir selalu saat ada koneksi.
+- A payslip is the most sensitive data an ordinary employee can reach.
+- A PWA is often installed on a shared device.
+- Cache Storage can be read by anyone holding an unlocked device.
+- Its offline value is low — a payslip is opened once a month, almost always with a connection.
 
-PDF slip gaji tetap dapat **diunduh** pengguna secara eksplisit; bedanya, itu keputusan sadar pengguna dan berada di penyimpanan berkas perangkat yang tunduk pada kontrol sistem operasi.
+A payslip PDF can still be **downloaded** explicitly by the user; the difference is that this is a conscious user decision and it lands in device file storage, which is subject to operating system controls.
 
 ---
 
-## 6. Antrean Luring
+## 6. The Offline Queue
 
-### 6.1 Tidak Bergantung pada Background Sync
+### 6.1 It Does Not Depend on Background Sync
 
-Karena Safari tidak mendukungnya, mekanisme utama adalah IndexedDB + pemicu sinkronisasi berlapis.
+Because Safari does not support it, the primary mechanism is IndexedDB plus layered sync triggers.
 
 ```typescript
 // apps/web/src/lib/offline/punch-queue.ts
@@ -530,11 +530,11 @@ export async function enqueuePunch(evidence: PunchEvidence) {
   };
   await db.put('pendingPunches', entry);
 
-  // Foto disimpan sebagai Blob terpisah — IndexedDB menanganinya efisien;
-  // menyimpan base64 akan membengkakkan ukuran ~33%
+  // The photo is stored as a separate Blob — IndexedDB handles that efficiently;
+  // storing base64 would inflate the size by ~33%
   await db.put('pendingPhotos', { localId: entry.localId, blob: evidence.photoBlob });
 
-  await requestBackgroundSyncIfAvailable('punch-queue');   // percepatan Chromium
+  await requestBackgroundSyncIfAvailable('punch-queue');   // a Chromium accelerant
   return entry.localId;
 }
 
@@ -551,16 +551,16 @@ export async function flushQueue() {
         photoFileId: fileId,
         syncedAt: new Date().toISOString(),
       }, {
-        // dedupe_key server + idempotency key: aman meski flush berjalan dua kali
+        // The server's dedupe_key plus an idempotency key: safe even if the flush runs twice
         headers: { 'Idempotency-Key': entry.localId },
       });
 
       await db.delete('pendingPunches', entry.localId);
       await db.delete('pendingPhotos', entry.localId);
     } catch (err) {
-      if (isNetworkError(err)) return;                  // hentikan; coba lagi nanti
-      // Galat non-jaringan (misal presensi ditolak server) tidak boleh
-      // membuat entri terjebak selamanya di antrean
+      if (isNetworkError(err)) return;                  // stop; try again later
+      // A non-network error (for instance the server rejecting the punch) must not
+      // leave the entry stuck in the queue forever
       await db.put('pendingPunches', {
         ...entry, status: 'FAILED', attempts: entry.attempts + 1,
         lastError: serializeError(err),
@@ -569,7 +569,7 @@ export async function flushQueue() {
   }
 }
 
-// Pemicu berlapis — cukup satu yang berhasil
+// Layered triggers — only one has to succeed
 window.addEventListener('online', flushQueue);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) flushQueue(); });
 setInterval(() => { if (navigator.onLine) flushQueue(); }, 60_000);
@@ -578,9 +578,9 @@ navigator.serviceWorker.addEventListener('message', (e) => {
 });
 ```
 
-### 6.2 Umpan Balik yang Jujur
+### 6.2 Honest Feedback
 
-Antarmuka tidak boleh menampilkan presensi luring seolah sudah tercatat di server.
+The interface must not present an offline punch as though it were already recorded on the server.
 
 ```tsx
 <PunchResult status={result.status}>
@@ -609,8 +609,8 @@ Antarmuka tidak boleh menampilkan presensi luring seolah sudah tercatat di serve
 export async function subscribeToPush(): Promise<PushSubscriptionResult> {
   if (!('PushManager' in window)) return { ok: false, reason: 'UNSUPPORTED' };
 
-  // iOS: Web Push HANYA berfungsi bila PWA sudah dipasang ke Layar Utama.
-  // Meminta izin sebelum itu akan gagal dan membakar satu-satunya kesempatan bertanya.
+  // iOS: Web Push works ONLY once the PWA has been installed to the Home Screen.
+  // Asking for permission before that fails and burns the one chance to ask.
   if (isIos() && !isStandalone()) {
     return { ok: false, reason: 'IOS_REQUIRES_INSTALL', showInstallGuide: true };
   }
@@ -620,7 +620,7 @@ export async function subscribeToPush(): Promise<PushSubscriptionResult> {
 
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,                    // wajib; push senyap tidak diizinkan
+    userVisibleOnly: true,                    // required; silent push is not allowed
     applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
   });
 
@@ -634,14 +634,14 @@ export async function subscribeToPush(): Promise<PushSubscriptionResult> {
 ```
 
 ```typescript
-// sw.ts — penanganan push
+// sw.ts — push handling
 self.addEventListener('push', (event) => {
   const data = event.data?.json() ?? {};
   event.waitUntil(self.registration.showNotification(data.title, {
     body: data.body,
     icon: '/icons/icon-192.png',
     badge: '/icons/badge-72.png',
-    tag: data.tag,                            // notifikasi sejenis saling menimpa
+    tag: data.tag,                            // notifications of the same kind replace each other
     renotify: false,
     data: { url: data.url },
     actions: data.actions,
@@ -653,7 +653,7 @@ self.addEventListener('notificationclick', (event) => {
   const url = event.notification.data?.url ?? '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      // Fokuskan tab yang sudah terbuka daripada membuka tab baru
+      // Focus an already-open tab rather than opening a new one
       const existing = list.find((c) => c.url.includes(new URL(url, location.origin).pathname));
       if (existing) return existing.focus();
       return self.clients.openWindow(url);
@@ -662,28 +662,28 @@ self.addEventListener('notificationclick', (event) => {
 });
 ```
 
-**Karena Web Push tidak andal di iOS**, `notification-service` mempertahankan jalur berjenjang:
+**Because Web Push is unreliable on iOS**, `notification-service` keeps a tiered path:
 
 ```
-Push web  →  gagal/tidak tersedia  →  Push native (bila aplikasi terpasang)
-          →  gagal                 →  Email
-          →  untuk hal mendesak    →  WhatsApp
+Web push  →  fails/unavailable  →  Native push (if the app is installed)
+          →  fails              →  Email
+          →  for anything urgent →  WhatsApp
 ```
 
 ---
 
-## 8. Performa
+## 8. Performance
 
-Target pasar mengakses lewat jaringan seluler Indonesia, sering di 4G lemah. Anggaran performa ditetapkan sebagai gerbang CI, bukan aspirasi.
+The target market connects over Indonesian mobile networks, often on weak 4G. The performance budget is set as a CI gate, not an aspiration.
 
-| Metrik | Anggaran | Perangkat uji |
-|--------|----------|---------------|
-| Largest Contentful Paint | < 2,5 dtk | Moto G Power, throttling 4G lambat |
-| Interaction to Next Paint | < 200 ms | idem |
-| Cumulative Layout Shift | < 0,1 | idem |
-| Bundel JS awal (gzip) | < 180 KB | — |
-| Bundel per modul (gzip) | < 120 KB | — |
-| Ukuran precache | < 3 MB | — |
+| Metric | Budget | Test device |
+|--------|--------|-------------|
+| Largest Contentful Paint | < 2.5 s | Moto G Power, slow 4G throttling |
+| Interaction to Next Paint | < 200 ms | as above |
+| Cumulative Layout Shift | < 0.1 | as above |
+| Initial JS bundle (gzip) | < 180 KB | — |
+| Per-module bundle (gzip) | < 120 KB | — |
+| Precache size | < 3 MB | — |
 | Lighthouse PWA | 100 | — |
 | Lighthouse Performance | ≥ 90 | — |
 
@@ -704,51 +704,51 @@ Target pasar mengakses lewat jaringan seluler Indonesia, sering di 4G lemah. Ang
            { "metric": "cumulative-layout-shift",  "budget": 0.1 }] }]
 ```
 
-Pemuatan bundel per modul mengikuti langganan (dokumen `01` §5.5): pelanggan Paket Basic tidak mengunduh kode Recruitment, sehingga anggaran ini realistis meski jumlah modul terus bertambah.
+Per-module bundle loading follows the subscription (document `01` §5.5): a Basic plan customer never downloads the Recruitment code, which keeps this budget realistic even as the module count grows.
 
 ---
 
-## 9. Dampak Roadmap
+## 9. Roadmap Impact
 
-### 9.1 Perubahan Lingkup ESS Mobile
+### 9.1 The Change in ESS Mobile Scope
 
-| | Rencana semula | Setelah PWA |
+| | Original plan | After the PWA |
 |---|---|---|
-| Fase 1 | — | **PWA penuh**: instalasi, luring, push, presensi web |
-| Fase 3 | ESS React Native lengkap (± 12 pm) | **ESS React Native terbatas** (± 7 pm): hanya kemampuan yang tidak ada di web — antrean luring andal, deteksi mock GPS & root, push iOS andal, kamera native |
-| Selisih | | **− 5 pm** di Fase 3, **+ 4 pm** di Fase 1 |
+| Phase 1 | — | **A full PWA**: installation, offline, push, web punching |
+| Phase 3 | A complete React Native ESS (± 12 pm) | **A limited React Native ESS** (± 7 pm): only the capabilities the web lacks — a reliable offline queue, mock GPS and root detection, dependable iOS push, the native camera |
+| Difference | | **− 5 pm** in Phase 3, **+ 4 pm** in Phase 1 |
 
-**Bersih: − 1 person-month**, dengan jangkauan pengguna yang jauh lebih luas sejak Fase 1. Ini salah satu dari sedikit perubahan lingkup dalam cetak biru ini yang menurunkan biaya sekaligus menaikkan nilai — karena PWA menggantikan pekerjaan yang memang sudah direncanakan, bukan menambah pekerjaan baru.
+**Net: − 1 person-month**, with far wider user reach from Phase 1 onwards. This is one of the few scope changes in this blueprint that lowers cost and raises value at the same time — because the PWA replaces work that was already planned rather than adding new work.
 
-### 9.2 Penempatan
+### 9.2 Placement
 
-**Fase 1, Sprint 3–4 (bersamaan shell frontend):**
-- Manifest, ikon, service worker dasar, strategi caching
-- Pemisahan cache per tenant & pengguna, pembersihan saat logout
-- Alur pembaruan terkendali + negosiasi versi klien
-- Anggaran performa sebagai gerbang CI
+**Phase 1, Sprints 3–4 (alongside the frontend shell):**
+- The manifest, icons, a basic service worker, the caching strategy
+- Cache separation per tenant and user, the wipe on logout
+- The controlled update flow + client version negotiation
+- The performance budget as a CI gate
 
-**Fase 1, Sprint 6–9 (bersamaan `attendance-service`):**
-- Antrean presensi luring (IndexedDB)
-- Penyesuaian skor kepercayaan untuk sumber `WEB`
-- Panduan instalasi khusus iOS
-- Peringatan durabilitas penyimpanan
+**Phase 1, Sprints 6–9 (alongside `attendance-service`):**
+- The offline punch queue (IndexedDB)
+- The trust score adjustment for the `WEB` source
+- The iOS-specific installation guide
+- The storage durability warning
 
-**Fase 2:**
-- Web Push + langganan; jalur berjenjang di `notification-service`
-- Pintasan aplikasi, layar berbagi
+**Phase 2:**
+- Web Push + subscriptions; the tiered path in `notification-service`
+- App shortcuts, the share screen
 
-**Fase 3:**
-- ESS React Native dengan lingkup menyempit
+**Phase 3:**
+- The React Native ESS with its narrowed scope
 
 ---
 
-## 10. Pengujian
+## 10. Testing
 
 ```typescript
 // test/pwa/service-worker.spec.ts
 describe('Service worker', () => {
-  it('tidak pernah men-cache endpoint payroll', async () => {
+  it('never caches a payroll endpoint', async () => {
     await page.goto('/payroll/payslips');
     await page.waitForResponse((r) => r.url().includes('/api/payroll/payslips'));
     const cached = await page.evaluate(async () => {
@@ -763,7 +763,7 @@ describe('Service worker', () => {
     expect(cached).toBe(false);
   });
 
-  it('menghapus seluruh cache saat logout', async () => {
+  it('wipes every cache on logout', async () => {
     await login('acme', 'hr@acme.id');
     await page.goto('/attendance');
     await logout();
@@ -771,7 +771,7 @@ describe('Service worker', () => {
     expect(remaining).toEqual([]);
   });
 
-  it('cache pengguna A tidak terbaca pengguna B pada perangkat sama', async () => {
+  it('user A cache is not readable by user B on the same device', async () => {
     await login('acme', 'a@acme.id');
     await page.goto('/employees/me');
     await logout();
@@ -781,19 +781,19 @@ describe('Service worker', () => {
     expect(leaked).toBe('b@acme.id');
   });
 
-  it('token tidak pernah tersimpan di Cache Storage maupun IndexedDB', async () => {
+  it('never stores a token in Cache Storage or IndexedDB', async () => {
     await login('acme', 'hr@acme.id');
     const found = await page.evaluate(async () => {
       const dump = JSON.stringify(await dumpAllClientStorage());
-      return /eyJhbGciOi|Bearer /.test(dump);        // pola JWT
+      return /eyJhbGciOi|Bearer /.test(dump);        // the JWT pattern
     });
     expect(found).toBe(false);
   });
 });
 
 // test/pwa/offline.spec.ts
-describe('Mode luring', () => {
-  it('presensi tersimpan saat luring dan terkirim saat online', async () => {
+describe('Offline mode', () => {
+  it('stores a punch offline and sends it once online', async () => {
     await login('acme', 'budi@acme.id');
     await page.context().setOffline(true);
     await submitPunch();
@@ -804,17 +804,17 @@ describe('Mode luring', () => {
     await expect(page.getByText('Presensi tercatat')).toBeVisible({ timeout: 10_000 });
 
     const punches = await api.get('/attendance/me/summary');
-    expect(punches.data.today).toHaveLength(1);      // tepat satu, bukan duplikat
+    expect(punches.data.today).toHaveLength(1);      // exactly one, not a duplicate
   });
 
-  it('flush dua kali tidak menghasilkan presensi ganda', async () => {
+  it('flushing twice produces no duplicate punch', async () => {
     await queueOfflinePunch();
     await page.evaluate(() => Promise.all([flushQueue(), flushQueue()]));
     const punches = await api.get('/attendance/me/summary');
     expect(punches.data.today).toHaveLength(1);      // dedupe_key + Idempotency-Key
   });
 
-  it('halaman payroll menampilkan status luring, bukan data basi', async () => {
+  it('the payroll page shows an offline status rather than stale data', async () => {
     await page.goto('/payroll/payslips');
     await page.context().setOffline(true);
     await page.reload();
@@ -823,35 +823,35 @@ describe('Mode luring', () => {
 });
 ```
 
-Pengujian dijalankan pada **Chromium dan WebKit** di Playwright. WebKit wajib karena perilaku Safari berbeda pada justru bagian yang paling berisiko.
+The tests run on **both Chromium and WebKit** in Playwright. WebKit is mandatory because Safari's behaviour differs precisely in the riskiest places.
 
 ---
 
-## 11. Risiko
+## 11. Risks
 
-| # | Risiko | Prob. | Dampak | Mitigasi |
-|---|--------|-------|--------|----------|
-| **R47** | **Presensi web dianggap sekuat presensi native padahal mock GPS tidak terdeteksi** | **Tinggi** | Tinggi | Tanda `WEB_UNVERIFIED_DEVICE` otomatis, skor lebih rendah, verifikasi IP kantor sebagai kompensasi, kebijakan `FALLBACK_ONLY` tersedia; dinyatakan eksplisit dalam materi penjualan |
-| **R48** | **Antrean presensi luring hilang di iOS karena penghapusan penyimpanan 7 hari** | Sedang | Tinggi | `navigator.storage.persist()`, peringatan eksplisit ke pengguna, dorongan memasang ke Layar Utama, batas antrean 7 hari yang sama dengan kebijakan server |
-| R49 | Service worker basi menyajikan bundel tak kompatibel dengan API baru | Sedang | Sedang | Header `X-Min-Client-Version`, pembaruan wajib terkendali, API aditif sehingga jarang terjadi |
-| R50 | Data satu pengguna terbaca pengguna lain pada perangkat bersama | Rendah | **Kritis** | Kunci cache per tenant & pengguna, pembersihan total saat logout, uji kebocoran sebagai gerbang CI |
-| R51 | Adopsi instalasi rendah di iOS | **Tinggi** | Sedang | Panduan instalasi dalam aplikasi, pintasan, kesabaran — dan penerimaan bahwa sebagian pengguna iOS akan memakai mode browser biasa |
-| R52 | Web Push tidak sampai di iOS | Tinggi | Sedang | Jalur berjenjang push → email → WhatsApp; notifikasi penting tidak pernah hanya mengandalkan push |
-| R53 | Ukuran bundel membengkak seiring bertambahnya modul | Sedang | Sedang | Pemuatan per modul mengikuti langganan, anggaran performa sebagai gerbang CI |
+| # | Risk | Prob. | Impact | Mitigation |
+|---|------|-------|--------|------------|
+| **R47** | **Web punching is assumed as strong as native even though mock GPS goes undetected** | **High** | High | An automatic `WEB_UNVERIFIED_DEVICE` flag, a lower score, office IP verification as compensation, the `FALLBACK_ONLY` policy available; stated explicitly in the sales material |
+| **R48** | **The offline punch queue is lost on iOS because of 7-day storage eviction** | Medium | High | `navigator.storage.persist()`, an explicit warning to the user, a nudge to install to the Home Screen, a 7-day queue limit matching the server policy |
+| R49 | A stale service worker serves a bundle incompatible with the new API | Medium | Medium | The `X-Min-Client-Version` header, a controlled forced update, and additive APIs that make it rare |
+| R50 | One user's data is read by another on a shared device | Low | **Critical** | Cache keys per tenant and user, a full wipe on logout, a leak test as a CI gate |
+| R51 | Low installation adoption on iOS | **High** | Medium | An in-app installation guide, shortcuts, patience — and accepting that some iOS users will stay in ordinary browser mode |
+| R52 | Web Push does not arrive on iOS | High | Medium | The tiered path push → email → WhatsApp; an important notification never relies on push alone |
+| R53 | Bundle size grows as modules are added | Medium | Medium | Per-module loading follows the subscription, and the performance budget is a CI gate |
 
 ---
 
-## 12. Metrik
+## 12. Metrics
 
-| Metrik | Target |
+| Metric | Target |
 |--------|--------|
 | Lighthouse PWA | 100 |
 | Lighthouse Performance (mobile) | ≥ 90 |
-| LCP p75 pada 4G lambat | < 2,5 dtk |
-| Tingkat instalasi (Android) | ≥ 40% pengguna aktif |
-| Tingkat instalasi (iOS) | ≥ 15% (realistis, bukan aspirasi) |
-| Presensi luring berhasil tersinkron | ≥ 99% |
-| Presensi luring hilang sebelum sinkron | < 0,1% |
-| Cache hit rate aset statis | ≥ 90% |
-| Kebocoran data antar pengguna di perangkat bersama | **0** |
-| Sesi terhenti akibat service worker basi | < 0,1% |
+| LCP p75 on slow 4G | < 2.5 s |
+| Installation rate (Android) | ≥ 40% of active users |
+| Installation rate (iOS) | ≥ 15% (realistic, not aspirational) |
+| Offline punches successfully synced | ≥ 99% |
+| Offline punches lost before syncing | < 0.1% |
+| Static asset cache hit rate | ≥ 90% |
+| Data leaks between users on a shared device | **0** |
+| Sessions broken by a stale service worker | < 0.1% |
