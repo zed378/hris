@@ -249,6 +249,60 @@ function build(
       return await withTenant(claims.tid, async (tx) => {
         const access = await resolveEffectiveAccess(tx, claims.tid, claims.sub);
 
+        /**
+         * The token's access version must match the recorded one (PLAN/14 §5).
+         *
+         * `av` has been minted into every access token since tokens existed. Its
+         * comment described the gateway comparing it against the stored version
+         * and rejecting stale tokens. **No such comparison existed anywhere** —
+         * the claim was issued, validated for shape, and read by nothing.
+         *
+         * It was harmless while access is resolved from the database on every
+         * request, because then the permissions in force are always current and
+         * the version has nothing to invalidate. It stops being harmless the
+         * moment a permission CACHE exists, which is exactly what the auth split
+         * needs to avoid a remote call per request (PLAN/14 §5, option C). At
+         * that point this comparison is the ONLY thing that makes a cached
+         * permission safe to trust — and a mechanism first exercised on the day
+         * it becomes load-bearing is a mechanism nobody has ever seen work.
+         *
+         * So it is enforced now, while the correct behaviour is still observable
+         * without it.
+         *
+         * ## Why 401 and not 403
+         *
+         * Because it is not a refusal, it is an instruction: the token is out of
+         * date, and the client already knows what to do with a 401 — refresh once
+         * and retry. The refresh issues a token carrying the current version, the
+         * retry succeeds, and the user sees nothing. A 403 would be a dead end
+         * for a session that is perfectly valid.
+         *
+         * ## Why any difference, not just a lower version
+         *
+         * A token whose version is HIGHER than the record should be impossible.
+         * When it happens the record has moved backwards — a restored backup, a
+         * botched migration — and the safe reading is that we no longer know what
+         * this user is entitled to. Refreshing re-derives it from the current
+         * state, which is the only thing here that can be trusted.
+         */
+        if (claims.av !== access.accessVersion) {
+          log.info({
+            scope: 'access-version',
+            tenantId: claims.tid,
+            userId: claims.sub,
+            routeId,
+            tokenVersion: claims.av,
+            currentVersion: access.accessVersion,
+          });
+
+          return fail(
+            401,
+            ErrorCode.TOKEN_STALE,
+            'Hak akses Anda berubah. Token disegarkan otomatis — coba lagi.',
+            ctx.correlationId,
+          );
+        }
+
         if (!access.modules.includes(routeRule.module)) {
           return fail(
             402,

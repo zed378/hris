@@ -13,6 +13,15 @@ export const ErrorCode = {
   TOKEN_INVALID: 'TOKEN_INVALID',
   /** Refresh token yang sudah digantikan dipakai lagi — indikasi pencurian. */
   TOKEN_REUSE_DETECTED: 'TOKEN_REUSE_DETECTED',
+  /**
+   * Hak akses pengguna berubah setelah token ini diterbitkan (klaim `av` basi).
+   *
+   * Bukan galat, melainkan instruksi: klien menyegarkan token lalu mengulang
+   * permintaannya, dan pengguna tidak melihat apa pun. Dibedakan dari
+   * TOKEN_EXPIRED supaya log dapat memisahkan "masa berlaku habis" dari
+   * "izin diubah" — dua hal yang butuh penyelidikan berbeda saat ditelusuri.
+   */
+  TOKEN_STALE: 'TOKEN_STALE',
 
   /** Header X-Tenant-ID tidak cocok dengan klaim token. */
   TENANT_MISMATCH: 'TENANT_MISMATCH',

@@ -716,7 +716,18 @@ are worth knowing:
   harmless the first time an index or constraint is needed on `punch_logs` or
   `attendance_days`, which is risk R33 exactly. Needs a runner that executes
   statement-by-statement outside a transaction, or an explicit exception process.
-- **`accessVersion` (`av`) is issued into every token and read by nothing.**
+- ~~**`accessVersion` (`av`) is issued into every token and read by nothing**~~ —
+  **done.** `PLAN/14` stage 2: the gateway compares it and answers 401
+  `TOKEN_STALE`, which the client turns into a refresh and a retry the user never
+  sees. Nothing observable changes yet — access is still resolved from the
+  database per request — and that is the point: the mechanism is live and tested
+  before stage 6's permission cache comes to depend on it.
+
+  It also brought `apps/web/test/gateway.test.ts` into existence. The gateway's
+  decisions — P7, P8, P9, the tenant-header check, DENY precedence — had been
+  verified only by driving a running server with curl, which proves a behaviour
+  once and proves nothing on the next change.
+- ~~**`accessVersion` (`av`) is issued into every token and read by nothing.**~~
   `packages/core/src/auth/tokens.ts` mints it, `accessTokenClaimsSchema` validates
   it, and its comment describes the gateway comparing it against the recorded
   version and rejecting stale tokens — **no such comparison exists anywhere.**

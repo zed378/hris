@@ -355,7 +355,7 @@ next one to be started.
 | # | Stage | Deliverable | Reversible |
 |---|---|---|---|
 | 1 | ~~**Asymmetric tokens**~~ — **done**, see §10.1 | Ed25519 signing, `kid`, JWKS endpoint served by the current monolith. No topology change. | Yes — revert to HS256 |
-| 2 | **Enforce `accessVersion`** | The comparison that §5 shows is missing. Still one process. | Yes |
+| 2 | ~~**Enforce `accessVersion`**~~ — **done**, see §10.2 | The comparison §5 showed was missing. Still one process. | Yes |
 | 3 | **Redis for rate limiting** | Fixes the replica bug in §9.2, before it is exposed by scaling. | Yes |
 | 4 | **A hard internal boundary** | The auth module reachable only through an HTTP-shaped interface it already exposes, still in-process. Boundary lint upgraded to forbid direct imports of `iam` internals. | Yes |
 | 5 | **Split database roles** | Distinct PostgreSQL roles and grants for auth-owned vs business schemas, both still used by one process. Proves the grant matrix before the network is involved. | Yes |
@@ -406,6 +406,38 @@ as a hint, never as a claim.
 environment, so the deployment is in `hybrid`. Removing it is the step that ends
 the migration, and it should be taken one access-token TTL after the asymmetric
 keys are live.
+
+### 10.2 Stage 2 as built
+
+The gateway now compares the token's `av` against the recorded access version and
+answers **401 `TOKEN_STALE`** when they differ.
+
+**401 rather than 403, because it is an instruction rather than a refusal.** The
+client already refreshes once and retries on a 401; the refresh issues a token
+carrying the current version, the retry succeeds, and the user sees nothing. A
+403 would be a dead end for a session that is perfectly valid.
+
+**Any difference, not merely a lower version.** A token ahead of the record
+should be impossible; when it happens the record has moved backwards — a restored
+backup, a botched migration — and the honest reading is that we no longer know
+what this user is entitled to.
+
+Verified end to end on the running server: a token at `av: 7` worked, the record
+was moved to 99, the same token was refused with `TOKEN_STALE`, the refresh
+returned a token at `av: 99`, and the retry succeeded.
+
+It is also now covered by **`apps/web/test/gateway.test.ts`**, which did not
+exist before. The gateway's decisions — P7, P8, P9, the tenant-header check, DENY
+precedence, and the access version — had only ever been verified by driving a
+running server with curl, which proves the behaviour once and proves nothing on
+the next change. The test invokes the real route handler with a real `Request`
+and a real signed token against real rows under RLS.
+
+**This stage is a prerequisite, not an improvement.** Nothing observable changes
+today, because access is still resolved from the database on every request. It
+exists so the mechanism is live and tested *before* stage 6's permission cache
+depends on it — a mechanism first exercised on the day it becomes load-bearing is
+a mechanism nobody has ever seen work.
 
 ---
 
