@@ -76,7 +76,7 @@ export async function resolveEffectiveAccess(
    *
    * CORE modules are always included, whatever the plan: without `core` and
    * `iam`, a tenant could not log into their own system to fix their
-   * subscription.
+   */
   const inPlan = new Set(planModules?.plan?.modules.map((m) => m.moduleCode) ?? []);
   const modules = new Set<string>([
     ...coreModules.map((m) => m.code),

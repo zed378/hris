@@ -20,6 +20,7 @@ import { createBlobStore, BlobError } from '../storage/index.ts';
  *   3. **Nothing is deleted, only archived.** Rule M4 of document 09. The
  *      physical file may go; its row survives so the history of "this document
  *      existed, uploaded by whom" does not go with it.
+ */
 
 export class DocumentError extends Error {
   constructor(
@@ -50,6 +51,7 @@ export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
  * The client's `content-type` is NOT trusted on its own — it only decides the
  * extension. The file's contents are checked against its magic bytes in
  * `sniffType`.
+ */
 const ACCEPTED: Record<string, string> = {
   'application/pdf': 'pdf',
   'image/jpeg': 'jpg',

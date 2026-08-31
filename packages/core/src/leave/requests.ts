@@ -191,6 +191,7 @@ export async function submitRequest(
    * from absence. A requirement that accepts arbitrary text is not a
    * requirement; it is an input box that makes everyone believe evidence is
    * stored.
+   */
   let attachmentId: string | null = null;
 
   if (type.requiresAttachment) {
@@ -681,6 +682,7 @@ export interface LeaveOnDate {
  * attendance module. Attendance must not know the shape of the leave tables;
  * when the leave module is eventually split into a service, only the body of
  * this function changes.
+ */
 export async function leaveOnDate(
   tx: TenantClient,
   tenantId: string,

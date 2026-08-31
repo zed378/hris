@@ -202,7 +202,6 @@ export async function provisionTenant(
        * configured is a tenant that cannot be used, and fixing it later requires
        * somebody to know that it needs fixing.
        */
-       */
       await tx.leaveType.createMany({
         data: DEFAULT_LEAVE_TYPES.map((type) => ({ tenantId: tenant.id, ...type })),
       });

@@ -141,6 +141,7 @@ export function localMinutesToInstant(
  * a real zone rather than UTC: a tenant whose row is not filled in is almost
  * certainly in WIB, and UTC would repeat exactly the mistake this column exists
  * to fix.
+ */
 export async function tenantTimeZone(tx: TenantClient, tenantId: string): Promise<string> {
   const tenant = await tx.tenant.findFirst({
     where: { id: tenantId },

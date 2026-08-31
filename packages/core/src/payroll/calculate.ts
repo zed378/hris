@@ -25,7 +25,7 @@ import { orderComponents, salaryAt, BASE_VARIABLES } from './components.ts';
  *      than an argument.
  *   3. **One run per period.** Enforced by a partial unique index in the
  *      database, not by an application check.
-
+ */
 export class PayrollError extends Error {
   constructor(
     message: string,

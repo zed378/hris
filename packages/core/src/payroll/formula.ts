@@ -391,6 +391,7 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
        * nothing to the HR admin who wrote it. More importantly: the guard was
        * proven bypassable, and a guard bypassable for one name cannot be trusted
        * for another.
+       */
       if (!Object.hasOwn(scope, node.name)) {
         // An ERROR, not zero. The reason is at the head of this file.
         const known = Object.keys(scope).sort().join(', ');

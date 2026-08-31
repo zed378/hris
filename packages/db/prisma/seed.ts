@@ -502,6 +502,7 @@ async function seedAttendance(tenantId: string): Promise<void> {
  * Maternity and sick leave do not deduct from the balance — both are rights not
  * based on an annual quota, and deducting them from the 12-day allowance would
  * cost a mother her entire annual leave for giving birth.
+ */
 async function seedLeaveTypes(tenantId: string): Promise<void> {
   // Taken from `@hrms/contracts` rather than rewritten here.
   //

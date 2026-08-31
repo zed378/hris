@@ -282,9 +282,10 @@ function buildDate(year: number, month: number, day: number): { date: string | n
  * The digit length check already refuses it, but its message reads "a national
  * ID is normally 16 digits (found 16 characters)" — which reads like a
  * contradiction and says nothing about how to fix it.
+ *
  * The detection itself lives in `pii.ts`, where it also guards the other write
  * paths. It is used earlier here purely so the message can point at the row.
-
+ */
 const MASKED_MESSAGE =
   'Nilai tersamar (*) — berkas ini diekspor tanpa izin melihat data lengkap. ' +
   'Minta ekspor ulang dari pengguna yang berizin, atau kosongkan kolomnya.';
