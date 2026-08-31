@@ -1,30 +1,29 @@
 import { looksMasked } from './pii.ts';
 
 /**
- * Pemetaan kolom dan validasi baris untuk impor karyawan.
+ * Column mapping and row validation for the employee import.
  *
- * Ini berkas yang menentukan apakah Gerbang A terlewati: "tiga pilot mengimpor
- * ≥100 karyawan dari berkas Excel mereka sendiri, dalam < 30 menit, tanpa
- * bantuan" (PLAN/12 Fase 2).
+ * This is the file that decides whether Gate A is passed: "three pilots import
+ * ≥100 employees from their own Excel files, in under 30 minutes, unaided"
+ * (PLAN/12 Phase 2).
  *
- * Kalimat "berkas Excel mereka sendiri" yang menentukan bentuk seluruh berkas
- * ini. Berkas pelanggan tidak akan memakai judul kolom kita, tidak akan memakai
- * format tanggal kita, dan akan memuat sel kosong di tempat yang kita anggap
- * wajib. Impor yang hanya menerima format sendiri akan selalu gagal pada
- * percobaan pertama, dan pelanggan yang gagal di percobaan pertama tidak
- * mencoba yang kedua.
+ * The phrase "their own Excel files" shapes this whole file. A customer's file
+ * will not use our column headers, will not use our date format, and will have
+ * empty cells where we consider a value mandatory. An import that only accepts
+ * its own format will always fail on the first attempt, and a customer who fails
+ * on the first attempt does not try a second.
  */
 
 export interface ColumnSpec {
-  /** Nama field internal. */
+  /** The internal field name. */
   field: string;
   label: string;
   required: boolean;
   /**
-   * Judul kolom yang dikenali otomatis, huruf kecil tanpa tanda baca.
+   * Column headers recognised automatically, lower case without punctuation.
    *
-   * Daftar ini sengaja panjang dan akan terus bertambah. Setiap alias yang
-   * ditambahkan adalah satu pelanggan yang tidak perlu memetakan kolom manual.
+   * This list is deliberately long and will keep growing. Every alias added is
+   * one customer who does not have to map a column by hand.
    */
   aliases: string[];
 }
@@ -47,11 +46,11 @@ export const EMPLOYEE_COLUMNS: ColumnSpec[] = [
     field: 'nationalId',
     label: 'NIK (KTP)',
     required: false,
-    // "nik" saja ambigu: sebagian perusahaan memakainya untuk nomor induk
-    // karyawan, sebagian untuk NIK KTP. Ia sengaja TIDAK ada di sini maupun di
-    // employeeNumber — pengguna diminta memetakannya sendiri, karena menebak
-    // salah berarti menyimpan nomor identitas nasional di kolom yang tidak
-    // terenkripsi.
+    // "nik" alone is ambiguous: some companies use it for the employee number,
+    // others for the national ID card number. It is deliberately NOT here and
+    // not in employeeNumber either — the user is asked to map it themselves,
+    // because guessing wrong means storing a national identity number in an
+    // unencrypted column.
     aliases: ['nik ktp', 'no ktp', 'nomor ktp', 'ktp', 'national id', 'nomor induk kependudukan'],
   },
   {
@@ -117,7 +116,7 @@ export const EMPLOYEE_COLUMNS: ColumnSpec[] = [
   },
 ];
 
-/** Menyeragamkan judul kolom agar "No. Telepon " dan "no telepon" setara. */
+/** Normalises a column header so "No. Telepon " and "no telepon" match. */
 export function normalizeHeader(value: string): string {
   return value
     .toLowerCase()
@@ -127,36 +126,36 @@ export function normalizeHeader(value: string): string {
 }
 
 export interface ColumnMapping {
-  /** field internal → indeks kolom di berkas. */
+  /** internal field → column index in the file. */
   mapping: Record<string, number>;
-  /** Judul kolom yang tidak dikenali. Ditampilkan agar pengguna dapat memetakannya. */
+  /** Unrecognised column headers. Shown so the user can map them. */
   unmapped: Array<{ index: number; header: string }>;
   missingRequired: string[];
 }
 
 /**
- * Menebak pemetaan kolom dari baris judul.
+ * Guesses the column mapping from the header row.
  *
- * Tebakan, bukan keputusan: hasilnya selalu ditampilkan untuk dikonfirmasi.
- * Impor yang memetakan sendiri lalu langsung menyimpan akan sesekali memasukkan
- * nomor telepon ke kolom NIK, dan kesalahan itu baru ketahuan berbulan-bulan
- * kemudian saat slip gaji pertama salah alamat.
+ * A guess, not a decision: its result is always shown for confirmation. An
+ * import that maps itself and saves straight away will occasionally put a phone
+ * number into the national ID column, and that mistake only surfaces months
+ * later when the first payslip goes to the wrong place.
  */
 export function detectColumns(headers: string[]): ColumnMapping {
   const mapping: Record<string, number> = {};
   const used = new Set<number>();
 
   for (const spec of EMPLOYEE_COLUMNS) {
-    // Alias ikut dinormalkan, bukan hanya judul dari berkas.
+    // The aliases are normalised too, not only the headers from the file.
     //
-    // Tanpa ini, setiap alias yang mengandung tanda baca tidak akan pernah cocok:
-    // judul "E-Mail" menjadi "e mail" setelah normalisasi, sedangkan alias
-    // "e-mail" dibandingkan apa adanya. Kolomnya lalu dianggap tidak dikenali,
-    // datanya tidak terbaca, dan validasinya ikut tidak berjalan — sehingga
-    // alamat email yang tidak sah lolos tanpa satu pun keluhan.
+    // Without this, any alias containing punctuation would never match: the
+    // header "E-Mail" becomes "e mail" after normalisation, while the alias
+    // "e-mail" is compared as it is. Its column is then considered unrecognised,
+    // its data is not read, and its validation does not run either — so an
+    // invalid email address gets through without one complaint.
     //
-    // Kegagalan ini sepenuhnya senyap: impor tetap berhasil, jumlah barisnya
-    // benar, dan yang hilang hanya satu kolom yang tidak diminta siapa pun.
+    // This failure is entirely silent: the import still succeeds, its row count
+    // is right, and all that is missing is one column nobody asked about.
     const aliases = spec.aliases.map(normalizeHeader);
     const index = headers.findIndex(
       (header, i) => !used.has(i) && aliases.includes(normalizeHeader(header ?? '')),
@@ -206,19 +205,19 @@ function cellText(value: unknown): string {
 }
 
 /**
- * Mengurai tanggal dari sel Excel.
+ * Parses a date from an Excel cell.
  *
- * Tiga bentuk yang harus diterima, dan ketiganya nyata:
+ * Three shapes have to be accepted, and all three are real:
  *
- *   - Objek Date, bila sel benar-benar berformat tanggal di Excel.
- *   - Angka serial Excel, bila sel bertipe angka. Serial 1 adalah 1900-01-01,
- *     dengan lompatan terkenal karena Excel menganggap 1900 tahun kabisat.
- *   - Teks, karena kolom tanggal yang diketik manual hampir selalu berakhir
- *     sebagai teks — dan di Indonesia bentuknya dd/mm/yyyy, bukan mm/dd/yyyy.
+ *   - A Date object, when the cell really is date-formatted in Excel.
+ *   - An Excel serial number, when the cell is numeric. Serial 1 is 1900-01-01,
+ *     with the famous off-by-one because Excel treats 1900 as a leap year.
+ *   - Text, because a hand-typed date column almost always ends up as text —
+ *     and in Indonesia its form is dd/mm/yyyy, not mm/dd/yyyy.
  *
- * Urutan hari-bulan itu yang paling berbahaya: "03/04/2024" sah dalam kedua
- * tafsir, dan menebak salah menggeser tanggal masuk seseorang tiga puluh hari
- * tanpa satu pun galat.
+ * That day-month order is the most dangerous part: "03/04/2024" is valid under
+ * both readings, and guessing wrong shifts someone's join date by thirty days
+ * with not one error.
  */
 export function parseExcelDate(value: unknown): { date: string | null; error: string | null } {
   if (value === null || value === undefined || value === '') return { date: null, error: null };
@@ -231,8 +230,8 @@ export function parseExcelDate(value: unknown): { date: string | null; error: st
     if (value < 1 || value > 60_000) {
       return { date: null, error: 'Angka tanggal di luar rentang yang wajar' };
     }
-    // Serial Excel: hari sejak 1899-12-30. Offset itu sudah memperhitungkan bug
-    // tahun kabisat 1900 yang sengaja dipertahankan Excel demi kompatibilitas.
+    // Excel serial: days since 1899-12-30. That offset already accounts for the
+    // 1900 leap year bug Excel deliberately keeps for compatibility.
     const millis = Math.round((value - 25_569) * 86_400_000);
     return { date: new Date(millis).toISOString().slice(0, 10), error: null };
   }
@@ -247,9 +246,9 @@ export function parseExcelDate(value: unknown): { date: string | null; error: st
   if (dmy) {
     const day = Number(dmy[1]);
     const month = Number(dmy[2]);
-    // Bila angka pertama > 12 ia pasti hari, dan urutannya tidak ambigu.
-    // Bila keduanya ≤ 12, kita tetap membaca dd/mm — konvensi Indonesia — dan
-    // itu asumsi yang dinyatakan terbuka di templat, bukan tebakan diam-diam.
+    // If the first number is > 12 it must be the day, and the order is not
+    // ambiguous. If both are ≤ 12 we still read dd/mm — the Indonesian
+    // convention — stated openly in the template rather than guessed silently.
     return buildDate(Number(dmy[3]), month, day);
   }
 
@@ -261,8 +260,8 @@ function buildDate(year: number, month: number, day: number): { date: string | n
   if (day < 1 || day > 31) return { date: null, error: `Tanggal tidak sah: ${day}` };
 
   const date = new Date(Date.UTC(year, month - 1, day));
-  // Menangkap 31 Februari: Date menggeser tanggal tak sah ke bulan berikutnya
-  // tanpa mengeluh, sehingga hasilnya harus dicocokkan kembali.
+  // Catches 31 February: Date shifts an invalid date into the next month without
+  // complaint, so the result has to be checked back against the input.
   if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
     return { date: null, error: `Tanggal tidak ada dalam kalender: ${day}/${month}/${year}` };
   }
@@ -272,20 +271,19 @@ function buildDate(year: number, month: number, day: number): { date: string | n
 }
 
 /**
- * Nilai yang berasal dari ekspor tersamar.
+ * A value that came from a masked export.
  *
- * Alurnya nyata dan mudah terjadi: seseorang tanpa izin `employee.pii.unmask`
- * mengekspor data, menyuntingnya di Excel, lalu mengimpornya kembali. Bila
- * lolos, NIK asli tertimpa menjadi "3201********9012" — kerusakan senyap yang
- * baru ketahuan saat payroll pertama membutuhkan nomor rekening.
+ * The flow is real and easy to hit: someone without the `employee.pii.unmask`
+ * permission exports the data, edits it in Excel, and imports it back. If that
+ * passed, the real national ID would be overwritten with "3201********9012" —
+ * silent damage that only surfaces when the first payroll run needs a bank
+ * account number.
  *
- * Pemeriksaan panjang digit sebenarnya sudah menolaknya, tetapi pesannya
- * berbunyi "NIK biasanya 16 digit angka (ditemukan 16 karakter)" — terbaca
- * seperti kontradiksi, dan tidak memberi tahu apa pun tentang cara memperbaikinya.
- *
- * Deteksinya sendiri ada di `pii.ts`, tempat ia juga menjaga jalur tulis lain.
- * Di sini ia dipakai lebih awal, semata supaya pesannya dapat menunjuk barisnya.
- */
+ * The digit length check already refuses it, but its message reads "a national
+ * ID is normally 16 digits (found 16 characters)" — which reads like a
+ * contradiction and says nothing about how to fix it.
+ * The detection itself lives in `pii.ts`, where it also guards the other write
+ * paths. It is used earlier here purely so the message can point at the row.
 
 const MASKED_MESSAGE =
   'Nilai tersamar (*) — berkas ini diekspor tanpa izin melihat data lengkap. ' +
@@ -298,7 +296,7 @@ function parseGender(value: unknown): 'MALE' | 'FEMALE' | null {
   return null;
 }
 
-/** Memvalidasi dan menormalkan satu baris. */
+/** Validates and normalises one row. */
 export function validateRow(
   cells: unknown[],
   mapping: Record<string, number>,
@@ -340,9 +338,9 @@ export function validateRow(
     if (looksMasked(nationalId)) {
       errors.push({ field: 'nationalId', message: MASKED_MESSAGE });
     } else
-    // Peringatan, bukan penolakan — NIK 16 digit adalah aturan, tetapi berkas
-    // lama berisi data warga negara asing dan karyawan lama yang tidak
-    // memenuhinya. Menolaknya berarti menolak impor seluruh berkas.
+    // A warning, not a refusal — a 16-digit national ID is the rule, but old
+    // files contain foreign nationals and long-serving employees who do not
+    // meet it. Refusing them means refusing the whole file.
     if (!/^\d{16}$/.test(digits)) {
       errors.push({
         field: 'nationalId',

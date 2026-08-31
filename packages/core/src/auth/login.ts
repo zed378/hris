@@ -13,29 +13,27 @@ import {
 } from './tokens.ts';
 
 /**
- * ATURAN YANG MENGIKAT SELURUH BERKAS INI
+ * THE RULE BINDING THIS WHOLE FILE
  *
- * Sebuah `throw` di dalam `withTenant()` mem-*rollback* transaksinya. Karena itu
- * setiap efek samping yang harus **bertahan meski request ditolak** — penghitung
- * percobaan gagal, kunci akun, pencabutan keluarga token, jejak audit kegagalan —
- * tidak boleh ditulis di transaksi yang berakhir dengan lemparan.
+ * A `throw` inside `withTenant()` rolls its transaction back. So every side
+ * effect that must **survive a rejected request** — the failed attempt counter,
+ * the account lock, revoking a token family, the audit trail of a failure —
+ * must not be written in a transaction that ends in a throw.
  *
- * Pola yang dipakai: transaksi mengembalikan *outcome*, bukan melempar. Pemanggil
- * memeriksa outcome-nya, menulis efek samping dalam transaksi tersendiri yang
- * commit, baru melempar.
+ * The pattern used: the transaction returns an outcome rather than throwing. The
+ * caller inspects that outcome, writes the side effects in a transaction of
+ * their own that commits, and only then throws.
  *
- * Ini bukan kehalusan gaya. Versi sebelumnya menulis penghitung di dalam
- * transaksi lalu melempar, dan hasilnya: sepuluh percobaan kata sandi salah
- * berturut-turut meninggalkan `failed_login_attempts = 0`. Kunci akun tampak
- * ada di kode, lulus review, dan tidak melakukan apa pun. Hal yang sama membuat
- * deteksi pemakaian ulang refresh token mengembalikan 401 tanpa pernah benar-benar
- * mencabut token yang dicuri.
- *
- * Ditemukan uji end-to-end, bukan uji unit — keduanya bergantung pada perilaku
- * commit sungguhan.
+ * This is not a subtlety of style. The previous version wrote the counter inside
+ * the transaction and then threw, and the result was: ten consecutive wrong
+ * passwords left `failed_login_attempts = 0`. Account locking appeared to be in
+ * the code, passed review, and did nothing. The same thing made refresh token
+ * reuse detection return a 401 without ever actually revoking the stolen token.
+ * Found by an end-to-end test, not a unit test — both depend on real commit
+ * behaviour.
  */
 
-/** Kunci akun setelah sekian percobaan gagal berturut-turut. */
+/** Lock the account after this many consecutive failed attempts. */
 const MAX_FAILED_ATTEMPTS = 8;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
 
@@ -63,23 +61,23 @@ export interface LoginResult extends TokenPair {
 
 type LoginOutcome =
   | { kind: 'ok'; result: LoginResult }
-  /** Kredensial salah tanpa pengguna yang dapat dihukum (email tidak ada). */
+  /** Wrong credentials with no user to penalise (the email does not exist). */
   | { kind: 'rejected' }
-  /** Kredensial salah pada pengguna nyata — penghitung wajib naik. */
+  /** Wrong credentials on a real user — the counter must rise. */
   | { kind: 'rejected_with_penalty'; userId: string }
   | { kind: 'locked'; retryAfterSeconds: number };
 
 /**
- * Login dengan tenantCode + email + password (PLAN/06 §3.2).
+ * Login with tenantCode + email + password (PLAN/06 §3.2).
  *
- * Satu aturan mengikat jalur ini: **setiap kegagalan mengembalikan
- * `INVALID_CREDENTIALS` yang sama**, apa pun sebabnya — tenant tidak ada, email
- * tidak ada, kata sandi salah, atau pengguna belum aktif. Membedakannya mengubah
- * endpoint login menjadi alat pencacah: nama tenant yang sah, lalu alamat email
- * yang sah di dalamnya.
+ * One rule binds this path: **every failure returns the same
+ * `INVALID_CREDENTIALS`**, whatever its cause — no such tenant, no such email,
+ * wrong password, or an inactive user. Distinguishing them turns the login
+ * endpoint into an enumeration tool: first the valid tenant names, then the
+ * valid email addresses inside them.
  *
- * Pengecualiannya dua, dan keduanya disengaja karena pengguna yang sah perlu
- * tahu: akun terkunci, dan tenant ditangguhkan.
+ * There are two exceptions, and both are deliberate because a legitimate user
+ * needs to know: a locked account, and a suspended tenant.
  */
 export async function login(
   input: { tenantCode: string; email: string; password: string },
@@ -88,8 +86,8 @@ export async function login(
   const tenant = await resolveTenantByCode(input.tenantCode);
 
   if (!tenant) {
-    // Bayar biaya waktu yang sama seperti verifikasi sungguhan, supaya selisih
-    // latensi tidak membocorkan tenant mana yang ada.
+    // Pay the same time cost as a real verification, so a latency difference does
+    // not reveal which tenants exist.
     await burnTimingBudget(input.password);
     throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Kredensial tidak sah');
   }
@@ -129,8 +127,8 @@ export async function login(
       return { kind: 'rejected_with_penalty', userId: user.id };
     }
 
-    // Status diperiksa SETELAH kata sandi diverifikasi. Sebelumnya, endpoint ini
-    // memberi tahu penebak bahwa email tertentu ada tetapi belum aktif.
+    // The status is checked AFTER the password is verified. Previously this
+    // endpoint told a guesser that a particular email existed but was inactive.
     if (user.status !== 'ACTIVE') {
       return { kind: 'rejected' };
     }
@@ -214,8 +212,8 @@ export async function login(
       );
 
     case 'rejected_with_penalty':
-      // Transaksi tersendiri, di luar transaksi yang gagal. Inilah yang membuat
-      // penghitung benar-benar bertambah dan kunci akun benar-benar terpasang.
+      // A transaction of its own, outside the one that failed. This is what makes
+      // the counter genuinely increase and the account lock genuinely apply.
       await withTenant(tenant.id, (tx) =>
         registerFailedAttempt(tx, tenant.id, outcome.userId, ctx),
       );
@@ -227,12 +225,12 @@ export async function login(
 }
 
 /**
- * Menaikkan penghitung percobaan gagal, dan mengunci akun bila ambang tercapai.
+ * Increments the failed attempt counter, and locks the account at the threshold.
  *
- * Kenaikannya atomik (`increment`), bukan baca-lalu-tulis. Dua percobaan gagal
- * bersamaan pada akun yang sama karenanya menghasilkan dua kenaikan, bukan satu —
- * yang berarti penyerang paralel tidak dapat menghindari kunci akun dengan
- * mengirim tebakan secara serentak.
+ * The increment is atomic (`increment`), not read-then-write. Two simultaneous
+ * failures on the same account therefore produce two increments rather than one
+ * — which means a parallel attacker cannot evade the account lock by sending
+ * guesses all at once.
  */
 async function registerFailedAttempt(
   tx: TenantClient,
@@ -271,33 +269,33 @@ type RefreshOutcome =
   | { kind: 'invalid' }
   | { kind: 'expired' }
   | { kind: 'tenant_suspended' }
-  /** Sesi dicabut secara sah: logout, reset kata sandi, atau tindak lanjut insiden. */
+  /** The session was legitimately revoked: logout, a password reset, or incident follow-up. */
   | { kind: 'revoked' }
-  /** Token yang SUDAH DIGANTIKAN dipakai lagi — indikasi pencurian. */
+  /** A token that was ALREADY ROTATED is used again — an indication of theft. */
   | { kind: 'reuse'; familyId: string; userId: string };
 
 /**
- * Rotasi refresh token dengan deteksi pencurian (PLAN/06 §3.5).
+ * Refresh token rotation with theft detection (PLAN/06 §3.5).
  *
- * Setiap pemakaian menerbitkan token baru dan menandai yang lama sudah digantikan.
- * Bila token yang SUDAH digantikan muncul lagi, hanya ada dua kemungkinan: token
- * itu dicuri, atau salinannya tertinggal di perangkat lain. Keduanya menuntut
- * respons yang sama — cabut **seluruh keluarga** token dan paksa login ulang.
+ * Every use issues a new token and marks the old one as rotated. If a token that
+ * was ALREADY rotated appears again, there are only two possibilities: it was
+ * stolen, or a copy was left behind on another device. Both demand the same
+ * response — revoke the **whole family** of tokens and force a fresh login.
  *
- * Mencabut seluruh keluarga, bukan hanya token yang dipakai ulang, adalah inti
- * mekanismenya: saat pencurian terdeteksi kita tidak tahu pihak mana yang sah,
- * sehingga keduanya dikeluarkan.
+ * Revoking the whole family rather than only the reused token is the heart of
+ * the mechanism: when theft is detected we do not know which party is
+ * legitimate, so both are logged out.
  *
- * Kompromi yang perlu diketahui: pengguna dengan jaringan buruk yang request
- * refresh-nya timeout setelah server menyimpannya akan ikut tercabut. Itu
- * dipilih sadar — sesi yang hilang jauh lebih murah daripada sesi yang dicuri.
+ * A trade-off worth knowing: a user on a poor network whose refresh request
+ * times out after the server stored it is logged out too. That is chosen
+ * deliberately — a lost session is far cheaper than a stolen one.
  */
 export async function refresh(rawToken: string, ctx: LoginContext = {}): Promise<TokenPair> {
   const tokenHash = hashRefreshToken(rawToken);
 
-  // Pencarian ini mendahului konteks tenant, karena tenant justru yang hendak
-  // dicari — RLS akan mengembalikan nol baris bila dibaca langsung. Memakai
-  // fungsi SECURITY DEFINER sempit; lihat migrasi 20260818035500.
+  // This lookup precedes the tenant context, because the tenant is exactly what
+  // is being looked up — RLS would return zero rows if it were read directly. It
+  // uses a narrow SECURITY DEFINER function; see migration 20260818035500.
   const found = await appClient().$queryRaw<Array<{ tenant_id: string }>>`
     SELECT tenant_id FROM public.resolve_refresh_token_owner(${tokenHash})
   `;
@@ -323,17 +321,16 @@ export async function refresh(rawToken: string, ctx: LoginContext = {}): Promise
 
     if (!stored) return { kind: 'invalid' };
 
-    // Dua keadaan yang mudah disatukan, dan tidak boleh.
+    // Two states that are easy to conflate, and must not be.
     //
-    // Token yang sudah DIGANTIKAN lalu muncul lagi berarti ada dua pihak
-    // memegang token yang sama — itu indikasi pencurian, dan pantas dicatat
-    // sebagai insiden.
+    // A token that was ROTATED and then appears again means two parties hold the
+    // same token — that is an indication of theft, and deserves recording as an
+    // incident.
     //
-    // Token yang DICABUT hanya berarti sesinya diakhiri secara sah: logout,
-    // reset kata sandi, atau pembersihan setelah insiden sebelumnya. Menandainya
-    // sebagai pencurian membuat setiap orang yang lupa kata sandi memicu alarm
-    // keamanan — dan alarm yang sering salah adalah alarm yang akan diabaikan
-    // saat berbunyi benar.
+    // A REVOKED token only means the session ended legitimately: logout, a
+    // password reset, or cleanup after an earlier incident. Marking it as theft
+    // makes everyone who forgets their password trigger a security alarm — and an
+    // alarm that is often wrong is an alarm that gets ignored when it is right.
     if (stored.replacedByTokenId !== null) {
       return { kind: 'reuse', familyId: stored.familyId, userId: stored.userId };
     }
@@ -398,9 +395,9 @@ export async function refresh(rawToken: string, ctx: LoginContext = {}): Promise
       return outcome.tokens;
 
     case 'reuse':
-      // Transaksi tersendiri agar pencabutan benar-benar commit sebelum kita
-      // melempar. Bila ditulis di transaksi yang gagal, deteksi pencurian akan
-      // mengembalikan 401 yang meyakinkan tanpa mencabut satu token pun.
+      // A transaction of its own so the revocation genuinely commits before we
+      // throw. Written in the failing transaction, theft detection would return a
+      // convincing 401 without revoking a single token.
       await withTenant(tenantId, async (tx) => {
         await revokeFamily(tx, tenantId, outcome.familyId, 'reuse_detected');
         await writeAudit(tx, tenantId, {
@@ -447,7 +444,7 @@ async function revokeFamily(
   });
 }
 
-/** Logout: mencabut satu keluarga token, bukan hanya token yang dipegang. */
+/** Logout: revokes one token family, not only the token being held. */
 export async function logout(rawToken: string): Promise<void> {
   const tokenHash = hashRefreshToken(rawToken);
   const found = await appClient().$queryRaw<Array<{ tenant_id: string; family_id: string }>>`
