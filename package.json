@@ -19,7 +19,8 @@
     "db:reset": "pnpm --filter @hrms/db reset",
     "lint:migrations": "node ops/scripts/lint-migrations.mjs",
     "verify": "pnpm lint:migrations && pnpm lint && turbo run typecheck test build",
-    "dev:totp": "node ops/scripts/dev-totp.mjs"
+    "dev:totp": "node ops/scripts/dev-totp.mjs",
+    "jwt:keys": "node ops/scripts/generate-jwt-keys.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -30,7 +31,8 @@
     "typescript": "5.9.3",
     "typescript-eslint": "^8.67.0",
     "vitest": "^4.1.10",
-    "otplib": "^13.4.1"
+    "otplib": "^13.4.1",
+    "jose": "^6.2.9"
   },
   "type": "module"
 }

@@ -34,6 +34,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
     "@types/web-push": "^3.6.4",
     "dotenv": "^17.4.2",
     "vitest": "^4.1.10"

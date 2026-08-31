@@ -354,7 +354,7 @@ next one to be started.
 
 | # | Stage | Deliverable | Reversible |
 |---|---|---|---|
-| 1 | **Asymmetric tokens** | Ed25519 signing, `kid`, JWKS endpoint served by the current monolith, verifiers fetching it. No topology change. | Yes — revert to HS256 |
+| 1 | ~~**Asymmetric tokens**~~ — **done**, see §10.1 | Ed25519 signing, `kid`, JWKS endpoint served by the current monolith. No topology change. | Yes — revert to HS256 |
 | 2 | **Enforce `accessVersion`** | The comparison that §5 shows is missing. Still one process. | Yes |
 | 3 | **Redis for rate limiting** | Fixes the replica bug in §9.2, before it is exposed by scaling. | Yes |
 | 4 | **A hard internal boundary** | The auth module reachable only through an HTTP-shaped interface it already exposes, still in-process. Boundary lint upgraded to forbid direct imports of `iam` internals. | Yes |
@@ -362,6 +362,52 @@ next one to be started.
 | 6 | **Extract the auth container** | Same code, own image, own deploy. Proxy path-routes `/api/auth/*`. Permission resolution moves to option C with the Redis cache from stage 3. | Hard — this is the commitment point |
 | 7 | **Broker** | Outbox pump targets the broker instead of pg-boss job tables. | Yes, the outbox is unchanged |
 | 8 | **Split frontend from backend** | See §11. | Hard |
+
+### 10.1 Stage 1 as built
+
+Signing keys are **JWKs, not PEMs**, so `kty`, `crv`, `alg`, and `kid` travel
+with the key. That is what keeps §13.2 — EdDSA or RS256 — a decision about key
+material rather than about code: `pnpm jwt:keys RS256` is the whole change. It
+also means the public set is *literally* what `/api/.well-known/jwks.json`
+serves, so the endpoint assembles nothing.
+
+**Two key realms, not one.** The HS256 implementation derived the admin secret as
+`admin:${secret}`, so a tenant token and a superuser token could never verify
+against each other even if the audience check were removed or broken. A single
+shared key pair would have quietly dropped that, leaving `aud` as the only thing
+between a tenant session and the control plane. `JWT_*` and `ADMIN_JWT_*` are
+separate sets and the two planes migrate independently — which was demonstrated
+rather than assumed: the tenant plane ran on EdDSA for a while with the control
+plane still on HS256, and both worked.
+
+**HS256 still verifies while `JWT_SECRET` is set.** Without that window the
+deploy invalidates every live session, and an operator who discovers that will
+reach for the rollback rather than the migration. `signingMode()` reports
+`hs256` / `hybrid` / `asymmetric` so the state is observable — `hybrid` is
+expected during the migration and alarming after it, because the shared secret
+can still mint.
+
+Verified against the running server:
+
+| | |
+|---|---|
+| Tenant token header | `{"alg":"EdDSA","typ":"JWT","kid":"11db6f5d…"}` |
+| Admin token header | `{"alg":"EdDSA","typ":"JWT","kid":"fef60da1…"}` — a different key |
+| `/api/.well-known/jwks.json` | the tenant key only; the admin key is **not** there |
+| Admin token against a tenant endpoint | **401** (P11 holds) |
+
+Twenty-eight tests cover it, including the two attacks that make this worth
+getting right: an `alg: none` token, and an HS256 token forged using the RSA
+public key as its HMAC secret. Both are refused because **the algorithm comes
+from the key, never from the token** — `kid` selects a candidate and is treated
+as a hint, never as a claim.
+
+**Still open from this stage:** `JWT_SECRET` is still present in the development
+environment, so the deployment is in `hybrid`. Removing it is the step that ends
+the migration, and it should be taken one access-token TTL after the asymmetric
+keys are live.
+
+---
 
 Stages 1–5 are worth doing **whether or not the split happens**. Stage 2 fixes a
 mechanism that is currently inert, stage 3 fixes a bug that already exists. That

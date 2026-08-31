@@ -1,7 +1,6 @@
-import { SignJWT, jwtVerify } from 'jose';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import { platformClient } from '@hrms/db';
-import { verifyPassword } from '../auth/index.ts';
+import { verifyPassword, signJwt, verifyJwt } from '../auth/index.ts';
 
 /**
  * Autentikasi superuser — control plane.
@@ -25,20 +24,26 @@ import { verifyPassword } from '../auth/index.ts';
  * "tidak bisa" — bukan pintu belakang sementara.
  */
 
-const ISSUER = 'hrms';
 export const ADMIN_AUDIENCE = 'hrms-admin';
 /** Sesi 8 jam, jauh lebih pendek dari sesi tenant. */
 const ADMIN_TOKEN_TTL_SECONDS = 8 * 3600;
 
-function secret(): Uint8Array {
-  const value = process.env['ADMIN_JWT_SECRET'] ?? process.env['JWT_SECRET'];
-  if (!value || value.length < 32) {
-    throw new Error('ADMIN_JWT_SECRET belum dipasang atau kurang dari 32 karakter.');
-  }
-  // Rahasia admin diturunkan berbeda meski nilainya sama, sehingga token tenant
-  // dan token admin tidak pernah dapat saling diverifikasi walau salah konfigurasi.
-  return new TextEncoder().encode(`admin:${value}`);
-}
+/**
+ * The control plane signs with its OWN key material (`realm: 'admin'`).
+ *
+ * Previously this file derived `admin:${secret}` so that a tenant token and a
+ * superuser token could never verify against each other even if the audience
+ * check were removed or broken. That property is preserved rather than dropped
+ * in the move to asymmetric keys: the admin realm reads `ADMIN_JWT_PRIVATE_JWK`
+ * and `ADMIN_JWT_PUBLIC_JWKS`, and falls back to the same derived secret while
+ * those are unset — so the two planes migrate independently.
+ *
+ * A single shared key pair would have made `aud` the only thing standing between
+ * a tenant session and the control plane. Audience separation (P11) is a real
+ * check and does the work; this is the layer underneath, the one that still
+ * holds when the layer above has a bug.
+ */
+const ADMIN_REALM = 'admin' as const;
 
 export class SuperuserAuthError extends Error {
   constructor(message: string) {
@@ -106,26 +111,22 @@ export async function superuserLogin(input: {
     data: { lastLoginAt: new Date() },
   });
 
-  const now = Math.floor(Date.now() / 1000);
-  const token = await new SignJWT({ email: superuser.email })
-    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-    .setSubject(superuser.id)
-    .setIssuer(ISSUER)
-    .setAudience(ADMIN_AUDIENCE)
-    .setIssuedAt(now)
-    .setExpirationTime(now + ADMIN_TOKEN_TTL_SECONDS)
-    .sign(secret());
+  const token = await signJwt(
+    { email: superuser.email },
+    {
+      subject: superuser.id,
+      audience: ADMIN_AUDIENCE,
+      ttlSeconds: ADMIN_TOKEN_TTL_SECONDS,
+      realm: ADMIN_REALM,
+    },
+  );
 
   return { token, expiresIn: ADMIN_TOKEN_TTL_SECONDS };
 }
 
 export async function verifySuperuserToken(token: string): Promise<SuperuserClaims> {
   try {
-    const { payload } = await jwtVerify(token, secret(), {
-      issuer: ISSUER,
-      audience: ADMIN_AUDIENCE,
-      algorithms: ['HS256'],
-    });
+    const payload = await verifyJwt(token, ADMIN_AUDIENCE, ADMIN_REALM);
     return {
       sub: String(payload.sub),
       email: String(payload['email']),

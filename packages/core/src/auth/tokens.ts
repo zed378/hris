@@ -1,19 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { SignJWT, jwtVerify } from 'jose';
 import { accessTokenClaimsSchema, type AccessTokenClaims } from '@hrms/contracts';
+import { signJwt, verifyJwt, JwtVerificationError } from './jwt.ts';
 
-const ISSUER = 'hrms';
 export const TENANT_AUDIENCE = 'hrms-tenant';
 /** Audience control plane. Sengaja tidak pernah diterima gateway tenant (P11). */
 export const ADMIN_AUDIENCE = 'hrms-admin';
-
-function secret(): Uint8Array {
-  const value = process.env['JWT_SECRET'];
-  if (!value || value.length < 32) {
-    throw new Error('JWT_SECRET belum dipasang atau kurang dari 32 karakter.');
-  }
-  return new TextEncoder().encode(value);
-}
 
 function accessTtlSeconds(): number {
   return Number(process.env['ACCESS_TOKEN_TTL_SECONDS'] ?? 900);
@@ -42,20 +33,19 @@ export interface AccessTokenInput {
  * gateway membandingkan versi di token dengan yang tercatat dan menolak yang basi.
  */
 export async function issueAccessToken(input: AccessTokenInput): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({
-    tid: input.tenantId,
-    tenantCode: input.tenantCode,
-    email: input.email,
-    av: input.accessVersion,
-  })
-    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-    .setSubject(input.userId)
-    .setIssuer(ISSUER)
-    .setAudience(TENANT_AUDIENCE)
-    .setIssuedAt(now)
-    .setExpirationTime(now + accessTtlSeconds())
-    .sign(secret());
+  return signJwt(
+    {
+      tid: input.tenantId,
+      tenantCode: input.tenantCode,
+      email: input.email,
+      av: input.accessVersion,
+    },
+    {
+      subject: input.userId,
+      audience: TENANT_AUDIENCE,
+      ttlSeconds: accessTtlSeconds(),
+    },
+  );
 }
 
 export class TokenVerificationError extends Error {
@@ -77,15 +67,13 @@ export class TokenVerificationError extends Error {
  */
 export async function verifyAccessToken(token: string): Promise<AccessTokenClaims> {
   try {
-    const { payload } = await jwtVerify(token, secret(), {
-      issuer: ISSUER,
-      audience: TENANT_AUDIENCE,
-      algorithms: ['HS256'],
-    });
-    return accessTokenClaimsSchema.parse(payload);
+    return accessTokenClaimsSchema.parse(await verifyJwt(token, TENANT_AUDIENCE));
   } catch (error) {
-    const code = (error as { code?: string }).code;
-    if (code === 'ERR_JWT_EXPIRED') {
+    // `expired` and `invalid` are different answers to the client: one refreshes,
+    // the other logs out. A schema failure is `invalid` — the signature held but
+    // the claims are not what this system issues, which is a token from
+    // somewhere else rather than an expired one from here.
+    if (error instanceof JwtVerificationError && error.reason === 'expired') {
       throw new TokenVerificationError('Token akses kedaluwarsa', 'expired');
     }
     throw new TokenVerificationError('Token akses tidak sah', 'invalid');

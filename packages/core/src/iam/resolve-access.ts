@@ -249,9 +249,12 @@ export async function findPermissionHolders(
   /**
    * Only ACTIVE users are considered.
    *
-   * A disabled account cannot log in, so routing an approval to one produces
-   * exactly the silent stall this function exists to remove — and a departed
-   * manager is the most likely way to reach that state.
+   * `SUSPENDED` and `INVITED` accounts are both excluded, and both matter: a
+   * suspended account is usually somebody who has left, and an invited one has
+   * never logged in at all. Either can hold the role on paper. Routing an
+   * approval to one produces exactly the silent stall this function exists to
+   * remove — the request is created, it names an approver, and no one ever sees
+   * it.
    */
   const candidates = await tx.user.findMany({
     where: { tenantId, status: 'ACTIVE' },

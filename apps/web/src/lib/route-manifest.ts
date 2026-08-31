@@ -173,6 +173,10 @@ export const ROUTE_MANIFEST = {
   // Neither uses defineRoute — see their route files. They are registered here
   // purely so the manifest coverage check does not report them as unregistered
   // routes (P7).
+  // Public by definition: a JWKS exists to be fetched by anything that verifies
+  // a token, and a public key discloses nothing. It is what lets a verifier
+  // check a signature without holding anything that could produce one.
+  'GET /api/.well-known/jwks.json': { module: 'core', permission: null, public: true },
   'GET /api/health': { module: 'core', permission: null, public: true },
   'GET /api/ready': { module: 'core', permission: null, public: true },
 

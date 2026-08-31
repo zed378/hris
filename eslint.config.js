@@ -193,4 +193,25 @@ export default tseslint.config(
     ],
     rules: { 'boundaries/dependencies': 'off', 'no-console': 'off' },
   },
+
+  /**
+   * Tests may hold an owner-privileged Prisma client. Only tests.
+   *
+   * The rule above exists because a path that reaches Prisma directly is a path
+   * that never set `app.tenant_id`, and therefore a path without RLS. That
+   * reasoning is about code that serves requests, and it does not transfer to a
+   * test that has to CREATE the tenants it then queries as an ordinary caller —
+   * `tenant.tenants` is itself RLS-protected, so there is no way to arrange that
+   * fixture from inside a tenant context.
+   *
+   * The narrowness is the safeguard. This applies to `test/` directories only,
+   * nothing in `src/` is covered by it, and the tests that use it are expected to
+   * do their SETUP with the owner client and their ASSERTIONS through
+   * `withTenant` — otherwise they would be proving that PostgreSQL can read rows
+   * rather than that the application can.
+   */
+  {
+    files: ['**/test/**/*.ts'],
+    rules: { 'no-restricted-imports': 'off' },
+  },
 );

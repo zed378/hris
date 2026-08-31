@@ -145,7 +145,20 @@ describe('ROUTE_RULES', () => {
     // alamat yang sama. Membatasi lajunya akan membuat kontainer yang sehat
     // dilaporkan gagal, lalu direstart — kegagalan yang diciptakan sendiri oleh
     // penjagaan yang salah tempat.
-    const HEALTH_ROUTES = ['GET /api/health', 'GET /api/ready'];
+    //
+    // JWKS dikecualikan atas alasan yang sama, dan taruhannya lebih besar.
+    // Setelah auth dipisah (PLAN/14 tahap 6), backend dan worker mengambil kunci
+    // publik dari sini untuk memverifikasi SETIAP token. Beberapa service di
+    // belakang satu NAT terlihat sebagai satu alamat, sehingga batas laju di
+    // sini berarti kegagalan mengambil kunci — dan kegagalan mengambil kunci
+    // berarti seluruh token ditolak. Dokumennya statis, kecil, dan di-cache
+    // lima menit; risiko penyalahgunaannya jauh lebih kecil daripada risiko
+    // memadamkan verifikasi sendiri.
+    const INFRASTRUCTURE_ROUTES = [
+      'GET /api/health',
+      'GET /api/ready',
+      'GET /api/.well-known/jwks.json',
+    ];
 
     const unlimited = Object.entries(ROUTE_RULES)
       .filter(
@@ -153,7 +166,7 @@ describe('ROUTE_RULES', () => {
           rule.public === true &&
           !rule.rateLimit &&
           !id.includes('logout') &&
-          !HEALTH_ROUTES.includes(id),
+          !INFRASTRUCTURE_ROUTES.includes(id),
       )
       .map(([id]) => id);
     expect(unlimited).toEqual([]);

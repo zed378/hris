@@ -15,3 +15,14 @@ export {
   ActionTokenError,
 } from './password-reset.ts';
 export { issueActionToken, hashActionToken } from './action-tokens.ts';
+
+export { signJwt, verifyJwt, JwtVerificationError, ISSUER, type SignOptions } from './jwt.ts';
+export {
+  privateSigningKey,
+  publicVerificationKeys,
+  publicJwksDocument,
+  legacySecret,
+  signingMode,
+  type SigningKey,
+  type KeyRealm,
+} from './signing-keys.ts';
