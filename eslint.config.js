@@ -177,6 +177,48 @@ export default tseslint.config(
     },
   },
 
+  /**
+   * The gateway authorizes through ONE function (PLAN/14 stage 4).
+   *
+   * `decideAccess` is the seam that becomes a call to the auth service. A route
+   * that reached for `resolveEffectiveAccess` instead would be composing the
+   * decision for itself — its own order of staleness, subscription, and
+   * permission checks — and when authorization moves across the network that
+   * route would silently keep asking the old question.
+   *
+   * The failure mode is the reason this is a lint rule rather than a convention:
+   * such a route works perfectly until the day of the split, and then answers
+   * differently from every other route in a way no test asks about.
+   *
+   * `apps/web` only. Inside `packages/core` the two are neighbours, and
+   * `decideAccess` is built from `resolveEffectiveAccess`.
+   */
+  {
+    files: ['apps/web/**/*.ts', 'apps/web/**/*.tsx'],
+    ignores: ['apps/web/test/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@prisma/client',
+              message:
+                'Pakai @hrms/db. Akses Prisma langsung melewati withTenant(), dan karenanya melewati konteks RLS.',
+            },
+            {
+              name: '@hrms/core/iam',
+              importNames: ['resolveEffectiveAccess'],
+              message:
+                'Pakai decideAccess(). Ia adalah sambungan yang kelak menjadi panggilan ke service auth ' +
+                '(PLAN/14 tahap 4), dan ia yang memegang urutan pemeriksaan: basi, langganan, lalu izin.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // @hrms/db is the only place allowed to touch Prisma. It is its wrapper.
   {
     files: ['packages/db/**/*.ts'],

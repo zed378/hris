@@ -22,3 +22,9 @@ export {
   type BulkInviteInput,
   type BulkInviteResult,
 } from './bulk-invite.ts';
+export {
+  decideAccess,
+  type AccessRequest,
+  type AccessDecision,
+  type AccessDenial,
+} from './authorize.ts';

@@ -357,7 +357,7 @@ next one to be started.
 | 1 | ~~**Asymmetric tokens**~~ — **done**, see §10.1 | Ed25519 signing, `kid`, JWKS endpoint served by the current monolith. No topology change. | Yes — revert to HS256 |
 | 2 | ~~**Enforce `accessVersion`**~~ — **done**, see §10.2 | The comparison §5 showed was missing. Still one process. | Yes |
 | 3 | ~~**Redis for rate limiting**~~ — **done**, see §10.3 | Fixes the replica bug in §9.2, before scaling exposes it. | Yes |
-| 4 | **A hard internal boundary** | The auth module reachable only through an HTTP-shaped interface it already exposes, still in-process. Boundary lint upgraded to forbid direct imports of `iam` internals. | Yes |
+| 4 | ~~**A hard internal boundary**~~ — **done**, see §10.4 | Authorization behind one RPC-shaped function, still in-process, with a lint rule keeping it that way. | Yes |
 | 5 | **Split database roles** | Distinct PostgreSQL roles and grants for auth-owned vs business schemas, both still used by one process. Proves the grant matrix before the network is involved. | Yes |
 | 6 | **Extract the auth container** | Same code, own image, own deploy. Proxy path-routes `/api/auth/*`. Permission resolution moves to option C with the Redis cache from stage 3. | Hard — this is the commitment point |
 | 7 | **Broker** | Outbox pump targets the broker instead of pg-boss job tables. | Yes, the outbox is unchanged |
@@ -476,6 +476,45 @@ with 429, and the shared counter advanced.
 instance can serve traffic in and neither is visible otherwise — `in-process`
 across several replicas, or `hybrid` signing long after the migration was
 supposed to end.
+
+### 10.4 Stage 4 as built
+
+`decideAccess(tx, request) → AccessDecision` in `packages/core/src/iam/`.
+
+The gateway used to compose the decision itself: resolve access, compare the
+version, check the module, check the permission, and map each outcome to a
+status — four steps whose ORDER carries meaning, spread through a wrapper that
+was also doing rate limiting, tenant-header checks, and error shaping. Fine while
+it is one process; it becomes the hard part of the split the moment it is not,
+because every step has to move together and any that stays behind quietly answers
+a different question.
+
+So the decision is a thing rather than a sequence. **When authorization becomes
+remote, what changes is this function's body, and the gateway's mapping from
+decision to status code does not move at all.**
+
+The denial is an enum, not a boolean, because "no" has three meanings that are
+not interchangeable: `stale` (valid session, out-of-date permissions — refresh
+and retry), `module` (the tenant does not subscribe — a customer can act on it),
+`permission` (their administrator can). Collapsing them is how a subscription
+problem starts being reported as "access denied", which sends the customer to the
+wrong person.
+
+`tx` is the parameter that **disappears** when this becomes a network call.
+Nothing else in the signature changes. It is still there because the handler
+needs a transaction for its own work, and authorizing on a separate one would
+mean two connections per request today to buy a shape not needed yet.
+
+**A lint rule keeps the seam a seam.** `apps/web` may no longer import
+`resolveEffectiveAccess`; a route that did would compose its own order of checks
+and would silently keep asking the old question after the split. That is a lint
+rule rather than a convention because such a route works perfectly until the day
+it doesn't, and then differs from every other route in a way no test asks about.
+
+Twelve tests against a real database pin the contract, and the ones that matter
+most construct states where **two things are wrong at once** — stale *and*
+unsubscribed, unsubscribed *and* unpermitted — because the order is what a
+rewrite loses, and any single check looks correct on its own.
 
 ---
 
