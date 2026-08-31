@@ -290,3 +290,95 @@ export async function setTenantStatus(input: {
 
   return { tenantId: tenant.id, status: input.status, previousStatus: tenant.status };
 }
+
+export interface TenantDetail extends TenantSummary {
+  suspendedAt: string | null;
+  churnedAt: string | null;
+  /** Seluruh modul katalog, beserta keadaannya pada tenant ini. */
+  modules: Array<{
+    code: string;
+    name: string;
+    tier: string;
+    isCore: boolean;
+    /** Termasuk dalam paket yang dilanggan tenant ini. */
+    inPlan: boolean;
+    /** Diaktifkan tenant. Modul inti selalu aktif. */
+    enabled: boolean;
+  }>;
+}
+
+/**
+ * Satu tenant beserta keadaan seluruh modulnya.
+ *
+ * Yang dikembalikan adalah **katalog penuh**, bukan hanya modul yang aktif.
+ * Layar yang hanya menerima modul aktif tidak dapat menawarkan yang belum
+ * aktif — dan menyalakan modul justru satu-satunya alasan layar itu dibuka.
+ *
+ * `inPlan` dan `enabled` dipisah karena keduanya memang berbeda, dan
+ * perbedaannya menentukan apa yang dilihat tenant: entitlement adalah
+ * **irisan** keduanya (lihat `resolveEffectiveAccess`). Modul yang aktif tetapi
+ * di luar paket akan menolak dengan 402, dan tanpa pemisahan ini superuser yang
+ * melihat "aktif" tidak akan mengerti mengapa pelanggannya tetap ditolak.
+ */
+export async function tenantDetail(tenantId: string): Promise<TenantDetail | null> {
+  const db = platformClient();
+
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      status: true,
+      planCode: true,
+      trialEndsAt: true,
+      createdAt: true,
+      suspendedAt: true,
+      churnedAt: true,
+      modules: { select: { moduleCode: true, status: true } },
+    },
+  });
+  if (!tenant) return null;
+
+  const [catalogModules, plan, counts] = await Promise.all([
+    db.module.findMany({
+      orderBy: { sortOrder: 'asc' },
+      select: { code: true, name: true, tier: true, isCore: true },
+    }),
+    db.plan.findUnique({
+      where: { code: tenant.planCode },
+      select: { modules: { select: { moduleCode: true } } },
+    }),
+    db.$queryRaw<Array<{ tenant_id: string; user_count: bigint }>>`
+      SELECT * FROM platform.tenant_user_counts()
+    `,
+  ]);
+
+  const enabled = new Set(
+    tenant.modules.filter((m) => m.status === 'ENABLED').map((m) => m.moduleCode),
+  );
+  const inPlan = new Set(plan?.modules.map((m) => m.moduleCode) ?? []);
+  const userCount = Number(counts.find((c) => c.tenant_id === tenant.id)?.user_count ?? 0);
+
+  return {
+    id: tenant.id,
+    code: tenant.code,
+    name: tenant.name,
+    status: tenant.status,
+    planCode: tenant.planCode,
+    trialEndsAt: tenant.trialEndsAt?.toISOString() ?? null,
+    createdAt: tenant.createdAt.toISOString(),
+    suspendedAt: tenant.suspendedAt?.toISOString() ?? null,
+    churnedAt: tenant.churnedAt?.toISOString() ?? null,
+    moduleCount: enabled.size,
+    userCount,
+    modules: catalogModules.map((module) => ({
+      code: module.code,
+      name: module.name,
+      tier: module.tier,
+      isCore: module.isCore,
+      inPlan: module.isCore || inPlan.has(module.code),
+      enabled: module.isCore || enabled.has(module.code),
+    })),
+  };
+}

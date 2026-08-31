@@ -11,6 +11,8 @@ export {
   platformOverview,
   setTenantModule,
   setTenantStatus,
+  tenantDetail,
+  type TenantDetail,
   TenantStatusError,
   type TenantLifecycleStatus,
   ModuleToggleError,

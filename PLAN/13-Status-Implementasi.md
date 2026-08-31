@@ -761,10 +761,40 @@ Yang tidak terkunci Gerbang C tetapi belum dibangun:
   Jendelanya selebar umur access token, dan itu diterima: mencabut paksa
   menuntut daftar pencabutan yang dibaca setiap permintaan, dan biaya itu
   ditanggung seluruh pelanggan yang tidak pernah ditangguhkan.
-- **Bidang admin belum punya satu pun layar** — seluruh control plane hanya
-  berupa endpoint. Ini bukan kelalaian (dokumen 11: bidang admin bukan PWA dan
-  sengaja terpisah), tetapi menangguhkan pelanggan lewat `curl` bukan operasi
-  yang layak dilakukan dua kali.
+- ~~**Bidang admin belum punya satu pun layar**~~ — **selesai.** `/admin` kini
+  berisi konsol: masuk dengan TOTP, ringkasan tenant per status, pencarian, dan
+  panel kelola per tenant untuk menyalakan/mematikan modul serta mengubah status
+  langganan.
+
+  **Sesinya sengaja tidak persisten.** Token superuser hidup 8 jam dan hanya di
+  memori React — menyegarkan halaman berarti masuk lagi, lengkap dengan TOTP.
+  Itu ketidaknyamanan yang dipilih: bidang ini memegang metadata seluruh
+  pelanggan, akunnya dapat dihitung dengan jari, dan dipakai beberapa kali
+  sebulan. Menukar kenyamanan sesi panjang dengan permukaan XSS yang bertahan
+  lintas muat halaman adalah pertukaran yang salah arah di sini — berbeda dari
+  bidang tenant, yang dipakai ratusan orang setiap hari dan karena itu memang
+  punya cookie refresh httpOnly. Dinyatakan di layar masuknya, bukan ditemukan
+  sendiri saat sesinya hilang.
+
+  Layar kelola membedakan **"aktif"** dari **"termasuk paket"**, karena
+  entitlement adalah irisan keduanya. Modul yang aktif tetapi di luar paket
+  diberi peringatan eksplisit — tanpa itu, superuser yang melihat kotak
+  bercentang tidak akan mengerti mengapa pelanggannya tetap ditolak 402.
+  Pembedaan ini langsung berguna: ia menjelaskan mengapa tenant demo menolak
+  seluruh endpoint payroll (modulnya di luar paket `starter`), sesuatu yang
+  sebelumnya hanya terlihat sebagai 402 tanpa sebab.
+
+  Diverifikasi terhadap server sungguhan, seluruhnya lewat HTTP:
+
+  | Langkah | Hasil |
+  |---|---|
+  | Mematikan modul inti | **409** — "Modul inti tidak dapat dinonaktifkan" |
+  | Mematikan modul cuti | 200, pelanggan lalu ditolak **402** |
+  | Menyalakannya kembali | 6 jenis cuti kembali terlihat — **datanya utuh** |
+  | Menangguhkan tanpa alasan cukup | **400** |
+  | Menangguhkan dengan alasan | 200, mencatat status sebelumnya |
+  | Pelanggan mencoba masuk | **403 TENANT_SUSPENDED** |
+  | Mengaktifkan kembali | login 200 lagi |
 - **Penagihan tetap satu-satunya yang belum ada.** Selebihnya — pendaftaran
   mandiri, uji coba 14 hari, aktivasi modul, dasbor, pengerasan, dan ekspor
   portabilitas — sudah berjalan dan terbukti.
