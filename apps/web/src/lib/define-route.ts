@@ -5,6 +5,11 @@ import { withTenant, type TenantClient } from '@hrms/db';
 import { ErrorCode, type ApiError } from '@hrms/contracts';
 import { verifyAccessToken, TokenVerificationError } from '@hrms/core/auth';
 import { decideAccess, type EffectiveAccess } from '@hrms/core/iam';
+import {
+  authServiceUrl,
+  authorizeRemotely,
+  AUTH_UNAVAILABLE_STATUS,
+} from './auth-client.ts';
 import { ROUTE_MANIFEST, type RouteId, type RouteRule } from './route-manifest.ts';
 import { consumeRateLimit, consumeTenantQuota, TENANT_QUOTA_MAX } from '@hrms/cache';
 
@@ -188,9 +193,142 @@ function build(
       return fail(401, ErrorCode.TOKEN_INVALID, 'Token akses tidak ada', ctx.correlationId);
     }
 
+    const bearer = authorization.slice(7);
+
+    /**
+     * The remote topology (PLAN/14 stage 6).
+     *
+     * With `AUTH_SERVICE_URL` set, the backend does not verify tokens and does
+     * not resolve permissions. It asks. That is the whole shape of the split:
+     * exactly one component holds the signing key and exactly one decides what a
+     * token means.
+     *
+     * Two branches rather than one code path, deliberately. In the in-process
+     * topology the authorization decision and the handler share ONE transaction;
+     * forcing the remote shape onto it would open a second connection per
+     * request to buy a uniformity nobody benefits from. The topologies genuinely
+     * differ, and pretending they do not would make the default deployment pay
+     * for the other one.
+     */
+    if (authServiceUrl()) {
+      const outcome = await authorizeRemotely(
+        bearer,
+        routeRule.module,
+        routeRule.permission,
+        ctx.correlationId,
+      );
+
+      if (outcome.kind === 'rejected') {
+        return fail(
+          401,
+          outcome.expired ? ErrorCode.TOKEN_EXPIRED : ErrorCode.TOKEN_INVALID,
+          outcome.expired ? 'Token akses kedaluwarsa' : 'Token akses tidak sah',
+          ctx.correlationId,
+        );
+      }
+
+      if (outcome.kind === 'unavailable') {
+        /**
+         * Refusal, never a fallback to deciding locally.
+         *
+         * The backend could resolve permissions itself here — it still shares a
+         * database with auth in this topology — and that is exactly why it must
+         * not. A second implementation of the authorization decision, running
+         * only during incidents, is a second implementation nobody has tested,
+         * diverging quietly from the one that normally runs. Risk S3.
+         */
+        const response = fail(
+          AUTH_UNAVAILABLE_STATUS,
+          ErrorCode.INTERNAL,
+          'Layanan autentikasi sedang tidak dapat dihubungi. Coba lagi sebentar lagi.',
+          ctx.correlationId,
+        );
+        response.headers.set('retry-after', '5');
+        return response;
+      }
+
+      const remote = outcome.decision;
+
+      // The same header check as below. It is repeated rather than hoisted
+      // because in this branch the tenant comes from the auth service, and a
+      // check written once against `claims` would be checking a value this
+      // branch never produced.
+      const remoteHeaderTenant = req.headers.get('x-tenant-id');
+      if (remoteHeaderTenant !== null && remoteHeaderTenant !== remote.tenantId) {
+        return fail(
+          403,
+          ErrorCode.TENANT_MISMATCH,
+          'Header X-Tenant-ID tidak cocok dengan sesi',
+          ctx.correlationId,
+        );
+      }
+
+      const remoteQuota = await consumeTenantQuota(remote.tenantId);
+      if (!remoteQuota.allowed) {
+        const response = fail(
+          429,
+          ErrorCode.RATE_LIMITED,
+          `Permintaan dari organisasi Anda melebihi ${TENANT_QUOTA_MAX} per menit. ` +
+            'Coba lagi sebentar lagi.',
+          ctx.correlationId,
+        );
+        response.headers.set('retry-after', String(remoteQuota.resetSeconds));
+        return response;
+      }
+
+      if (!remote.allowed) {
+        if (remote.reason === 'stale') {
+          return fail(
+            401,
+            ErrorCode.TOKEN_STALE,
+            'Hak akses Anda berubah. Token disegarkan otomatis — coba lagi.',
+            ctx.correlationId,
+          );
+        }
+
+        if (remote.reason === 'module') {
+          return fail(
+            402,
+            ErrorCode.MODULE_NOT_SUBSCRIBED,
+            `Paket langganan Anda belum mencakup modul "${routeRule.module}"`,
+            ctx.correlationId,
+          );
+        }
+
+        return fail(
+          403,
+          ErrorCode.PERMISSION_DENIED,
+          'Anda tidak memiliki hak akses untuk tindakan ini',
+          ctx.correlationId,
+        );
+      }
+
+      try {
+        return await withTenant(remote.tenantId, async (tx) =>
+          (handler as AuthedHandler)(req, {
+            ...ctx,
+            params,
+            tx,
+            tenantId: remote.tenantId,
+            tenantCode: remote.tenantCode,
+            userId: remote.userId,
+            email: remote.email,
+            access: {
+              modules: remote.modules,
+              permissions: remote.permissions,
+              accessVersion: remote.accessVersion,
+            },
+          }),
+        );
+      } catch (error) {
+        log.error({ scope: 'route', correlationId: ctx.correlationId, routeId, error });
+        return fail(500, ErrorCode.INTERNAL, 'Terjadi kesalahan pada sistem', ctx.correlationId);
+      }
+    }
+
     let claims;
     try {
-      claims = await verifyAccessToken(authorization.slice(7));
+      claims = await verifyAccessToken(bearer);
     } catch (error) {
       const expired = error instanceof TokenVerificationError && error.reason === 'expired';
       return fail(

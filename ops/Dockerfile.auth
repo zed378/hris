@@ -1,0 +1,70 @@
+# =============================================================================
+# AUTH — apps/auth
+#
+# Identity, sessions, tokens, and the authorization decision, in a deployable of
+# their own (PLAN/14). What justifies the separation is specific to auth rather
+# than general: it is the only module everything depends on and which depends on
+# nothing; its change rate is the lowest and its blast radius the widest; argon2
+# gives it a scaling profile unlike any other module; and it is the natural home
+# for SSO, SAML, and an OAuth server.
+#
+# What this image must NOT contain, and why the split is worth anything:
+#
+#   - It connects as `hrms_auth`, which reaches auth, iam, tenant, audit and
+#     messaging, and NOTHING in employee, attendance, leave, or payroll. The
+#     component holding password hashes is not also a route to salaries and
+#     national IDs.
+#   - It is the ONLY image that gets `JWT_PRIVATE_JWK`. A service holding the
+#     signing key can mint a token for any user of any tenant; giving it to the
+#     backend would cancel the entire point of the separation (PLAN/14 §6).
+# =============================================================================
+
+FROM node:24-alpine AS deps
+RUN corepack enable
+WORKDIR /repo
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/auth/package.json          apps/auth/
+COPY packages/db/package.json        packages/db/
+COPY packages/core/package.json      packages/core/
+COPY packages/cache/package.json     packages/cache/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/observability/package.json packages/observability/
+COPY packages/db/prisma              packages/db/prisma
+COPY packages/db/prisma.config.ts    packages/db/
+
+# Only what the auth service references. `apps/web` and `apps/worker` are absent:
+# nothing here serves the UI or runs a job queue.
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
+    pnpm install --frozen-lockfile --filter @hrms/auth-service...
+
+FROM node:24-alpine AS runner
+WORKDIR /repo
+
+ENV NODE_ENV=production
+
+# The whole dependency tree at once, not a hand-listed set of directories. The
+# worker image learned this the expensive way: a named list has to be updated
+# for every new workspace package, and whoever forgets is the future.
+COPY --from=deps /repo ./
+
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/contracts     ./packages/contracts
+COPY packages/observability ./packages/observability
+COPY packages/cache         ./packages/cache
+COPY packages/db            ./packages/db
+COPY packages/core          ./packages/core
+COPY apps/auth              ./apps/auth
+
+RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S authsvc -G nodejs \
+ && chown -R authsvc:nodejs /repo
+USER authsvc
+
+EXPOSE 3001
+
+# `--experimental-transform-types`, NOT `--experimental-strip-types`. The latter
+# only removes type annotations and cannot handle constructs that emit code —
+# parameter properties, enums, namespaces. Every error class in @hrms/core uses
+# parameter properties, and with the wrong flag the service fails at startup with
+# a message naming none of our files.
+CMD ["node", "--experimental-transform-types", "apps/auth/src/main.ts"]

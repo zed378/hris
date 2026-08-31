@@ -1,6 +1,6 @@
 # 14 — Service Split: Extracting Auth, and the Platform Around It
 
-**Status:** decided, not yet built.
+**Status:** stages 1–6 built and verified; 7–8 open. See §10.
 **Supersedes:** nothing. It *amends* document `12` §9 — see §3, which is the part
 of this document worth arguing with.
 
@@ -359,7 +359,7 @@ next one to be started.
 | 3 | ~~**Redis for rate limiting**~~ — **done**, see §10.3 | Fixes the replica bug in §9.2, before scaling exposes it. | Yes |
 | 4 | ~~**A hard internal boundary**~~ — **done**, see §10.4 | Authorization behind one RPC-shaped function, still in-process, with a lint rule keeping it that way. | Yes |
 | 5 | ~~**Split database roles**~~ — **done**, see §10.5 | `hrms_auth` with its own grant matrix, asserted by CI. | Yes |
-| 6 | **Extract the auth container** | Same code, own image, own deploy. Proxy path-routes `/api/auth/*`. Permission resolution moves to option C with the Redis cache from stage 3. | Hard — this is the commitment point |
+| 6 | ~~**Extract the auth container**~~ — **built**, see §10.6 | Own image, own deploy, own database role. Opt-in via `AUTH_SERVICE_URL`. | Yes, in practice — see §10.6 |
 | 7 | **Broker** | Outbox pump targets the broker instead of pg-boss job tables. | Yes, the outbox is unchanged |
 | 8 | **Split frontend from backend** | See §11. | Hard |
 
@@ -551,6 +551,77 @@ There is a test asserting that overlap **still exists**. It will fail when the
 grant is finally revoked, and that failure is the reminder to update the record —
 not a sign that something broke. A half-applied boundary nobody wrote down reads,
 six months later, exactly like a finished one.
+
+### 10.6 Stage 6 as built
+
+`apps/auth` is a service: nine endpoints, its own image, its own database role,
+its own signing key. The six credential endpoints move out of the backend
+unchanged in behaviour, and one new endpoint — `POST /internal/authorize` — is
+what makes the split affordable.
+
+**It is opt-in, and that is the design.** With `AUTH_SERVICE_URL` unset the
+backend authorizes in-process exactly as before; the monolith stays a complete,
+working deployment. §10 calls stage 6 the commitment point, and this is what
+keeps the commitment from being irreversible on its first day: the split is a
+configuration, and a rollback is an environment variable rather than a revert.
+The compose profile `split` starts the auth container and the proxy; without it,
+nothing changes.
+
+**What each image gets is the security property.** Auth holds
+`JWT_PRIVATE_JWK` and `DATABASE_URL_AUTH`; the backend gets the public key set
+and no private key at all. A service holding the signing key can mint a token for
+any user of any tenant, so the backend verifying without being able to forge is
+the entire return on stage 1.
+
+**The token is sent, never its contents.** `/internal/authorize` takes a token
+and decides what it means. Accepting a `userId` would let anything able to reach
+it — a compromised backend included — authorize itself as anyone.
+
+**No framework.** `node:http` and about eighty lines. This is the one component
+holding password hashes and the signing key; every dependency it takes is a
+dependency inside that blast radius.
+
+Verified against the running pair, in split mode:
+
+| | |
+|---|---|
+| Login through auth, token used against the backend | 200 |
+| Module disabled by the control plane, then a backend request | **402**, immediately |
+| Malformed token | **401** |
+| Auth service stopped | **503**, and no local fallback |
+
+That last row is risk **S3** answered deliberately rather than discovered. The
+backend still shares a database with auth in this topology and *could* resolve
+permissions itself when the call fails — which is exactly why it must not. A
+second implementation of the authorization decision, running only during
+incidents, is one nobody has tested, diverging quietly from the one that normally
+runs. The degraded mode is refusal, and it says so.
+
+**A bug found by running it:** a malformed token returned **503** rather than
+401. The RPC's schema required a minimum token length, so a short token failed as
+a bad *request*, and the backend read the resulting 400 as "auth is unwell". The
+backend was reporting its own outage for what was plainly a bad credential.
+Deciding whether a token is valid is that endpoint's entire job; the length floor
+is gone and `verifyAccessToken` decides.
+
+22 tests drive the real server over real HTTP against a real database — nothing
+stubbed, because most of what can go wrong lives in the layers a direct handler
+call would skip: the route table, the internal-secret guard, the rate limiter,
+cookie serialisation, and the error envelope.
+
+#### Still open after stage 6
+
+- **`hrms_app` can still read `auth.users`.** Six modules do (§10.5). Until they
+  move, the backend is *able* to read credentials even though it no longer needs
+  to, and the grant revocation that finishes the boundary is not yet possible.
+- **The internal secret is a shared string, not mTLS.** It does not rotate on its
+  own and it is as strong as the environment holding it. Enough for two
+  containers on one network; it must be replaced before they are on different
+  ones.
+- **The frontend is not split from the backend** — stage 8, and see §11.
+- **Not load-tested.** The remote call adds a round trip per authenticated
+  request, mitigated by the permission cache, and neither has been measured under
+  load.
 
 ---
 
