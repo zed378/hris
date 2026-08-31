@@ -1,107 +1,107 @@
-# 05 — Dynamic Role, Menu & Hak Akses Khusus (Per-User Grant)
+# 05 — Dynamic Roles, Menus & Special Access (Per-User Grants)
 
-Dokumen ini melengkapi `01-Arsitektur-TechStack.md` (§4 Arsitektur Keamanan) dan `02-Database-Modelling.md` (§4 Skema `core`).
-
----
-
-## 1. Masalah yang Diselesaikan
-
-Kebutuhan: akses tidak hanya ditentukan peran, tetapi juga dapat diberikan **langsung ke pengguna tertentu untuk menu tertentu**.
-
-Contoh nyata di operasional HR:
-
-| Situasi | Mengapa peran saja tidak cukup |
-|---------|-------------------------------|
-| Staf Finance perlu melihat menu *Payroll Report* saja, bukan seluruh modul Payroll | Membuat peran baru "Finance Payroll Viewer" untuk satu orang membuat daftar peran meledak |
-| Manajer Produksi menjadi PJS Kepala Departemen selama 3 minggu | Butuh akses **berbatas waktu**, bukan perubahan peran permanen |
-| Seorang HR Admin tidak boleh melihat menu *Employee Issues* karena konflik kepentingan | Butuh **pencabutan** akses spesifik tanpa menurunkan perannya |
-| Auditor eksternal butuh akses baca 2 menu selama masa audit | Peran sementara berisiko lupa dicabut |
-
-Kesalahan umum: menambah peran baru setiap kali ada pengecualian. Setelah setahun, tenant memiliki 40 peran yang tidak seorang pun memahami perbedaannya. Solusinya adalah **peran sebagai basis + grant/deny per pengguna sebagai lapisan tipis di atasnya**, dengan masa berlaku dan alasan yang tercatat.
+This document complements `01-Architecture-Tech-Stack.md` (§4 Security Architecture) and `02-Database-Modelling.md` (§4 the `core` schema).
 
 ---
 
-## 2. Pemisahan Konsep: Menu vs Permission
+## 1. The Problem Being Solved
 
-Ini keputusan desain paling penting dalam dokumen ini.
+The requirement: access is determined not only by role, but can also be granted **directly to a particular user for a particular menu**.
 
-| Konsep | Peran | Ditegakkan di | Bila salah |
-|--------|-------|---------------|------------|
-| **Permission** (`payroll.run.approve`) | Kontrol **aksi** — apakah pengguna boleh memanggil operasi ini | Backend guard + query filter | Celah keamanan nyata |
-| **Menu** (`/payroll/runs`) | Kontrol **navigasi** — apakah entri ini muncul di sidebar | Frontend rendering + resolusi server | Hanya kekacauan UX |
+Real situations from HR operations:
 
-**Aturan yang mengikat keduanya:**
+| Situation | Why roles alone are not enough |
+|-----------|-------------------------------|
+| A Finance staff member needs to see the *Payroll Report* menu only, not the whole Payroll module | Creating a new "Finance Payroll Viewer" role for one person makes the role list explode |
+| A Production Manager acts as head of department for 3 weeks | This needs **time-bounded** access, not a permanent role change |
+| An HR Admin must not see the *Employee Issues* menu because of a conflict of interest | This needs a specific **revocation** without demoting their role |
+| An external auditor needs read access to 2 menus for the duration of an audit | A temporary role risks being forgotten and never revoked |
 
-> Menu **tidak pernah** menjadi sumber kebenaran keamanan. Menu selalu **menunjuk** ke satu atau lebih permission. Menyembunyikan menu tanpa mencabut permission bukan keamanan — itu hanya menyembunyikan tombol, sementara endpoint tetap terbuka bagi siapa pun yang tahu URL-nya.
-
-Konsekuensinya:
-- Memberi seseorang akses ke sebuah menu **otomatis memberikan permission yang dibutuhkan menu itu** (dapat dinonaktifkan secara sadar lewat flag).
-- Mencabut permission **otomatis menyembunyikan** menu yang bergantung padanya.
-- Menu tanpa permission yang terpenuhi tidak akan pernah dirender, sekalipun secara eksplisit di-grant.
+The common mistake is adding a new role every time an exception appears. After a year the tenant has 40 roles nobody can tell apart. The solution is **roles as the base + per-user grant/deny as a thin layer above them**, with a validity period and a recorded reason.
 
 ---
 
-## 3. Pemodelan Data
+## 2. Separating the Concepts: Menu vs Permission
 
-### 3.1 Diagram Relasi
+This is the most important design decision in this document.
+
+| Concept | Role | Enforced at | If it is wrong |
+|---------|------|-------------|----------------|
+| **Permission** (`payroll.run.approve`) | Controls the **action** — may the user invoke this operation | Backend guard + query filter | A real security hole |
+| **Menu** (`/payroll/runs`) | Controls **navigation** — does this entry appear in the sidebar | Frontend rendering + server-side resolution | Only a UX mess |
+
+**The rule that binds them:**
+
+> A menu is **never** the source of truth for security. A menu always **points at** one or more permissions. Hiding a menu without revoking the permission is not security — it only hides a button while the endpoint stays open to anyone who knows the URL.
+
+The consequences:
+- Granting someone access to a menu **automatically grants the permissions that menu requires** (this can be disabled deliberately with a flag).
+- Revoking a permission **automatically hides** the menus that depend on it.
+- A menu whose permissions are not satisfied is never rendered, even if it was explicitly granted.
+
+---
+
+## 3. Data Modelling
+
+### 3.1 Relationship Diagram
 
 ```mermaid
 erDiagram
-    MODULES ||--o{ MENUS : "menyediakan"
-    MENUS ||--o{ MENUS : "induk-anak"
-    MENUS ||--o{ MENU_PERMISSIONS : "membutuhkan"
-    PERMISSIONS ||--o{ MENU_PERMISSIONS : "dirujuk"
+    MODULES ||--o{ MENUS : "provides"
+    MENUS ||--o{ MENUS : "parent-child"
+    MENUS ||--o{ MENU_PERMISSIONS : "requires"
+    PERMISSIONS ||--o{ MENU_PERMISSIONS : "referenced by"
 
-    ROLES ||--o{ ROLE_MENUS : "diberi akses"
-    MENUS ||--o{ ROLE_MENUS : "diberikan ke"
-    ROLES ||--o{ ROLE_PERMISSIONS : "mencakup"
+    ROLES ||--o{ ROLE_MENUS : "granted access"
+    MENUS ||--o{ ROLE_MENUS : "granted to"
+    ROLES ||--o{ ROLE_PERMISSIONS : "covers"
 
-    USERS ||--o{ USER_ROLES : "memiliki"
-    ROLES ||--o{ USER_ROLES : "diberikan"
+    USERS ||--o{ USER_ROLES : "holds"
+    ROLES ||--o{ USER_ROLES : "assigned"
 
-    USERS ||--o{ USER_MENU_GRANTS : "grant/deny khusus"
-    MENUS ||--o{ USER_MENU_GRANTS : "objek grant"
-    USERS ||--o{ USER_PERMISSION_GRANTS : "grant/deny khusus"
-    PERMISSIONS ||--o{ USER_PERMISSION_GRANTS : "objek grant"
+    USERS ||--o{ USER_MENU_GRANTS : "special grant/deny"
+    MENUS ||--o{ USER_MENU_GRANTS : "grant object"
+    USERS ||--o{ USER_PERMISSION_GRANTS : "special grant/deny"
+    PERMISSIONS ||--o{ USER_PERMISSION_GRANTS : "grant object"
 
-    USERS ||--o{ ACCESS_DELEGATIONS : "delegasi sementara"
+    USERS ||--o{ ACCESS_DELEGATIONS : "temporary delegation"
 ```
 
 ### 3.2 DDL
 
 ```sql
 -- =====================================================================
--- 10_dynamic_access.sql  (skema core)
+-- 10_dynamic_access.sql  (the core schema)
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- MENU: hierarkis, didaftarkan modul, dapat dikustomisasi per tenant
+-- MENU: hierarchical, registered by modules, customisable per tenant
 -- ---------------------------------------------------------------------
 CREATE TYPE core.menu_type AS ENUM ('GROUP','ITEM','ACTION','DIVIDER','EXTERNAL');
 
 CREATE TABLE core.menus (
   id            uuid PRIMARY KEY DEFAULT core.uuid_v7(),
-  -- NULL = menu bawaan sistem (global, dari manifest modul)
-  -- terisi = menu kustom milik tenant tertentu
+  -- NULL = a built-in system menu (global, from the module manifest)
+  -- set   = a custom menu belonging to a particular tenant
   tenant_id     uuid REFERENCES core.tenants(id) ON DELETE CASCADE,
   module_key    text NOT NULL REFERENCES core.modules(key) ON DELETE CASCADE,
   parent_id     uuid REFERENCES core.menus(id) ON DELETE CASCADE,
 
   key           text NOT NULL,               -- 'payroll.runs', 'payroll.reports.tax'
-  path          ltree NOT NULL,              -- 'payroll.runs' → query subtree cepat
+  path          ltree NOT NULL,              -- 'payroll.runs' → fast subtree queries
   type          core.menu_type NOT NULL DEFAULT 'ITEM',
 
-  label         text NOT NULL,               -- label default (id-ID)
+  label         text NOT NULL,               -- default label (id-ID)
   label_i18n    jsonb NOT NULL DEFAULT '{}'::jsonb,
   icon          text,
-  route         text,                        -- '/payroll/runs'; NULL untuk GROUP/DIVIDER
-  badge_source  text,                        -- 'leave.pending_approvals' → badge angka dinamis
+  route         text,                        -- '/payroll/runs'; NULL for GROUP/DIVIDER
+  badge_source  text,                        -- 'leave.pending_approvals' → a dynamic numeric badge
 
   sort_order    smallint NOT NULL DEFAULT 0,
-  is_visible    boolean NOT NULL DEFAULT true,   -- tenant bisa menyembunyikan tanpa mencabut izin
-  is_system     boolean NOT NULL DEFAULT false,  -- menu inti, tidak boleh dihapus tenant
-  -- true  = tampil untuk semua pengguna terautentikasi (mis. Dashboard, Profil Saya)
-  -- false = wajib lolos evaluasi akses
+  is_visible    boolean NOT NULL DEFAULT true,   -- a tenant can hide it without revoking permissions
+  is_system     boolean NOT NULL DEFAULT false,  -- a core menu; a tenant may not delete it
+  -- true  = shown to every authenticated user (e.g. Dashboard, My Profile)
+  -- false = must pass access evaluation
   is_public     boolean NOT NULL DEFAULT false,
 
   metadata      jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -119,24 +119,24 @@ CREATE INDEX idx_menus_path   ON core.menus USING gist (path);
 CREATE INDEX idx_menus_module ON core.menus (module_key) WHERE is_visible;
 CREATE INDEX idx_menus_parent ON core.menus (parent_id, sort_order);
 
--- Menu → permission yang dibutuhkan (many-to-many)
+-- Menu → the permissions it requires (many-to-many)
 CREATE TABLE core.menu_permissions (
   menu_id        uuid NOT NULL REFERENCES core.menus(id) ON DELETE CASCADE,
   permission_key text NOT NULL REFERENCES core.permissions(key) ON DELETE CASCADE,
-  -- ANY  : cukup salah satu permission dimiliki (default, kasus paling umum)
-  -- ALL  : semua permission harus dimiliki
+  -- ANY  : holding any one of the permissions is enough (the default, and the common case)
+  -- ALL  : every permission must be held
   requirement    text NOT NULL DEFAULT 'ANY' CHECK (requirement IN ('ANY','ALL')),
   PRIMARY KEY (menu_id, permission_key)
 );
 
 -- ---------------------------------------------------------------------
--- LAPIS 1: akses berbasis PERAN
+-- LAYER 1: ROLE-based access
 -- ---------------------------------------------------------------------
 CREATE TABLE core.role_menus (
   role_id     uuid NOT NULL REFERENCES core.roles(id) ON DELETE CASCADE,
   menu_id     uuid NOT NULL REFERENCES core.menus(id) ON DELETE CASCADE,
   tenant_id   uuid NOT NULL REFERENCES core.tenants(id) ON DELETE CASCADE,
-  -- Bila true, mencabut menu ini dari peran juga mencabut seluruh submenu
+  -- When true, revoking this menu from the role revokes the whole submenu too
   cascade_children boolean NOT NULL DEFAULT true,
   granted_by  uuid REFERENCES core.users(id),
   granted_at  timestamptz NOT NULL DEFAULT now(),
@@ -145,7 +145,7 @@ CREATE TABLE core.role_menus (
 CREATE INDEX idx_role_menus_tenant ON core.role_menus (tenant_id, role_id);
 
 -- ---------------------------------------------------------------------
--- LAPIS 2: GRANT / DENY KHUSUS PER PENGGUNA  ← inti permintaan fitur
+-- LAYER 2: PER-USER GRANT / DENY  ← the heart of the feature request
 -- ---------------------------------------------------------------------
 CREATE TYPE core.grant_effect AS ENUM ('GRANT','DENY');
 
@@ -157,31 +157,31 @@ CREATE TABLE core.user_menu_grants (
 
   effect        core.grant_effect NOT NULL DEFAULT 'GRANT',
 
-  -- true  : grant menu ini sekaligus memberikan permission yang dibutuhkannya
-  --         (perilaku default — tanpa ini, menu tampil tapi API menolak)
-  -- false : hanya menampilkan menu; permission harus datang dari peran
-  --         (dipakai bila admin sengaja ingin memisahkan visibilitas dari izin)
+  -- true  : granting this menu also grants the permissions it requires
+  --         (the default behaviour — without it the menu appears but the API refuses)
+  -- false : show the menu only; permissions must come from a role
+  --         (used when an admin deliberately wants visibility separated from permission)
   include_permissions boolean NOT NULL DEFAULT true,
 
-  cascade_children boolean NOT NULL DEFAULT false,  -- berlaku juga untuk submenu
+  cascade_children boolean NOT NULL DEFAULT false,  -- also applies to submenus
 
-  -- Masa berlaku: kunci untuk akses sementara (PJS, auditor, proyek)
+  -- Validity period: the key to temporary access (acting roles, auditors, projects)
   valid_period  tstzrange NOT NULL DEFAULT tstzrange(now(), NULL, '[)'),
 
-  -- Pembatasan cakupan data (ABAC) khusus untuk grant ini.
-  -- Contoh: {"org_unit_ids": ["..."], "read_only": true}
+  -- A data scope restriction (ABAC) specific to this grant.
+  -- Example: {"org_unit_ids": ["..."], "read_only": true}
   scope         jsonb NOT NULL DEFAULT '{}'::jsonb,
 
-  reason        text NOT NULL,               -- WAJIB: grant tanpa alasan menjadi utang audit
-  ticket_ref    text,                        -- nomor tiket/persetujuan
+  reason        text NOT NULL,               -- MANDATORY: a grant without a reason becomes audit debt
+  ticket_ref    text,                        -- ticket/approval number
   granted_by    uuid NOT NULL REFERENCES core.users(id),
   granted_at    timestamptz NOT NULL DEFAULT now(),
   revoked_by    uuid REFERENCES core.users(id),
   revoked_at    timestamptz,
   revoke_reason text,
 
-  -- Satu pengguna hanya boleh punya satu grant aktif per menu per efek,
-  -- dan periodenya tidak boleh tumpang tindih.
+  -- A user may hold only one active grant per menu per effect,
+  -- and the periods must not overlap.
   CONSTRAINT excl_user_menu_grant_overlap EXCLUDE USING gist (
     user_id WITH =,
     menu_id WITH =,
@@ -196,7 +196,7 @@ CREATE INDEX idx_user_menu_grants_expiry
   ON core.user_menu_grants (upper(valid_period))
   WHERE revoked_at IS NULL AND upper(valid_period) IS NOT NULL;
 
--- Grant permission langsung (tanpa lewat menu) — untuk akses API/integrasi
+-- Direct permission grants (bypassing menus entirely) — for API/integration access
 CREATE TABLE core.user_permission_grants (
   id             uuid PRIMARY KEY DEFAULT core.uuid_v7(),
   tenant_id      uuid NOT NULL REFERENCES core.tenants(id) ON DELETE CASCADE,
@@ -206,7 +206,7 @@ CREATE TABLE core.user_permission_grants (
   valid_period   tstzrange NOT NULL DEFAULT tstzrange(now(), NULL, '[)'),
   scope          jsonb NOT NULL DEFAULT '{}'::jsonb,
   source         text NOT NULL DEFAULT 'MANUAL',  -- MANUAL / MENU_GRANT / DELEGATION
-  source_ref     uuid,                            -- id user_menu_grants bila turunan
+  source_ref     uuid,                            -- the user_menu_grants id when derived
   reason         text NOT NULL,
   granted_by     uuid NOT NULL REFERENCES core.users(id),
   granted_at     timestamptz NOT NULL DEFAULT now(),
@@ -219,14 +219,14 @@ CREATE INDEX idx_user_perm_grants_active
   ON core.user_permission_grants (tenant_id, user_id) WHERE revoked_at IS NULL;
 
 -- ---------------------------------------------------------------------
--- LAPIS 3: DELEGASI (PJS / acting) — meminjam akses orang lain sementara
+-- LAYER 3: DELEGATION (acting roles) — borrowing someone else's access temporarily
 -- ---------------------------------------------------------------------
 CREATE TABLE core.access_delegations (
   id             uuid PRIMARY KEY DEFAULT core.uuid_v7(),
   tenant_id      uuid NOT NULL REFERENCES core.tenants(id) ON DELETE CASCADE,
   delegator_id   uuid NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
   delegate_id    uuid NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
-  -- NULL = seluruh akses delegator; terisi = hanya menu tertentu
+  -- NULL = all of the delegator's access; set = only the listed menus
   menu_ids       uuid[] NOT NULL DEFAULT '{}',
   valid_period   tstzrange NOT NULL,
   reason         text NOT NULL,
@@ -240,43 +240,43 @@ CREATE INDEX idx_delegations_active
   WHERE status = 'ACTIVE';
 
 -- ---------------------------------------------------------------------
--- Versi cache: dinaikkan setiap kali akses berubah → invalidasi terarah
+-- Cache version: incremented whenever access changes → targeted invalidation
 -- ---------------------------------------------------------------------
 CREATE TABLE core.access_versions (
   tenant_id   uuid NOT NULL REFERENCES core.tenants(id) ON DELETE CASCADE,
-  user_id     uuid REFERENCES core.users(id) ON DELETE CASCADE,  -- NULL = versi tenant
+  user_id     uuid REFERENCES core.users(id) ON DELETE CASCADE,  -- NULL = the tenant-wide version
   version     bigint NOT NULL DEFAULT 1,
   updated_at  timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'::uuid))
 );
 ```
 
-> **Catatan tentang `reason` yang `NOT NULL`:** ini bukan formalitas. Grant khusus adalah pengecualian terhadap model peran, dan pengecualian tanpa penjelasan akan menumpuk sampai tidak ada yang berani mencabutnya. Memaksa alasan pada tingkat skema membuat tinjauan akses berkala (*access review*) menjadi mungkin.
+> **A note on `reason` being `NOT NULL`:** this is not a formality. A special grant is an exception to the role model, and exceptions without an explanation pile up until nobody dares revoke them. Forcing a reason at the schema level is what makes a periodic *access review* possible at all.
 
 ---
 
-## 4. Aturan Presedensi (Resolusi Akses Efektif)
+## 4. Precedence Rules (Effective Access Resolution)
 
-Urutan evaluasi, dari yang paling menentukan:
+The order of evaluation, from the most decisive:
 
 ```
-1. Modul tidak dilisensi tenant           → TIDAK ADA AKSES (tidak muncul, API 402)
-2. Menu is_visible = false (tenant)       → TIDAK TAMPIL (permission tetap berlaku untuk API)
-3. DENY eksplisit pada pengguna (aktif)   → DITOLAK   ← mengalahkan semua GRANT
-4. Menu is_public = true                  → DIIZINKAN
-5. GRANT eksplisit pada pengguna (aktif)  → DIIZINKAN
-6. Delegasi aktif yang mencakup menu ini  → DIIZINKAN
-7. Salah satu peran pengguna memberi menu → DIIZINKAN
-8. Selain itu                             → DITOLAK (default deny)
+1. The module is not licensed to the tenant → NO ACCESS (not shown, API returns 402)
+2. Menu is_visible = false (tenant)         → NOT SHOWN (the permission still applies to the API)
+3. An explicit, active DENY on the user     → DENIED    ← beats every GRANT
+4. Menu is_public = true                    → ALLOWED
+5. An explicit, active GRANT on the user    → ALLOWED
+6. An active delegation covering this menu  → ALLOWED
+7. One of the user's roles grants the menu  → ALLOWED
+8. Otherwise                                → DENIED (default deny)
 ```
 
-**Mengapa DENY mengalahkan GRANT:** pencabutan akses hampir selalu bermotif kepatuhan atau konflik kepentingan (misalnya HR Admin tidak boleh melihat kasus disipliner dirinya sendiri). Aturan keamanan yang dapat dibatalkan oleh aturan lain bukanlah aturan.
+**Why DENY beats GRANT:** revoking access is almost always motivated by compliance or a conflict of interest (for instance, an HR Admin must not see a disciplinary case concerning themselves). A security rule that another rule can override is not a rule.
 
-**Interaksi menu-induk dan anak:** sebuah menu `GROUP` tampil bila **minimal satu anaknya** dapat diakses. Sebaliknya, `DENY` pada induk dengan `cascade_children = true` menutup seluruh subtree.
+**How parent and child menus interact:** a `GROUP` menu appears when **at least one of its children** is accessible. Conversely, a `DENY` on a parent with `cascade_children = true` closes the entire subtree.
 
-### 4.1 Fungsi Resolusi di PostgreSQL
+### 4.1 The Resolution Function in PostgreSQL
 
-Menempatkan resolusi di basis data memberi satu sumber kebenaran yang sama untuk API, worker, dan laporan audit.
+Putting resolution in the database gives one shared source of truth for the API, the workers, and audit reports alike.
 
 ```sql
 CREATE OR REPLACE FUNCTION core.fn_effective_permissions(p_user_id uuid)
@@ -291,14 +291,14 @@ licensed AS (
     AND tm.enabled
     AND (tm.expires_at IS NULL OR tm.expires_at > now())
 ),
--- (a) dari peran
+-- (a) from roles
 from_roles AS (
   SELECT rp.permission_key, '{}'::jsonb AS scope, 'ROLE' AS source
   FROM core.user_roles ur
   JOIN core.role_permissions rp ON rp.role_id = ur.role_id
   WHERE ur.user_id = p_user_id
 ),
--- (b) dari menu yang di-grant ke peran (permission implisit menu)
+-- (b) from menus granted to a role (the menu's implicit permissions)
 from_role_menus AS (
   SELECT mp.permission_key, '{}'::jsonb AS scope, 'ROLE_MENU' AS source
   FROM core.user_roles ur
@@ -306,12 +306,12 @@ from_role_menus AS (
   JOIN core.menu_permissions mp ON mp.menu_id = rm.menu_id
   WHERE ur.user_id = p_user_id
 ),
--- (c) dari grant menu khusus pengguna (include_permissions = true)
+-- (c) from per-user menu grants (include_permissions = true)
 from_user_menus AS (
   SELECT mp.permission_key, g.scope, 'USER_MENU_GRANT' AS source
   FROM core.user_menu_grants g
   JOIN core.menus m ON m.id = g.menu_id
-  -- cascade: ikut sertakan submenu bila diminta
+  -- cascade: include submenus when asked to
   JOIN core.menus target
     ON target.id = m.id
     OR (g.cascade_children AND target.path <@ m.path)
@@ -322,7 +322,7 @@ from_user_menus AS (
     AND g.revoked_at IS NULL
     AND g.valid_period @> now()
 ),
--- (d) dari grant permission langsung
+-- (d) from direct permission grants
 from_user_perms AS (
   SELECT pg.permission_key, pg.scope, 'USER_PERM_GRANT' AS source
   FROM core.user_permission_grants pg
@@ -331,7 +331,7 @@ from_user_perms AS (
     AND pg.revoked_at IS NULL
     AND pg.valid_period @> now()
 ),
--- (e) dari delegasi aktif: warisi permission delegator
+-- (e) from an active delegation: inherit the delegator's permissions
 from_delegation AS (
   SELECT ep.permission_key,
          jsonb_build_object('delegated_from', d.delegator_id) || ep.scope AS scope,
@@ -349,7 +349,7 @@ granted AS (
   UNION ALL SELECT * FROM from_user_perms
   UNION ALL SELECT * FROM from_delegation
 ),
--- DENY eksplisit: dievaluasi paling akhir dan menang mutlak
+-- Explicit DENY: evaluated last and wins absolutely
 denied AS (
   SELECT pg.permission_key
   FROM core.user_permission_grants pg
@@ -366,20 +366,20 @@ denied AS (
     AND g.revoked_at IS NULL AND g.valid_period @> now()
 )
 SELECT g.permission_key,
-       -- scope paling permisif menang bila permission datang dari beberapa sumber
+       -- the most permissive scope wins when a permission comes from several sources
        jsonb_agg(DISTINCT g.scope) FILTER (WHERE g.scope <> '{}'::jsonb) AS scope,
        string_agg(DISTINCT g.source, ',') AS source
 FROM granted g
 JOIN core.permissions p ON p.key = g.permission_key
-JOIN licensed l         ON l.module_key = p.module_key       -- gerbang lisensi modul
+JOIN licensed l         ON l.module_key = p.module_key       -- the module licence gate
 WHERE g.permission_key NOT IN (SELECT permission_key FROM denied)
 GROUP BY g.permission_key;
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
 ```
 
-> `fn_effective_permissions_base` adalah varian tanpa cabang delegasi — mencegah rekursi tak berujung bila A mendelegasikan ke B dan B ke A. Delegasi berantai memang sengaja tidak didukung: akses yang berpindah dua tangan tidak lagi dapat dipertanggungjawabkan.
+> `fn_effective_permissions_base` is the variant without the delegation branch — it prevents infinite recursion when A delegates to B and B delegates to A. Chained delegation is deliberately unsupported: access that has changed hands twice can no longer be accounted for.
 
-### 4.2 Membangun Pohon Menu Efektif
+### 4.2 Building the Effective Menu Tree
 
 ```sql
 CREATE OR REPLACE FUNCTION core.fn_effective_menus(p_user_id uuid)
@@ -395,14 +395,14 @@ licensed AS (
   WHERE tm.tenant_id = ctx.tenant_id AND tm.enabled
     AND (tm.expires_at IS NULL OR tm.expires_at > now())
 ),
--- menu bawaan sistem + override milik tenant (override menang)
+-- built-in system menus plus the tenant's overrides (the override wins)
 visible_menus AS (
   SELECT DISTINCT ON (m.key) m.*
   FROM core.menus m, ctx
   WHERE (m.tenant_id IS NULL OR m.tenant_id = ctx.tenant_id)
     AND m.is_visible
     AND m.module_key IN (SELECT module_key FROM licensed)
-  ORDER BY m.key, m.tenant_id NULLS LAST      -- baris milik tenant diprioritaskan
+  ORDER BY m.key, m.tenant_id NULLS LAST      -- the tenant's own row takes priority
 ),
 denied_menus AS (
   SELECT target.id
@@ -429,7 +429,7 @@ granted_menus AS (
   SELECT unnest(d.menu_ids), 'DELEGATION' FROM core.access_delegations d
   WHERE d.delegate_id = p_user_id AND d.status = 'ACTIVE' AND d.valid_period @> now()
 ),
--- Menu dapat diakses bila: publik, ATAU di-grant DAN permission-nya terpenuhi
+-- A menu is accessible when: it is public, OR it was granted AND its permissions are satisfied
 accessible AS (
   SELECT vm.*,
          COALESCE(gm.src, CASE WHEN vm.is_public THEN 'PUBLIC' END) AS access_source
@@ -438,7 +438,7 @@ accessible AS (
   WHERE vm.id NOT IN (SELECT id FROM denied_menus)
     AND (vm.is_public OR gm.id IS NOT NULL)
     AND (
-      -- GROUP/DIVIDER tidak butuh permission; kelayakannya ditentukan anaknya
+      -- GROUP/DIVIDER need no permission; their eligibility comes from their children
       vm.type IN ('GROUP','DIVIDER')
       OR NOT EXISTS (SELECT 1 FROM core.menu_permissions mp WHERE mp.menu_id = vm.id)
       OR EXISTS (
@@ -453,7 +453,7 @@ accessible AS (
                     WHERE mp.menu_id = vm.id AND mp.requirement = 'ALL'))
     )
 ),
--- Buang GROUP yang menjadi kosong setelah anaknya tersaring
+-- Drop any GROUP left empty once its children were filtered out
 pruned AS (
   SELECT a.* FROM accessible a
   WHERE a.type <> 'GROUP'
@@ -466,19 +466,19 @@ ORDER BY path, sort_order;
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
 ```
 
-Kolom `access_source` sengaja dikembalikan ke frontend. UI dapat menampilkan penanda kecil pada menu yang berasal dari grant khusus atau delegasi — pengguna tahu mengapa ia melihat sesuatu yang rekan setimnya tidak lihat, dan admin dapat melacaknya tanpa membuka log.
+The `access_source` column is deliberately returned to the frontend. The UI can show a small marker on a menu that came from a special grant or a delegation — the user knows why they see something a teammate does not, and an admin can trace it without opening the logs.
 
 ---
 
-## 5. Implementasi Backend
+## 5. Backend Implementation
 
-### 5.1 Resolver dengan Cache Berversi
+### 5.1 A Resolver with a Versioned Cache
 
 ```typescript
 // packages/core/kernel/src/authz/access-resolver.service.ts
 @Injectable()
 export class AccessResolver {
-  private readonly TTL = 300; // detik
+  private readonly TTL = 300; // seconds
 
   constructor(
     private readonly prisma: PrismaService,
@@ -513,7 +513,7 @@ export class AccessResolver {
     return access;
   }
 
-  /** Versi naik → seluruh cache lama menjadi tak terjangkau tanpa perlu dihapus satu per satu */
+  /** Bump the version → every old cache entry becomes unreachable without deleting them one by one */
   private async versionOf(tenantId: string, userId: string): Promise<number> {
     const key = `access:ver:${tenantId}:${userId}`;
     const hit = await this.redis.get(key);
@@ -532,7 +532,7 @@ export class AccessResolver {
 }
 ```
 
-### 5.2 Guard Permission
+### 5.2 The Permission Guard
 
 ```typescript
 // packages/core/kernel/src/authz/permission.guard.ts
@@ -556,8 +556,8 @@ export class PermissionGuard implements CanActivate {
     const missing = required.filter((p) => !access.permissions.includes(p));
 
     if (missing.length > 0) {
-      // Pesan galat menyebut permission yang kurang — mempercepat triase dukungan,
-      // dan tidak membocorkan apa pun yang tidak sudah tersirat dari endpoint itu sendiri.
+      // The error message names the missing permission — it speeds up support triage
+      // and leaks nothing that was not already implied by the endpoint itself.
       throw new ForbiddenException({
         code: 'MISSING_PERMISSION',
         message: `Akses ditolak. Izin yang dibutuhkan: ${missing.join(', ')}`,
@@ -565,13 +565,13 @@ export class PermissionGuard implements CanActivate {
       });
     }
 
-    // Scope disuntikkan ke request untuk dipakai lapisan query (ABAC)
+    // The scopes are injected into the request for the query layer to use (ABAC)
     req.accessScopes = access.scopes;
     return true;
   }
 }
 
-// Penggunaan
+// Usage
 @Controller('payroll/runs')
 @RequiresModule('payroll')
 export class PayrollRunController {
@@ -585,9 +585,9 @@ export class PayrollRunController {
 }
 ```
 
-### 5.3 Perubahan Akses Bersifat Transaksional + Invalidasi
+### 5.3 Access Changes Are Transactional + Invalidating
 
-Ini titik rawan: bila cache tidak diinvalidasi, pencabutan akses tidak berlaku sampai TTL habis — jendela 5 menit yang tidak dapat diterima untuk pencabutan bermotif keamanan.
+This is the fragile point: if the cache is not invalidated, a revocation does not take effect until the TTL expires — a five-minute window that is unacceptable for a security-motivated revocation.
 
 ```typescript
 // packages/core/kernel/src/authz/access-admin.service.ts
@@ -595,8 +595,8 @@ Ini titik rawan: bila cache tidak diinvalidasi, pencabutan akses tidak berlaku s
 export class AccessAdminService {
   async grantMenuToUser(cmd: GrantMenuCommand): Promise<void> {
     await withTenant(this.prisma, cmd.tenantId, async (tx) => {
-      // 1. Validasi: tidak boleh memberi akses yang admin sendiri tidak miliki
-      //    (mencegah eskalasi privilese lewat fitur grant)
+      // 1. Validate: an admin must not grant access they do not hold themselves
+      //    (this prevents privilege escalation through the grant feature)
       const adminAccess = await this.resolver.resolve(cmd.tenantId, cmd.grantedBy);
       const menuPerms   = await tx.menuPermission.findMany({ where: { menuId: cmd.menuId } });
       const escalation  = menuPerms
@@ -610,7 +610,7 @@ export class AccessAdminService {
         });
       }
 
-      // 2. Simpan grant
+      // 2. Store the grant
       const grant = await tx.userMenuGrant.create({
         data: {
           tenantId: cmd.tenantId, userId: cmd.userId, menuId: cmd.menuId,
@@ -622,27 +622,27 @@ export class AccessAdminService {
         },
       });
 
-      // 3. Naikkan versi akses → seluruh cache pengguna ini gugur seketika
+      // 3. Bump the access version → this user's entire cache falls away instantly
       await tx.$executeRaw`
         INSERT INTO core.access_versions (tenant_id, user_id, version)
         VALUES (${cmd.tenantId}::uuid, ${cmd.userId}::uuid, 2)
         ON CONFLICT (tenant_id, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'::uuid))
         DO UPDATE SET version = core.access_versions.version + 1, updated_at = now()`;
 
-      // 4. Event: memicu penghapusan cache Redis + push real-time ke sesi aktif
+      // 4. Event: triggers the Redis cache deletion plus a real-time push to active sessions
       await OutboxPublisher.emit(tx, {
         tenantId: cmd.tenantId, type: 'iam.access.changed',
         aggregateType: 'UserMenuGrant', aggregateId: grant.id,
         payload: { userId: cmd.userId, menuId: cmd.menuId, effect: cmd.effect },
         actorId: cmd.grantedBy,
       });
-      // Audit tercatat otomatis lewat trigger core.fn_audit()
+      // The audit entry is recorded automatically by the core.fn_audit() trigger
     });
   }
 }
 ```
 
-Konsumer event menghapus kunci cache dan memberi tahu klien:
+The event consumer deletes the cache keys and notifies the client:
 
 ```typescript
 // apps/worker/src/consumers/access-changed.consumer.ts
@@ -656,7 +656,7 @@ export class AccessChangedConsumer extends IdempotentConsumer<AccessChangedPaylo
       if (keys.length) await this.redis.del(...keys);
     }
 
-    // Push ke sesi aktif: sidebar diperbarui tanpa perlu logout
+    // Push to active sessions: the sidebar updates without needing a logout
     await this.realtimeBus.publish(`user:${payload.userId}`, {
       type: 'iam.access.changed',
       data: { reason: payload.effect === 'DENY' ? 'REVOKED' : 'GRANTED' },
@@ -665,10 +665,10 @@ export class AccessChangedConsumer extends IdempotentConsumer<AccessChangedPaylo
 }
 ```
 
-### 5.4 Kedaluwarsa Otomatis
+### 5.4 Automatic Expiry
 
 ```typescript
-// Scheduler tiap 5 menit — grant sementara harus benar-benar berakhir
+// A scheduler every 5 minutes — a temporary grant has to actually end
 @Cron('*/5 * * * *')
 async expireGrants() {
   const expired = await this.prisma.$queryRaw<{ user_id: string; tenant_id: string }[]>`
@@ -694,9 +694,9 @@ async expireGrants() {
 
 ---
 
-## 6. Implementasi Frontend
+## 6. Frontend Implementation
 
-### 6.1 Penyedia Akses & Sidebar Dinamis
+### 6.1 The Access Provider & Dynamic Sidebar
 
 ```tsx
 // apps/web/src/lib/access/access-provider.tsx
@@ -709,7 +709,7 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
     staleTime: 5 * 60_000,
   });
 
-  // Perubahan akses diterapkan seketika, tanpa logout
+  // An access change applies immediately, without a logout
   useEffect(() => {
     const socket = getSocket();
     const onChange = (ev: { type: string }) => {
@@ -732,7 +732,7 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
   return <AccessContext.Provider value={value}>{children}</AccessContext.Provider>;
 }
 
-// Komponen pembungkus untuk elemen UI bersyarat
+// A wrapper component for conditional UI elements
 export function Can({ perm, any, children, fallback = null }: CanProps) {
   const { can, canAny } = useAccess();
   const allowed = any ? canAny(any) : can(perm!);
@@ -770,7 +770,7 @@ export function DynamicSidebar() {
         <Icon name={node.icon} className="size-4" />
         <span className="flex-1">{node.label}</span>
         {node.badgeSource && <MenuBadge source={node.badgeSource} />}
-        {/* Penanda transparansi: menu ini datang dari akses khusus, bukan peran */}
+        {/* A transparency marker: this menu came from special access, not from a role */}
         {node.accessSource === 'USER_GRANT' && (
           <Tooltip content="Akses khusus yang diberikan kepada Anda">
             <KeyRound className="size-3 text-amber-500" />
@@ -789,17 +789,17 @@ export function DynamicSidebar() {
 }
 ```
 
-### 6.2 Penjagaan Rute
+### 6.2 Route Guarding
 
-Sidebar yang bersih tidak cukup — pengguna bisa mengetik URL langsung.
+A clean sidebar is not enough — a user can type the URL directly.
 
 ```tsx
-// apps/web/src/middleware.ts (jalur server, sebelum halaman dirender)
+// apps/web/src/middleware.ts (the server path, before the page renders)
 export async function middleware(req: NextRequest) {
   const session = await getSession(req);
   if (!session) return NextResponse.redirect(new URL('/login', req.url));
 
-  const access = await fetchAccess(session);          // di-cache per request
+  const access = await fetchAccess(session);          // cached per request
   const route  = matchRoute(req.nextUrl.pathname, access.routeIndex);
 
   if (route && !access.allowedRoutes.includes(route)) {
@@ -809,15 +809,15 @@ export async function middleware(req: NextRequest) {
 }
 ```
 
-> Ini tetap **lapisan kenyamanan**, bukan keamanan. Penegakan sesungguhnya ada di `PermissionGuard` pada backend. Middleware hanya mencegah pengguna melihat halaman kosong yang gagal memuat data.
+> This remains a **convenience layer**, not security. The real enforcement lives in the backend's `PermissionGuard`. The middleware only stops a user from seeing an empty page whose data fails to load.
 
 ---
 
-## 7. Antarmuka Administrasi
+## 7. The Administration Interface
 
-### 7.1 Matriks Peran × Menu
+### 7.1 The Role × Menu Matrix
 
-Halaman `/settings/access/roles` menampilkan grid: baris = menu (pohon), kolom = peran, sel = checkbox. Menyimpan perubahan menghasilkan satu batch mutasi, bukan satu request per sel.
+The `/settings/access/roles` page shows a grid: rows are menus (as a tree), columns are roles, cells are checkboxes. Saving produces one batch mutation, not one request per cell.
 
 ```
 Menu                          | HR Admin | Manager | Employee | Finance
@@ -831,13 +831,13 @@ Menu                          | HR Admin | Manager | Employee | Finance
     ...
 ```
 
-### 7.2 Panel Akses Khusus per Pengguna
+### 7.2 The Per-User Special Access Panel
 
-Halaman `/settings/access/users/:id` menampilkan tiga bagian:
+The `/settings/access/users/:id` page shows three sections:
 
-1. **Akses dari peran** — daftar menu (baca-saja) dengan label peran asalnya.
-2. **Akses khusus** — tabel grant/deny dengan kolom: menu, efek, berlaku sampai, alasan, diberikan oleh, tindakan cabut.
-3. **Pratinjau akses efektif** — hasil akhir setelah semua aturan presedensi diterapkan, dengan penjelasan per baris:
+1. **Access from roles** — a read-only list of menus labelled with the role they came from.
+2. **Special access** — a grant/deny table with columns: menu, effect, valid until, reason, granted by, revoke action.
+3. **Effective access preview** — the final result once every precedence rule has been applied, with an explanation per row:
 
 ```
 Laporan Payroll   ✓ DIIZINKAN   ← GRANT khusus (berlaku s.d. 30 Sep 2026)
@@ -847,33 +847,33 @@ Employee Issues   ✗ DITOLAK     ← DENY khusus mengalahkan akses dari peran "
 Payroll Run       ✓ DIIZINKAN   ← Peran "HR Admin"
 ```
 
-Fitur **"Uji sebagai pengguna ini"** memanggil `fn_effective_menus` untuk pengguna target dan menampilkan sidebar yang akan ia lihat — cara tercepat menjawab pertanyaan dukungan "kenapa saya tidak bisa lihat menu X".
+The **"Test as this user"** feature calls `fn_effective_menus` for the target user and renders the sidebar they would see — the fastest way to answer the support question "why can't I see menu X".
 
-### 7.3 Endpoint API
+### 7.3 API Endpoints
 
 ```
-GET    /me/access                              # akses efektif pengguna saat ini
-GET    /admin/menus                            # pohon menu (bawaan + kustom tenant)
-POST   /admin/menus                            # buat menu kustom
-PATCH  /admin/menus/:id                        # ubah label, urutan, visibilitas
-GET    /admin/roles/:id/menus                  # menu milik peran
-PUT    /admin/roles/:id/menus                  # simpan batch matriks peran
-GET    /admin/users/:id/access                 # akses efektif + rincian sumbernya
-POST   /admin/users/:id/menu-grants            # beri akses khusus (GRANT/DENY)
-DELETE /admin/users/:id/menu-grants/:grantId   # cabut akses khusus
-POST   /admin/users/:id/delegations            # buat delegasi sementara
-GET    /admin/access/review                    # daftar grant untuk tinjauan berkala
-GET    /admin/access/audit?userId=&from=&to=   # riwayat perubahan akses
+GET    /me/access                              # the current user's effective access
+GET    /admin/menus                            # the menu tree (built-in + tenant custom)
+POST   /admin/menus                            # create a custom menu
+PATCH  /admin/menus/:id                        # change label, order, visibility
+GET    /admin/roles/:id/menus                  # the menus belonging to a role
+PUT    /admin/roles/:id/menus                  # save the role matrix in a batch
+GET    /admin/users/:id/access                 # effective access plus where each part came from
+POST   /admin/users/:id/menu-grants            # give special access (GRANT/DENY)
+DELETE /admin/users/:id/menu-grants/:grantId   # revoke special access
+POST   /admin/users/:id/delegations            # create a temporary delegation
+GET    /admin/access/review                    # the grant list for periodic review
+GET    /admin/access/audit?userId=&from=&to=   # the access change history
 ```
 
 ---
 
-## 8. Tinjauan Akses Berkala (Access Review)
+## 8. Periodic Access Review
 
-Grant khusus cenderung menumpuk. Tanpa proses peninjauan, sistem akan pelan-pelan kembali menjadi "semua orang admin".
+Special grants tend to accumulate. Without a review process the system slowly drifts back to "everyone is an admin".
 
 ```sql
--- Laporan untuk tinjauan triwulanan
+-- The report for the quarterly review
 CREATE OR REPLACE VIEW core.v_access_review AS
 SELECT
   g.tenant_id,
@@ -891,7 +891,7 @@ SELECT
     ELSE 'AKTIF'
   END AS status,
   age(now(), g.granted_at) AS age,
-  -- Grant permanen berumur > 90 hari wajib ditinjau ulang
+  -- A permanent grant older than 90 days must be reviewed again
   (upper(g.valid_period) IS NULL AND g.granted_at < now() - interval '90 days') AS needs_review
 FROM core.user_menu_grants g
 JOIN core.users u  ON u.id = g.user_id
@@ -900,24 +900,24 @@ JOIN core.users gb ON gb.id = g.granted_by
 WHERE g.revoked_at IS NULL;
 ```
 
-**Kebijakan yang disarankan** (dapat dikonfigurasi per tenant):
-- Grant tanpa tanggal berakhir memicu pengingat ke pemberi grant setelah 90 hari.
-- Grant yang dibuat oleh pengguna yang sudah nonaktif otomatis ditandai untuk peninjauan.
-- Laporan triwulanan dikirim ke pemilik tenant berisi seluruh akses khusus yang aktif.
+**The recommended policy** (configurable per tenant):
+- A grant with no end date triggers a reminder to whoever granted it after 90 days.
+- A grant created by a user who has since been deactivated is automatically flagged for review.
+- A quarterly report goes to the tenant owner listing every active special access.
 
 ---
 
-## 9. Pertimbangan Keamanan
+## 9. Security Considerations
 
-| Risiko | Mitigasi |
-|--------|----------|
-| **Eskalasi privilese** — admin memberi dirinya izin yang tidak dimilikinya | Validasi di `grantMenuToUser`: hanya pemegang `iam.grant.any` yang boleh memberi izin di luar miliknya |
-| **Grant abadi** — akses sementara tidak pernah dicabut | Scheduler kedaluwarsa + laporan tinjauan + pengingat 90 hari |
-| Menu disembunyikan tapi API terbuka | Menu selalu tertaut ke permission; guard backend adalah penegak sesungguhnya |
-| Cache basi setelah pencabutan | Versi akses dinaikkan dalam transaksi yang sama → cache lama tak terjangkau seketika |
-| Rantai delegasi tak terlacak | Delegasi berantai ditolak; `fn_effective_permissions_base` memutus rekursi |
-| Grant lintas tenant | Semua tabel ber-`tenant_id` dengan RLS aktif (dok. 02, §4.1) |
-| Perubahan akses tidak terlacak | Trigger `core.fn_audit()` pada `user_menu_grants`, `role_menus`, `user_permission_grants` |
+| Risk | Mitigation |
+|------|------------|
+| **Privilege escalation** — an admin grants themselves a permission they do not hold | Validation in `grantMenuToUser`: only a holder of `iam.grant.any` may grant beyond their own permissions |
+| **Eternal grants** — temporary access that is never revoked | The expiry scheduler + the review report + the 90-day reminder |
+| A menu is hidden but the API is open | A menu is always tied to permissions; the backend guard is the real enforcer |
+| A stale cache after a revocation | The access version is bumped inside the same transaction → the old cache is instantly unreachable |
+| An untraceable delegation chain | Chained delegation is refused; `fn_effective_permissions_base` breaks the recursion |
+| A cross-tenant grant | Every table carries `tenant_id` with RLS enabled (doc. 02, §4.1) |
+| Untracked access changes | The `core.fn_audit()` trigger on `user_menu_grants`, `role_menus`, and `user_permission_grants` |
 
 ```sql
 CREATE TRIGGER trg_audit_user_menu_grants
@@ -933,9 +933,9 @@ CREATE TRIGGER trg_audit_user_perm_grants
 
 ---
 
-## 10. Integrasi dengan Manifest Modul
+## 10. Integration with the Module Manifest
 
-Menu didaftarkan modul saat aktivasi, sehingga add-on tetap plug-and-play. Ini perluasan `module.manifest.ts` dari dokumen `01`, §2.1:
+Menus are registered by a module at activation time, which keeps add-ons plug-and-play. This extends the `module.manifest.ts` from document `01`, §2.1:
 
 ```typescript
 export default defineModule({
@@ -957,7 +957,7 @@ export default defineModule({
       permissions: [{ key: 'payroll.payslip.read.self', requirement: 'ANY' }] },
   ],
 
-  // Peran bawaan yang di-seed saat modul diaktifkan; tenant bebas mengubahnya setelahnya
+  // The default roles seeded when the module is enabled; the tenant is free to change them afterwards
   defaultRoleMenus: {
     HR_ADMIN: ['payroll', 'payroll.runs', 'payroll.components', 'payroll.reports', 'payroll.my-payslip'],
     EMPLOYEE: ['payroll', 'payroll.my-payslip'],
@@ -966,124 +966,124 @@ export default defineModule({
 
   onEnable: async (ctx) => {
     await ctx.runMigrations();
-    await ctx.registerMenus();           // upsert ke core.menus + menu_permissions
-    await ctx.seedDefaultRoleMenus();    // hanya untuk peran yang belum dikustomisasi tenant
+    await ctx.registerMenus();           // upsert into core.menus + menu_permissions
+    await ctx.seedDefaultRoleMenus();    // only for roles the tenant has not customised
   },
 
   onDisable: async (ctx) => {
-    await ctx.hideMenus();               // is_visible = false; baris menu & grant TIDAK dihapus
+    await ctx.hideMenus();               // is_visible = false; the menu rows and grants are NOT deleted
     await ctx.bumpAccessVersionForTenant();
   },
 });
 ```
 
-> **`onDisable` tidak menghapus menu maupun grant.** Bila tenant menonaktifkan modul Payroll lalu mengaktifkannya kembali enam bulan kemudian, seluruh konfigurasi peran dan akses khusus mereka kembali utuh. Menghapusnya berarti memaksa mereka mengonfigurasi ulang dari nol — pengalaman yang membuat orang enggan mencoba add-on.
+> **`onDisable` deletes neither menus nor grants.** If a tenant turns off the Payroll module and turns it back on six months later, their entire role configuration and special access come back intact. Deleting it would force them to configure everything from scratch — the sort of experience that makes people reluctant to try an add-on at all.
 
 ---
 
-## 11. Dampak pada Roadmap
+## 11. Roadmap Impact
 
-Fitur ini masuk **Fase 1, Sprint 1–2** sebagai bagian dari fondasi platform, bukan sebagai penambahan belakangan. Alasannya sama dengan alasan outbox dan RLS dibangun di awal: model akses adalah lintas-potong. Memasangnya setelah 12 modul jadi berarti membongkar guard dan navigasi di 12 tempat.
+This feature belongs to **Phase 1, Sprints 1–2** as part of the platform foundation, not as a later addition. The reason is the same one that puts the outbox and RLS at the start: the access model is cross-cutting. Fitting it after 12 modules exist means tearing open guards and navigation in 12 places.
 
-Penambahan estimasi Fase 1: **+2 minggu-orang backend, +1,5 minggu-orang frontend** (matriks admin dan panel akses khusus adalah UI yang padat).
+Additional Phase 1 estimate: **+2 backend person-weeks, +1.5 frontend person-weeks** (the admin matrix and the special access panel are dense UI).
 
-**Definition of Done tambahan untuk Fase 1:**
-- [ ] Mencabut akses pengguna berlaku < 5 detik pada sesi yang sedang aktif (tanpa logout)
-- [ ] `DENY` khusus terbukti mengalahkan akses dari peran (uji otomatis)
-- [ ] Grant berbatas waktu benar-benar berakhir pada waktunya (uji dengan jam yang dimajukan)
-- [ ] Admin tanpa `iam.grant.any` tidak dapat memberikan izin yang tidak dimilikinya (uji eskalasi privilese)
-- [ ] Menu modul yang lisensinya berakhir tidak muncul, dan API-nya menolak dengan 402
-- [ ] Setiap perubahan akses menghasilkan baris di `core.audit_logs`
+**Additional Phase 1 Definition of Done:**
+- [ ] Revoking a user's access takes effect in under 5 seconds on a session that is currently active (no logout)
+- [ ] A special `DENY` is proven to beat access coming from a role (automated test)
+- [ ] A time-bounded grant really does end on time (tested with the clock moved forward)
+- [ ] An admin without `iam.grant.any` cannot grant a permission they do not hold (privilege escalation test)
+- [ ] A menu belonging to a module whose licence has ended does not appear, and its API refuses with 402
+- [ ] Every access change produces a row in `core.audit_logs`
 
 ---
 
-## 12. Adaptasi ke Arsitektur Microservices
+## 12. Adapting to the Microservices Architecture
 
-Dokumen ini disusun dengan asumsi satu skema `core` dalam satu basis data. Setelah keputusan beralih ke microservices (dokumen `01`), seluruh model di atas tetap berlaku secara semantik, dengan lima penyesuaian berikut.
+This document was written assuming a single `core` schema in a single database. After the decision to move to microservices (document `01`), the whole model above still holds semantically, with the five adjustments below.
 
-### 12.1 Rumah Baru: `iam-service`
+### 12.1 A New Home: `iam-service`
 
-Seluruh tabel `core.menus`, `core.menu_permissions`, `core.role_menus`, `core.user_menu_grants`, `core.user_permission_grants`, `core.access_delegations`, dan `core.access_versions` pindah ke **`iam_db`**, basis data milik `iam-service`. Prefiks `core.` diganti skema `public` di dalam basis data tersebut.
+All of `core.menus`, `core.menu_permissions`, `core.role_menus`, `core.user_menu_grants`, `core.user_permission_grants`, `core.access_delegations`, and `core.access_versions` move into **`iam_db`**, the database owned by `iam-service`. The `core.` prefix is replaced by the `public` schema inside that database.
 
-Fungsi `fn_effective_permissions` dan `fn_effective_menus` tetap berupa fungsi PostgreSQL dan tetap berjalan di dalam basis data — justru menguntungkan, karena resolusi akses adalah operasi yang banyak melakukan JOIN dan lebih murah dijalankan di mesin basis data daripada di lapisan aplikasi.
+`fn_effective_permissions` and `fn_effective_menus` remain PostgreSQL functions and keep running inside the database — which is an advantage, because access resolution is a JOIN-heavy operation and is cheaper to run in the database engine than in the application layer.
 
-### 12.2 Referensi Lintas Service Menjadi Referensi Lunak
+### 12.2 Cross-Service References Become Soft References
 
-| Referensi asal | Penyesuaian |
-|----------------|-------------|
-| `core.users(id)` | `user_id uuid` tanpa FK — pengguna dimiliki `auth-service` di `auth_db` |
-| `core.tenants(id)` | `tenant_id uuid` tanpa FK — tenant dimiliki `tenant-service` |
-| `core.tenant_modules` | Diganti tabel replika `tenant_module_ref` di `iam_db`, disinkronkan event `tenant.module.enabled` / `tenant.module.disabled` |
-| `core.modules(key)` | `module_key text` tanpa FK — katalog modul dimiliki `tenant-service` |
+| Original reference | Adjustment |
+|--------------------|------------|
+| `core.users(id)` | `user_id uuid` with no FK — users belong to `auth-service` in `auth_db` |
+| `core.tenants(id)` | `tenant_id uuid` with no FK — tenants belong to `tenant-service` |
+| `core.tenant_modules` | Replaced by the `tenant_module_ref` replica table in `iam_db`, synced by the `tenant.module.enabled` / `tenant.module.disabled` events |
+| `core.modules(key)` | `module_key text` with no FK — the module catalogue belongs to `tenant-service` |
 
-JOIN ke `core.tenant_modules` di dalam `fn_effective_permissions` diarahkan ke `tenant_module_ref`. Semantiknya identik — **langganan tetap mengalahkan peran** — tetapi tidak melanggar batas service.
+The join to `core.tenant_modules` inside `fn_effective_permissions` is redirected to `tenant_module_ref`. The semantics are identical — **a subscription still beats a role** — but it does not cross the service boundary.
 
 ```sql
--- Sebelum (monolit)
+-- Before (monolith)
 AND p.module_key IN (SELECT module_key FROM core.tenant_modules
                       WHERE tenant_id = p_tenant_id AND enabled)
 
--- Sesudah (iam-service)
+-- After (iam-service)
 AND p.module_key IN (SELECT module_key FROM tenant_module_ref
                       WHERE tenant_id = p_tenant_id AND enabled
                         AND (expires_at IS NULL OR expires_at > now()))
 ```
 
-### 12.3 Penegakan Pindah ke Gateway
+### 12.3 Enforcement Moves to the Gateway
 
-Guard permission yang di §5.2 berada di controller setiap modul kini berada di **`api-gateway`**, sebagai bagian dari `ROUTE_MANIFEST` (dokumen `01`, §5.2). Gateway memanggil `iam-service` lewat gRPC untuk memperoleh akses efektif, lalu meng-cache-nya di Redis.
+The permission guard that sat on each module's controller in §5.2 now lives in the **`api-gateway`**, as part of the `ROUTE_MANIFEST` (document `01`, §5.2). The gateway calls `iam-service` over gRPC to obtain effective access and caches it in Redis.
 
-Service domain **tidak** memeriksa permission secara mandiri untuk keputusan boleh/tidak boleh — itu tugas gateway. Yang tetap dilakukan service domain adalah **penyaringan tingkat data** (ABAC): `payroll-service` menerima konteks `employeeId` dan `permissions` dari gateway, lalu memutuskan slip gaji siapa saja yang dikembalikan.
+Domain services do **not** check permissions independently to decide allow/deny — that is the gateway's job. What a domain service does keep doing is **data-level filtering** (ABAC): `payroll-service` receives the `employeeId` and `permissions` context from the gateway and then decides whose payslips come back.
 
-Pembagian ini penting: bila setiap service memeriksa ulang permission, satu perubahan aturan akses harus di-deploy ke 8 service.
+This division matters: if every service re-checked permissions, one access rule change would have to be deployed to 8 services.
 
-### 12.4 Cache Berversi Menjadi Lintas Proses
+### 12.4 The Versioned Cache Becomes Cross-Process
 
-Mekanisme `access_versions` di §5.1 tetap dipakai, tetapi cache-nya kini berada di Redis bersama dan dibaca oleh `api-gateway`, `realtime-service`, dan service domain.
+The `access_versions` mechanism from §5.1 is still used, but its cache now lives in a shared Redis read by `api-gateway`, `realtime-service`, and the domain services.
 
 ```
-Perubahan akses di iam-service
-  ├─ bump access_versions.version untuk tenant/pengguna terkait
+An access change in iam-service
+  ├─ bump access_versions.version for the tenant/user concerned
   ├─ Outbox.emit('iam.access.changed')
   └─ RabbitMQ fanout
-       ├─ api-gateway    → invalidasi cache Redis untuk pengguna itu
-       ├─ realtime-service → paksa soket berlangganan ulang & muat ulang bootstrap
-       └─ frontend (via WS) → invalidateQueries(['bootstrap']) → sidebar diperbarui
+       ├─ api-gateway      → invalidate the Redis cache for that user
+       ├─ realtime-service → force sockets to re-subscribe and reload the bootstrap
+       └─ frontend (via WS) → invalidateQueries(['bootstrap']) → the sidebar updates
 ```
 
-Target propagasi tetap sama seperti DoD di §11: **< 5 detik pada sesi aktif tanpa logout**.
+The propagation target stays what the DoD in §11 says: **under 5 seconds on an active session, without a logout**.
 
-### 12.5 Endpoint Pindah ke Bawah Gateway
+### 12.5 The Endpoints Move Behind the Gateway
 
-Endpoint di §7.3 kini disajikan gateway dengan awalan `/api`, dan seluruhnya memerlukan header `X-Tenant-ID` yang divalidasi terhadap klaim token (dokumen `06`, §2):
+The endpoints in §7.3 are now served by the gateway under an `/api` prefix, and all of them require an `X-Tenant-ID` header validated against the token claims (document `06`, §2):
 
 ```
-GET    /api/me/bootstrap                     menggantikan /me/access — sekaligus membawa
-                                             data tenant, langganan, dan lockedModules
-GET    /api/iam/menus                        pohon menu untuk administrasi
-GET    /api/iam/roles/:id/menus              matriks peran × menu
-PUT    /api/iam/roles/:id/menus              simpan matriks
-GET    /api/iam/users/:id/access             panel akses khusus per pengguna
-POST   /api/iam/users/:id/menu-grants        beri/cabut akses menu
-POST   /api/iam/users/:id/permission-grants  beri/cabut permission
-GET    /api/iam/access-review                laporan tinjauan akses berkala
+GET    /api/me/bootstrap                     replaces /me/access — and carries the tenant,
+                                             subscription, and lockedModules data too
+GET    /api/iam/menus                        the menu tree for administration
+GET    /api/iam/roles/:id/menus              the role × menu matrix
+PUT    /api/iam/roles/:id/menus              save the matrix
+GET    /api/iam/users/:id/access             the per-user special access panel
+POST   /api/iam/users/:id/menu-grants        grant/revoke menu access
+POST   /api/iam/users/:id/permission-grants  grant/revoke a permission
+GET    /api/iam/access-review                the periodic access review report
 ```
 
-### 12.6 Yang Tidak Berubah
+### 12.6 What Does Not Change
 
-Bagian-bagian berikut berlaku apa adanya tanpa penyesuaian:
+The following parts apply exactly as written, with no adjustment:
 
-- Pemisahan konsep menu vs permission (§2) — justru menjadi lebih penting, karena frontend kini merender menu dari `/me/bootstrap` sementara penegakan sesungguhnya ada di gateway
-- Aturan presedensi resolusi akses (§4)
-- Logika `fn_effective_permissions` dan `fn_effective_menus` (§4.1–4.2)
-- Kedaluwarsa otomatis grant berbatas waktu (§5.4)
-- Antarmuka administrasi (§7) dan tinjauan akses berkala (§8)
-- Pertimbangan keamanan (§9), termasuk larangan eskalasi privilese
-- Perilaku `onDisable` yang mempertahankan menu dan grant (§10)
+- Separating the menu and permission concepts (§2) — it becomes more important still, because the frontend now renders the menu from `/me/bootstrap` while the real enforcement sits at the gateway
+- The access resolution precedence rules (§4)
+- The logic of `fn_effective_permissions` and `fn_effective_menus` (§4.1–4.2)
+- The automatic expiry of time-bounded grants (§5.4)
+- The administration interface (§7) and the periodic access review (§8)
+- The security considerations (§9), including the prohibition on privilege escalation
+- The `onDisable` behaviour that preserves menus and grants (§10)
 
-### 12.7 Permission Dashboard & Cakupan Beranda
+### 12.7 Dashboard Permissions & Home Page Scopes
 
-Dashboard bukan satu menu dengan satu permission, melainkan tiga cakupan berbeda (dokumen `07`, §5.1). Ketiganya didaftarkan sebagai permission terpisah dan dipetakan ke satu entri menu:
+The dashboard is not one menu with one permission but three different scopes (document `07`, §5.1). All three are registered as separate permissions and mapped onto a single menu entry:
 
 ```sql
 INSERT INTO permissions (key, module_key, service_name, resource, action, scope, description) VALUES
@@ -1094,41 +1094,41 @@ INSERT INTO permissions (key, module_key, service_name, resource, action, scope,
   ('dashboard.self.view',   'core.organization', 'reporting', 'dashboard', 'view', 'self',
    'Melihat beranda pribadi');
 
--- Satu entri menu, tiga permission alternatif.
--- fn_effective_menus menampilkan menu bila SALAH SATU terpenuhi;
--- backend yang menentukan cakupan data mana yang dikembalikan.
+-- One menu entry, three alternative permissions.
+-- fn_effective_menus shows the menu when ANY ONE is satisfied;
+-- the backend decides which data scope comes back.
 INSERT INTO menu_permissions (menu_key, permission_key, requirement) VALUES
   ('dashboard', 'dashboard.tenant.view', 'ANY'),
   ('dashboard', 'dashboard.team.view',   'ANY'),
   ('dashboard', 'dashboard.self.view',   'ANY');
 ```
 
-Pemetaan ke peran bawaan:
+The mapping onto the default roles:
 
-| Peran | Permission dashboard | Halaman yang dilihat |
-|-------|---------------------|---------------------|
-| `TENANT_OWNER` | `dashboard.tenant.view` | Dashboard perusahaan |
-| `HR_ADMIN` | `dashboard.tenant.view` | Dashboard perusahaan |
-| `DEPT_HEAD` | `dashboard.team.view` | Dashboard unit |
-| `LINE_MANAGER` | `dashboard.team.view` | Dashboard tim |
-| `EMPLOYEE` | `dashboard.self.view` | Beranda ESS |
+| Role | Dashboard permission | The page they see |
+|------|---------------------|-------------------|
+| `TENANT_OWNER` | `dashboard.tenant.view` | The company dashboard |
+| `HR_ADMIN` | `dashboard.tenant.view` | The company dashboard |
+| `DEPT_HEAD` | `dashboard.team.view` | The unit dashboard |
+| `LINE_MANAGER` | `dashboard.team.view` | The team dashboard |
+| `EMPLOYEE` | `dashboard.self.view` | The ESS home page |
 
-> Mekanisme grant per-pengguna di dokumen ini tetap berlaku penuh. Contoh nyata: seorang Manajer Keuangan yang bukan bagian HR dapat diberi `dashboard.tenant.view` secara khusus berbatas waktu selama periode penyusunan anggaran, tanpa mengubah perannya dan tanpa membuat peran baru.
+> The per-user grant mechanism in this document applies in full here. A concrete example: a Finance Manager who is not part of HR can be given `dashboard.tenant.view` specifically and time-bounded for the budgeting period, without changing their role and without creating a new one.
 
-**Catatan penting:** peran platform (`PLATFORM_OWNER`, `PLATFORM_ADMIN`, dan seterusnya) **tidak berada di tabel `roles` ini**. Peran superuser hidup di `platform_db` sebagai enum `platform_role` yang sepenuhnya terpisah (dokumen `07`, §3.1). Menggabungkan keduanya dalam satu tabel peran akan membuka kemungkinan seseorang memberikan peran platform kepada pengguna tenant lewat antarmuka administrasi tenant — persis jenis eskalasi privilese yang dilarang di §9.
+**An important note:** the platform roles (`PLATFORM_OWNER`, `PLATFORM_ADMIN`, and so on) **do not live in this `roles` table**. Superuser roles live in `platform_db` as a completely separate `platform_role` enum (document `07`, §3.1). Combining the two in one role table would open the possibility of someone granting a platform role to a tenant user through the tenant administration interface — exactly the kind of privilege escalation §9 forbids.
 
 
-### 12.8 Konsistensi dengan Kebijakan Migrasi Non-Destruktif
+### 12.8 Consistency with the Non-Destructive Migration Policy
 
-Perilaku `onDisable` yang dijelaskan di §10 — menyembunyikan menu dan mencabut permission tanpa menyentuh data — bukan sekadar pilihan produk, melainkan penerapan aturan M4 di dokumen `09`: tidak ada penghapusan data di produksi.
+The `onDisable` behaviour described in §10 — hiding menus and revoking permissions without touching data — is not merely a product choice; it is rule M4 from document `09` in action: no data deletion in production.
 
-Konsekuensi praktisnya:
+The practical consequences:
 
-| Aksi | Yang terjadi pada data |
-|------|----------------------|
-| Modul dinonaktifkan | `menus.is_visible = false`, permission dicabut dari resolusi. Tabel, baris, grant per-pengguna, dan konfigurasi **tetap utuh** |
-| Modul diaktifkan kembali | Menu muncul lagi, permission pulih, seluruh data historis tersedia seperti semula |
-| Peran dihapus tenant | `roles.deleted_at` diisi; `user_roles` dipertahankan agar riwayat access review tetap terbaca |
-| Grant per-pengguna kedaluwarsa | Baris tetap ada dengan `revoked_at` terisi — jejak siapa pernah punya akses apa adalah bukti audit |
+| Action | What happens to the data |
+|--------|-------------------------|
+| A module is disabled | `menus.is_visible = false`, and its permissions drop out of resolution. Tables, rows, per-user grants, and configuration all **stay intact** |
+| A module is re-enabled | The menus reappear, the permissions return, and all historical data is available exactly as before |
+| A tenant deletes a role | `roles.deleted_at` is filled in; `user_roles` is preserved so the access review history stays readable |
+| A per-user grant expires | The row remains with `revoked_at` set — the trail of who once had what access is audit evidence |
 
-Tenant yang mengaktifkan kembali modul enam bulan kemudian menemukan seluruh konfigurasinya utuh. Ini juga alasan mengapa migrasi `onEnable` harus idempoten (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`): ia akan dijalankan ulang pada basis data yang tabelnya sudah ada dan sudah berisi data.
+A tenant that re-enables a module six months later finds their entire configuration intact. This is also why the `onEnable` migration has to be idempotent (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`): it will run again against a database whose tables already exist and already hold data.
