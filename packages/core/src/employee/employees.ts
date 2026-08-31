@@ -1,7 +1,7 @@
 import { EventTopic } from '@hrms/contracts';
 import { writeAudit, publishEvent, type TenantClient } from '@hrms/db';
 import {
-  blindIndex,
+  blindIndexCandidates,
   maskBankAccount,
   maskNationalId,
   maskTaxId,
@@ -388,8 +388,12 @@ export async function findByNationalId(
   tenantId: string,
   nationalId: string,
 ): Promise<{ id: string; employeeNumber: string; fullName: string } | null> {
+  // Every candidate index, not just the current one. During a `PII_INDEX_KEY`
+  // rotation an existing employee's stored index was computed with the previous
+  // key, and matching only the new one would answer "not registered" for someone
+  // who is — which the importer reads as permission to create them again.
   return tx.employee.findFirst({
-    where: { tenantId, nationalIdIndex: blindIndex(nationalId) },
+    where: { tenantId, nationalIdIndex: { in: blindIndexCandidates(nationalId) } },
     select: { id: true, employeeNumber: true, fullName: true },
   });
 }

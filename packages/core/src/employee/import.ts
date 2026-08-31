@@ -1,7 +1,7 @@
 import { EventTopic } from '@hrms/contracts';
 import readXlsxFile from 'read-excel-file/node';
 import { writeAudit, publishEvent, type TenantClient } from '@hrms/db';
-import { blindIndex, maskBankAccount, maskNationalId, maskTaxId, preparePii } from './pii.ts';
+import { blindIndexCandidates, maskBankAccount, maskNationalId, maskTaxId, preparePii } from './pii.ts';
 import {
   detectColumns,
   validateRow,
@@ -311,8 +311,13 @@ export async function parseImportFile(
     }
 
     if (parsed.nationalId) {
-      const index = blindIndex(parsed.nationalId);
-      if (takenNationalIds.has(index)) {
+      // Checked against every candidate index for the same reason as
+      // `findByNationalId`: mid-rotation, the stored index of an existing
+      // employee was computed with the previous key. Missing it here does not
+      // report an error — it silently imports a second copy of a person.
+      const candidates = blindIndexCandidates(parsed.nationalId);
+      const index = candidates[0]!;
+      if (candidates.some((candidate) => takenNationalIds.has(candidate))) {
         errors.push({ field: 'nationalId', message: 'NIK ini sudah terdaftar di sistem' });
       }
       const firstSeen = seenNationalIds.get(index);

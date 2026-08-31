@@ -705,12 +705,66 @@ are worth knowing:
   With two replicas it permits twice the configured rate, with no error and no log
   — the limit is simply not the number in the config. Blocks horizontal scaling,
   which is one of the stated reasons for `PLAN/14`.
-- **The PII encryption key has never been rotated** — its cipher format is
-  versioned (`v1.`), so rotation is possible without a large migration, but the
-  procedure does not exist and has not been tested. It matters more since number
-  26: all PII now genuinely exists only in encrypted form, so losing the key
-  means losing the data — no longer merely losing one copy that happened to
-  remain in the import staging table.
+- ~~**The PII encryption key has never been rotated**~~ — **done.** The format
+  was versioned from the start, so rotation was said to be "possible without a
+  large migration". What actually made it impossible was simpler than the format:
+  `PII_ENCRYPTION_KEY` held exactly one key, so the moment it changed every row
+  already written became unreadable. Rotation would have had to be atomic across
+  the whole database.
+
+  Now a **key ring**: `PII_ENCRYPTION_KEY` is the only key that encrypts,
+  `PII_ENCRYPTION_KEYS_OLD` is a comma-separated list that may only decrypt, and
+  the same pair exists for `PII_INDEX_KEY`. Trying keys in turn is sound only
+  because the cipher is GCM — the wrong key fails its authentication tag rather
+  than returning plausible rubbish, so the decision is the cipher's rather than a
+  guess. Under CBC the identical loop would be a padding oracle.
+
+  Procedure in [runbook §8](../ops/RUNBOOK.md); job at
+  `apps/worker/src/pii-rotation.ts` (`pnpm --filter @hrms/worker pii:rotate`).
+  It carries **no progress state at all** — each row is asked whether the current
+  key can read it — so it is idempotent and resumable for free, and there is no
+  stale cursor that can skip rows. Every value is decrypted, re-encrypted, and
+  **decrypted again and compared** before the update is issued: this is the one
+  job in the system capable of destroying data that exists nowhere else.
+
+  **Rehearsed against a real database**, 7 employees / 19 values / 5 tenants:
+
+  | Step | Result |
+  |---|---|
+  | Rotate forward, old key on the ring | `rotated: 7, columns: 19, unreadable: 0` |
+  | Fingerprint of all decrypted values, new key alone | **identical** to before |
+  | Fingerprint under the old key alone | `values: 0, unreadable: 19` |
+  | Second run | `rotated: 0` — idempotent |
+  | Index key rotated too | `indexes: 7, columns: 0` |
+  | Both rotated back | fingerprint identical again |
+
+  The fingerprint tool (`verify-pii-fingerprint.ts`) exists because comparing
+  ciphertext proves nothing — it is *supposed* to change, and a rotation that
+  replaced every national ID with rubbish would change it too. It hashes the
+  decrypted values and prints only the digest, so the check never puts PII on a
+  terminal.
+
+  **A data-loss bug was found by running it**, not by reading it: the job first
+  used `active_tenant_ids()`, like every other scheduled job, and so scanned
+  **1 of the 7** rows holding encrypted values — the other six belonged to
+  CHURNED tenants — while reporting success. For accrual, skipping a departed
+  tenant is correct. Here the rotation ends by withdrawing the old key, so every
+  skipped row becomes permanently unreadable: not work skipped but data
+  destroyed, and for a tenant whose records are still personal data under Act
+  No. 27/2022 and may still be subject to an export or erasure request. Now
+  `public.all_tenant_ids()`, added by migration and registered in
+  `rls-coverage.test.ts` — the guard that requires every `SECURITY DEFINER`
+  function to be justified caught it on the same commit.
+
+  **Two limits, both stated in the runbook.** Rotating `PII_INDEX_KEY` needs a
+  maintenance window that rotating the encryption key does not: `UNIQUE
+  (tenant_id, national_id_index)` compares stored values, and the same national
+  ID indexed under two keys yields two values that never collide — so during the
+  window the database will accept a duplicate employee that the constraint exists
+  to prevent. The application lookups do check every candidate index and are
+  covered; anything writing outside them is not. And the ciphertext carries a
+  format version but **no key identifier**, so which key wrote a row is
+  established by trial rather than read off the row.
 - ~~**`attendance_policies` does not exist**~~ — **done.** Four behaviours that
   determine attendance were constants inside the code: a review threshold of 60,
   a 90-day photo retention, and location and photo requirements applying to

@@ -11,7 +11,8 @@
     "reminders:once": "node --experimental-transform-types src/run-reminders-once.ts",
     "outbox:retry": "node --experimental-transform-types src/retry-stuck-outbox.ts",
     "carry-over": "node --experimental-transform-types src/run-carry-over-once.ts",
-    "accrual": "node --experimental-transform-types src/run-accrual-once.ts"
+    "accrual": "node --experimental-transform-types src/run-accrual-once.ts",
+    "pii:rotate": "node --experimental-transform-types src/run-pii-rotation.ts"
   },
   "dependencies": {
     "@hrms/contracts": "workspace:*",

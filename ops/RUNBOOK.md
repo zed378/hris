@@ -530,6 +530,173 @@ Proven end to end on a throwaway instance, not assembled from documentation:
 
 ---
 
+## 8. Rotating the PII encryption keys
+
+Two keys protect personal data, and they are separate on purpose so that one
+leak does not defeat both:
+
+| Variable | Protects | Rotating it |
+|---|---|---|
+| `PII_ENCRYPTION_KEY` | National ID, tax ID, bank account ciphertext | Can run for days under live traffic |
+| `PII_INDEX_KEY` | The blind index used to find and de-duplicate national IDs | **Needs a maintenance window.** See §8.5 |
+
+Run this when a key may have been exposed — a leaked `.env`, a departing
+administrator, a compromised host — and on a schedule if your compliance
+programme sets one. There is no automatic expiry.
+
+> **Read §8.6 before starting.** The step that makes this reversible is the
+> backup taken while the OLD key is still configured, and it cannot be taken
+> afterwards.
+
+### 8.1 How the key ring works
+
+`PII_ENCRYPTION_KEY` is the only key that **encrypts**.
+`PII_ENCRYPTION_KEYS_OLD` is a comma-separated list that may only **decrypt**.
+Reading tries the primary first, then each old key in turn.
+
+Trying keys in turn is safe because the cipher is AES-256-GCM, which
+authenticates: the wrong key fails its tag rather than returning plausible
+rubbish. The decision is made by the cipher, not guessed by the application.
+
+The ciphertext carries **no key identifier** — only a format version (`v1.`).
+That is why rotation works by trial rather than by lookup, and why the rotation
+job is worth finishing promptly: every stale row costs one failed tag check on
+every read.
+
+### 8.2 The procedure
+
+**Step 1 — generate the new key. Do not deploy it yet.**
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+**Step 2 — record the fingerprint of what is currently readable.**
+
+```bash
+node --experimental-transform-types apps/worker/src/verify-pii-fingerprint.ts
+```
+
+It prints a digest over every decrypted value — never the values themselves.
+**Write the digest down.** It is how you prove at the end that the rotation
+preserved meaning rather than merely changing ciphertext. A rotation that
+replaced every national ID with rubbish would also change the ciphertext; only
+this digest distinguishes the two.
+
+**Step 3 — back up, with the old key still in place.** Follow §6. This backup is
+the only way back if step 5 goes wrong.
+
+**Step 4 — deploy with both keys.** The new one primary, the old one demoted:
+
+```bash
+PII_ENCRYPTION_KEY="<new>"
+PII_ENCRYPTION_KEYS_OLD="<old>"
+```
+
+Nothing is rewritten yet. Existing rows still read through the old key; new
+writes use the new one. **Verify the application before continuing** — open an
+employee with the unmask permission and confirm the national ID is right.
+
+**Step 5 — convert the stored rows.**
+
+```bash
+pnpm --filter @hrms/worker pii:rotate -- --dry-run   # count first, change nothing
+pnpm --filter @hrms/worker pii:rotate
+```
+
+Safe to interrupt and safe to repeat: each row is asked whether the current key
+can read it, so a second run skips everything already converted. There is no
+progress state to go stale.
+
+Expect `unreadable: 0` and `failed: 0`. **Anything else means stop** — see §8.4.
+
+**Step 6 — confirm the meaning survived.**
+
+```bash
+node --experimental-transform-types apps/worker/src/verify-pii-fingerprint.ts
+```
+
+The digest must be **identical to step 2**. If it differs, do not proceed to
+step 7 — the old key is still your way back.
+
+**Step 7 — withdraw the old key.** Remove `PII_ENCRYPTION_KEYS_OLD` and deploy.
+
+Do not skip this and do not leave it "just in case". A fallback with no end date
+is how a system keeps a decade-old key alive in production, and nobody discovers
+it until that key is the one that leaks. After this deploy, any row that was
+missed fails loudly — which is the point, because that failure is the only
+evidence the conversion was incomplete.
+
+### 8.3 Rehearsal record
+
+Rehearsed on the development database, 31 August 2026, 7 employees / 19
+encrypted values across 5 tenants:
+
+| Step | Result |
+|---|---|
+| Rotate forward, old key on the ring | `rotated: 7, columns: 19, unreadable: 0, failed: 0` |
+| Fingerprint under the new key alone | **identical** to before the rotation |
+| Fingerprint under the old key alone | `values: 0, unreadable: 19` — the data really moved |
+| Run the job a second time | `rotated: 0` — idempotent |
+| Rotate the index key as well | `indexes: 7, columns: 0` |
+| Rotate both keys back | `columns: 19, indexes: 7`, fingerprint identical again |
+
+Not yet rehearsed at production volume, and not yet rehearsed as a live
+deployment — only as a job against a database.
+
+### 8.4 When the job reports `unreadable`
+
+The job exits non-zero and names the affected row ids in the log. It means one
+of:
+
+- `PII_ENCRYPTION_KEYS_OLD` is missing a key that some rows were written with.
+  Find it and add it — every historical key must be on the ring, not just the
+  most recent one.
+- The rows came from a different database, e.g. a partial restore.
+
+**Do not proceed to step 7 while any row is unreadable.** After step 7 those
+values are gone permanently: the ciphertext remains and nothing can open it.
+
+### 8.5 Rotating `PII_INDEX_KEY` — different rules
+
+The index key is what makes "is this national ID already registered?"
+answerable. Rotating it needs more care than the encryption key for one specific
+reason:
+
+`UNIQUE (tenant_id, national_id_index)` compares **stored** values, and the same
+national ID indexed under two different keys produces two different stored
+values that never collide. So between rotating the key and finishing the
+re-index, **the database will accept two employees with the same national ID**,
+and the constraint that exists to prevent exactly that cannot see it.
+
+The application paths do check every candidate index — `findByNationalId` and
+the Excel importer's duplicate scan both consult the whole ring — so the ordinary
+routes are covered. Anything writing employees outside them is not.
+
+**Therefore:** rotate the index key in a maintenance window with employee
+creation and import paused, and run the job to completion before resuming. The
+encryption key has no such requirement; do not conflate the two because the
+procedure looks similar.
+
+Both keys can be rotated in one pass — set all four variables and run the job
+once — which is what you want after a suspected `.env` leak, where you cannot
+say which key was exposed.
+
+### 8.6 What this procedure does not cover
+
+- **The keys are not versioned in the ciphertext.** Which key wrote a row cannot
+  be read off the row; it is established by trial.
+- **No key management service.** Keys live in the environment. Moving them to a
+  KMS would change §8.2 entirely.
+- **Photo and document files are not encrypted at rest by these keys** — object
+  storage handles them, and rotating there is a separate procedure that does not
+  exist yet.
+- **Not rehearsed at production volume.** The job batches 200 employees per
+  transaction, so the lock window is bounded, but total runtime at scale has not
+  been measured.
+
+---
+
 ## What is not in this runbook
 
 Stated plainly so nobody goes looking for it when they need it:
@@ -537,3 +704,4 @@ Stated plainly so nobody goes looking for it when they need it:
 - **Billing incidents** — the module does not exist.
 - **Payment gateway failures** — not integrated.
 - **Off-host backup replication** — see the limitation in §7.
+- **Rotating the object-storage credentials** — see the limit in §8.6.

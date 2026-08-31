@@ -86,7 +86,7 @@ describe('cakupan RLS', () => {
     expect(row?.granted).toBe(false);
   });
 
-  it('jumlah fungsi SECURITY DEFINER tetap tiga, sesuai yang terdaftar', async () => {
+  it('jumlah fungsi SECURITY DEFINER tetap sesuai yang terdaftar', async () => {
     // Setiap SECURITY DEFINER adalah pengecualian terhadap RLS. Tiga yang ada
     // sekarang punya alasan tertulis di migrasinya masing-masing. Uji ini gagal
     // saat yang keempat muncul — memaksa penambahnya menjelaskan alasannya di PR,
@@ -110,8 +110,16 @@ describe('cakupan RLS', () => {
     //   resolve_tenant_by_code      — alur login
     //   tenant_user_counts          — dashboard global butuh angka, bukan isi tabel
     //   active_tenant_ids           — job terjadwal, mengembalikan UUID saja
+    //   all_tenant_ids              — pemeliharaan data at rest; lihat di bawah
+    //
+    // `all_tenant_ids` sengaja TIDAK memfilter status, dan itu perbedaan yang
+    // penting. Rotasi kunci PII berakhir dengan mencabut kunci lama: baris milik
+    // tenant CHURNED yang terlewat menjadi tidak terbaca selamanya, dan itu
+    // penghancuran data, bukan pekerjaan yang dilewati. Job terjadwal biasa
+    // tetap harus memakai `active_tenant_ids`.
     expect(rows.map((r) => r.name)).toEqual([
       'active_tenant_ids',
+      'all_tenant_ids',
       'resolve_action_token_owner',
       'resolve_refresh_token_owner',
       'resolve_tenant_by_code',
