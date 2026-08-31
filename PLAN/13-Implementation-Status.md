@@ -625,9 +625,36 @@ are worth knowing:
 
 ### Technical debt
 
-- **Backfilling `work_date`** — `punch_logs` rows recorded before the timezone
-  fix carry the wrong working date. There is no production yet, so no backfill
-  has been run. **It must be run before the first release** if any data is kept.
+- ~~**Backfilling `work_date`**~~ — **the job now exists**, and must still be run
+  before the first release. [Runbook §9](../ops/RUNBOOK.md);
+  `pnpm --filter @hrms/worker workdate:backfill`.
+
+  Each punch is re-derived through the CURRENT `resolveWorkDate` using **its
+  tenant's** timezone and rewritten only where the answer differs — not adjusted
+  by a fixed offset. The shortcut ("add a day to punches before 04:00 UTC")
+  assumes UTC+7 for every tenant, which stopped being true when tenant timezones
+  were added, and corrupts correct data if run twice. Re-deriving is idempotent
+  by construction.
+
+  Run against the development database, which turned out to contain the bug's
+  exact signature — three morning clock-ins filed against the previous day:
+
+  | | |
+  |---|---|
+  | Punches scanned | 32 |
+  | Corrected | **3** |
+  | Days recomputed | 2 |
+  | **Days locked by a closed period** | **2** |
+  | Second run | `corrected: 0` — idempotent |
+
+  **`daysLocked` is the number that needs a person, and it was 2 out of 4 on the
+  first real run.** A closed attendance period is payroll's frozen input. The
+  punch is corrected; the recap is not — so the stored recap now disagrees with
+  its own punches, and somebody must decide between reopening the period,
+  correcting in the next run, or recording why the discrepancy stands. The job
+  refuses to choose: silently rewriting figures that have been paid, and silently
+  leaving a contradiction nobody knows about, are both worse than reporting it.
+  Expect this to be common rather than exceptional.
 - **The 12% flagged-ratio threshold is not calibrated** — calibration demands
   pilot data. Its largest cause is already gone: a tenant can now declare that a
   photo or location is genuinely not required, so their absence stops flooding

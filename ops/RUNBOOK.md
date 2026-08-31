@@ -697,6 +697,56 @@ say which key was exposed.
 
 ---
 
+## 9. Repairing punch working dates (run once, before the first release)
+
+`punch_logs.work_date` decides which day a punch belongs to. Rows written before
+the timezone fix carry the wrong one: the original code used `getUTCHours()`, so
+for WIB every punch between 06:00 and 10:59 local landed on **yesterday**, which
+is most people's arrival window.
+
+The stored effect is a day holding a clock-out with no clock-in — counted ABSENT
+— while the previous day holds two clock-ins. Nothing raises an error; a wrong
+date is as valid as a right one, and every figure derived from it is wrong
+quietly.
+
+New punches have been correct since the fix. **Old rows are never revisited**,
+so they stay wrong until this job runs.
+
+```bash
+pnpm --filter @hrms/worker workdate:backfill -- --dry-run
+pnpm --filter @hrms/worker workdate:backfill
+```
+
+Each punch is passed through the current `resolveWorkDate` with **its tenant's**
+timezone and rewritten only where the answer differs. It is therefore idempotent
+and safe to repeat — unlike the tempting shortcut of "add a day to punches
+before 04:00 UTC", which assumes UTC+7 for every tenant and corrupts correct data
+on a second run.
+
+Days the punch left and days it arrived at are both recomputed through the same
+function a manual correction uses, so the recap follows the punch.
+
+### 9.1 `daysLocked` is the number that needs a person
+
+A day inside a **closed** attendance period is not recomputed. Closed means
+payroll has already used those figures.
+
+- The punch **is** corrected.
+- The recap **is not**.
+
+So a non-zero `daysLocked` means the stored recap now disagrees with its own
+punches for that many days, and somebody has to decide what to do: reopen the
+period and recompute, issue a correction in the next payroll run, or accept the
+discrepancy and record why. The job will not choose — silently rewriting figures
+that have been paid, or silently leaving a contradiction nobody knows about, are
+both worse than reporting it.
+
+Measured on the development database: 32 punches scanned, **3 corrected**, 4 days
+affected, of which **2 were locked**. Two of four, on the first real run — expect
+this to be common rather than exceptional.
+
+---
+
 ## What is not in this runbook
 
 Stated plainly so nobody goes looking for it when they need it:
