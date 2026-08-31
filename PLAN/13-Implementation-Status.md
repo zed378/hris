@@ -905,9 +905,36 @@ are worth knowing:
   `--experimental-transform-types`, which **strips types without checking them**.
   For several minutes the result read exactly like a tenant policy that did not
   work.
-- **The SSE stream has not been tested behind a real proxy** —
-  `x-accel-buffering: no` is set, but it has not been verified against an actual
-  nginx.
+- ~~**The SSE stream has not been tested behind a real proxy**~~ — **tested**,
+  and the result corrected a claim rather than confirming it.
+  Reproducible in [`ops/proxy-test`](../ops/proxy-test/README.md): three nginx
+  configurations in front of the running application, and a probe that opens the
+  stream, submits a punch from a second account, and times the arrival. It
+  requests `Accept-Encoding: gzip` and decompresses incrementally, because that
+  is what a browser does.
+
+  | Configuration | Punch propagation |
+  |---|---|
+  | nginx defaults | 0.08 s |
+  | nginx **ignoring** `X-Accel-Buffering` | 0.08 s |
+  | nginx **gzipping** the event stream | 0.07 s |
+
+  SSE works behind nginx, including compressed. But the middle row is the point:
+  it is the mutation test, and **`x-accel-buffering: no` was not load-bearing in
+  any configuration tested.** The header's comment asserted that without it
+  "events pile up in the proxy and the dashboard falls seconds behind until the
+  buffer fills"; that is exactly what port 8091 configures, and the delay was
+  unchanged. nginx forwards each upstream chunk as it arrives — its buffering
+  protects against slow *clients*, a different problem. The comment has been
+  corrected; the header stays, because it is correct, free, and other proxies do
+  act on it.
+
+  Also learned: **nginx compressed the stream despite `cache-control:
+  no-transform`**, which it is documented to honour. Harmless here, but it means
+  an event stream in production may well be gzipped.
+
+  Still untested: Cloudflare, an ALB, or any other edge; concurrent streams
+  behind a proxy; and HTTP/2, which frames streams differently.
 
 ### Leave — what is missing
 
