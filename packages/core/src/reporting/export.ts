@@ -1,42 +1,41 @@
 import { writeAudit, type TenantClient } from '@hrms/db';
-// Lewat pintu depan modul karyawan, bukan ke dalamnya — batas yang ditegakkan
-// `eslint-plugin-boundaries`.
+// Through the employee module's front door rather than into it — the boundary
+// enforced by `eslint-plugin-boundaries`.
 import { revealPii } from '../employee/index.ts';
 
 /**
- * Ekspor lintas modul ke Excel (dokumen 02 §9).
+ * Cross-module Excel export (document 02 §9).
  *
- * Modul karyawan sudah punya ekspornya sejak Fase 2; presensi, cuti, dan
- * payroll tidak. Ketiadaan itu bukan kekurangan kecil pada pasar yang dituju:
- * di Indonesia setiap laporan berakhir di Excel — rekap presensi untuk
- * disandingkan dengan mesin absensi lama, rekap cuti untuk rapat bulanan,
- * rekap gaji untuk bagian keuangan dan untuk unggahan transfer massal bank.
- * HR yang tidak dapat mengunduhnya akan menyalinnya dari layar dengan tangan,
- * dan salinan tangan adalah tempat angka berubah tanpa ada yang tahu.
+ * The employee module has had its export since Phase 2; attendance, leave, and
+ * payroll did not. That absence is not a small gap in the target market: in
+ * Indonesia every report ends up in Excel — the attendance recap to reconcile
+ * against the old attendance machine, the leave recap for the monthly meeting,
+ * the payroll recap for finance and for the bank's bulk transfer upload. HR who
+ * cannot download it will copy it off the screen by hand, and a hand copy is
+ * where numbers change without anyone knowing.
  *
- * ## Tiga aturan yang berlaku untuk seluruh ekspor
+ * ## Three rules that apply to every export
  *
- * **Diaudit.** Ekspor adalah pemindahan data pribadi keluar dari sistem. Baris
- * auditnya mencatat siapa, kapan, penyaring apa, dan berapa baris — sehingga
- * "dari mana berkas ini berasal" punya jawaban ketika ia ditemukan di tempat
- * yang tidak seharusnya.
+ * **Audited.** An export moves personal data out of the system. Its audit row
+ * records who, when, which filters, and how many rows — so "where did this file
+ * come from" has an answer when it turns up somewhere it should not be.
  *
- * **Tidak melewati masking.** Nilai tersamar tetap tersamar bagi yang tidak
- * berizin membukanya. Ekspor yang mengabaikannya membuat seluruh kerja enkripsi
- * PII runtuh menjadi hiasan layar: siapa pun yang dapat membuka daftar cukup
- * menekan "Ekspor".
+ * **It does not bypass masking.** A masked value stays masked for anyone
+ * without permission to unmask it. An export that ignored that would collapse
+ * all of the PII encryption work into screen decoration: anyone who can open a
+ * list would only have to press "Export".
  *
- * **Berbatas, dan mengaku terpotong.** Batasnya dinyatakan pada header respons,
- * bukan didiamkan. Berkas yang terpotong diam-diam terlihat persis seperti
- * berkas yang lengkap — dan yang membacanya menyimpulkan sisanya memang tidak
- * ada.
+ * **Bounded, and it admits truncation.** The limit is stated in the response
+ * headers rather than left unsaid. A silently truncated file looks exactly like
+ * a complete one — and whoever reads it concludes the rest simply does not
+ * exist.
  */
 
-/** Batas atas satu berkas ekspor, sama untuk seluruh modul. */
+/** The upper bound of one export file, the same for every module. */
 export const MAX_EXPORT_ROWS = 20_000;
 
 export interface ExportResult {
-  /** Baris siap tulis: baris pertama judul, sisanya data. */
+  /** Rows ready to write: the first is the header, the rest are data. */
   rows: string[][];
   rowCount: number;
   truncated: boolean;
@@ -69,7 +68,7 @@ async function auditExport(
 }
 
 // ---------------------------------------------------------------------------
-// Presensi
+// Attendance
 // ---------------------------------------------------------------------------
 
 export interface AttendanceExportOptions {
@@ -134,9 +133,9 @@ export async function buildAttendanceExport(
       employee?.employeeNumber ?? '',
       employee?.fullName ?? '(karyawan terhapus)',
       day.status,
-      // Jam ditulis sebagai HH:MM, bukan ISO. Excel memperlakukan string ISO
-      // sebagai teks dan menampilkannya sepanjang tiga puluh karakter, dan yang
-      // membacanya adalah orang yang membandingkannya dengan mesin absensi.
+      // Times are written as HH:MM, not ISO. Excel treats an ISO string as text
+      // and displays it thirty characters long, and whoever reads it is the
+      // person comparing it against the attendance machine.
       clock(day.checkIn),
       clock(day.checkOut),
       String(day.lateMinutes),
@@ -170,13 +169,13 @@ export async function buildAttendanceExport(
 }
 
 /**
- * Jam lokal dari sebuah instan.
+ * The local time of an instant.
  *
- * Sengaja memakai bagian UTC-nya: nilai `checkIn` sudah disimpan sebagai instan,
- * dan zona waktu tenant hanya dipakai saat menentukan tanggal kerja. Menuliskan
- * jam dalam zona server akan menghasilkan angka yang berbeda dari yang dilihat
- * karyawan di layar presensinya — dan berkas ini justru dipakai untuk
- * membandingkan keduanya.
+ * Deliberately uses its UTC parts: a `checkIn` value is already stored as an
+ * instant, and the tenant's timezone is only used when deciding the working
+ * date. Writing the time in the server's zone would give a figure different
+ * from the one the employee saw on their punch screen — and this file exists
+ * precisely to compare the two.
  */
 function clock(value: Date | null): string {
   if (!value) return '';
@@ -184,7 +183,7 @@ function clock(value: Date | null): string {
 }
 
 // ---------------------------------------------------------------------------
-// Cuti
+// Leave
 // ---------------------------------------------------------------------------
 
 export interface LeaveExportOptions {
@@ -234,9 +233,9 @@ export async function buildLeaveExport(
       status: true,
       reason: true,
       decidedAt: true,
-      // Pemutus dan catatannya ada di langkah persetujuan, bukan di pengajuan.
-      // Bentuk itu disiapkan untuk alur berjenjang; yang berjalan sekarang satu
-      // langkah, sehingga yang diambil adalah langkah terakhir yang diputuskan.
+      // The decider and their note live on the approval step, not on the request.
+      // That shape is prepared for a tiered flow; what runs today is a single
+      // step, so what is taken is the last step decided.
       approvals: {
         where: { decision: { not: null } },
         orderBy: { stepOrder: 'desc' },
@@ -320,13 +319,13 @@ export async function buildLeaveExport(
 export interface PayrollExportOptions {
   runId: string;
   /**
-   * Membuka samaran nomor rekening.
+   * Unmasking the bank account number.
    *
-   * Rekap gaji adalah berkas yang paling ingin dibuka orang, dan nomor rekening
-   * di dalamnya adalah alasan utamanya — unggahan transfer massal bank
-   * membutuhkannya lengkap. Karena itu izinnya diperiksa persis seperti pada
-   * ekspor karyawan: tanpa `employee.pii.unmask`, yang keluar adalah nilai
-   * tersamar, dan berkas itu tetap berguna untuk segala hal kecuali transfer.
+   * The payroll recap is the file people most want to open, and the bank account
+   * numbers in it are the main reason — a bank's bulk transfer upload needs them
+   * in full. So its permission is checked exactly as in the employee export:
+   * without `employee.pii.unmask` what comes out is the masked value, and that
+   * file is still useful for everything except the transfer.
    */
   canUnmask: boolean;
 }
@@ -382,8 +381,8 @@ export async function buildPayrollExport(
       employee?.employeeNumber ?? '',
       employee?.fullName ?? '(karyawan terhapus)',
       employee?.bankName ?? '',
-      // Tersamar atau terbuka, ditentukan izin — bukan ditentukan bahwa berkas
-      // ini "untuk keuangan".
+      // Masked or unmasked, decided by permission — not decided by this file
+      // being "for finance".
       bankAccountFor(employee, options.canUnmask),
       employee?.bankAccountHolder ?? '',
       String(Number(slip.gross)),
@@ -411,16 +410,16 @@ export async function buildPayrollExport(
 }
 
 /**
- * Nomor rekening, tersamar atau terbuka menurut izin.
+ * A bank account number, masked or unmasked according to permission.
  *
- * Kegagalan dekripsi satu baris tidak boleh menjatuhkan seluruh berkas: rekap
- * gaji seribu orang yang gagal karena satu nomor rekening rusak adalah rekap
- * yang tidak dapat dipakai membayar 999 orang lainnya.
+ * A decryption failure on one row must not bring down the whole file: a
+ * thousand-person payroll recap that fails because of one corrupt bank account
+ * number is a recap that cannot be used to pay the other 999 people.
  *
- * Yang gagal keluar sebagai **nilai tersamarnya**, bukan sebagai kolom kosong.
- * Kolom kosong pada berkas transfer terbaca seperti karyawan yang memang belum
- * mengisi rekeningnya; nilai tersamar tidak dapat disalahpahami begitu, dan
- * bank akan menolaknya — terlihat, dan dapat diperbaiki.
+ * A failure comes out as its **masked value**, not as an empty column. An empty
+ * column in a transfer file reads like an employee who has not filled in their
+ * account details; a masked value cannot be misread that way, and the bank will
+ * refuse it — visible, and fixable.
  */
 function bankAccountFor(
   employee:

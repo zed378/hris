@@ -19,30 +19,30 @@ loadEnv({
 });
 
 /**
- * Proses latar.
+ * The background process.
  *
- * Terpisah dari `apps/web` dengan sengaja, meski keduanya satu basis kode. Ini
- * peredam untuk risiko N2 (PLAN/12 §10.3): pekerjaan berat — impor Excel, proses
- * payroll, pembuatan PDF — tidak boleh menahan request pengguna. Pemisahan
- * proses adalah cara termurah menjamin itu tanpa memecah sistem menjadi service.
+ * Deliberately separate from `apps/web`, even though both are one codebase. This
+ * is the damper for risk N2 (PLAN/12 §10.3): heavy work — Excel import, payroll
+ * runs, PDF generation — must not hold up a user request. A process split is the
+ * cheapest way to guarantee that without breaking the system into services.
  */
 
 const POLL_INTERVAL_MS = 2000;
 
 async function main(): Promise<void> {
   /**
-   * pg-boss memakai peran pemilik, dan itu pengecualian yang disengaja.
+   * pg-boss uses the owner role, and that is a deliberate exception.
    *
-   * Ia mengelola skemanya sendiri — membuat tabel, indeks, dan fungsi pada
-   * `pgboss` saat pertama dijalankan dan saat versinya naik. Itu menuntut hak
-   * DDL yang tidak dimiliki `hrms_worker`, dan memberikannya berarti memberi
-   * peran runtime hak membuat tabel di mana pun.
+   * It manages its own schema — creating tables, indexes, and functions in
+   * `pgboss` on first run and whenever its version rises. That demands DDL
+   * rights `hrms_worker` does not have, and granting them would give a runtime
+   * role the right to create tables anywhere.
    *
-   * Yang perlu diketahui sebagai konsekuensinya: koneksi ini TIDAK terikat
-   * `statement_timeout` peran worker. Skema `pgboss` tidak memuat satu pun
-   * kolom `tenant_id`, sehingga RLS tidak berlaku di sana dan tidak ada yang
-   * dilewati — tetapi job yang menggantung di sini tidak akan dipotong
-   * basis data, dan hanya `boss.stop()` yang menghentikannya.
+   * The consequence worth knowing: this connection is NOT bound by the worker
+   * role's `statement_timeout`. The `pgboss` schema holds not one `tenant_id`
+   * column, so RLS does not apply there and nothing is bypassed — but a job
+   * hanging here will not be cut off by the database, and only `boss.stop()`
+   * will end it.
    */
   const boss = new PgBoss({
     connectionString: process.env['DATABASE_URL']!,
@@ -52,38 +52,38 @@ async function main(): Promise<void> {
   boss.on('error', (error: unknown) => log.error({ scope: 'pg-boss', error }));
   await boss.start();
 
-  // pg-boss 12 menuntut antrean dibuat eksplisit sebelum dipakai. Membuatnya di
-  // sini — dari katalog topik yang sama yang dipakai penerbit — berarti sebuah
-  // topik baru tidak dapat lolos ke produksi tanpa antreannya ikut terbawa.
-  // Idempoten, jadi aman dijalankan pada setiap startup.
+  // pg-boss 12 requires a queue to be created explicitly before use. Creating
+  // them here — from the same topic catalogue the publisher uses — means a new
+  // topic cannot reach production without its queue coming along. Idempotent, so
+  // it is safe to run on every startup.
   for (const topic of Object.values(EventTopic)) {
     await boss.createQueue(topic);
   }
 
   /**
-   * Pendaftaran konsumen.
+   * Consumer registration.
    *
-   * Setiap konsumen WAJIB idempoten: outbox menjamin at-least-once, bukan
-   * exactly-once, sehingga pesan yang sama dapat datang dua kali dan itu bukan
-   * bug. Untuk email, idempotensinya ada pada `dedupeKey` di notification_logs —
-   * bukan pada harapan bahwa pesan tidak akan terkirim ulang.
+   * Every consumer MUST be idempotent: the outbox guarantees at-least-once, not
+   * exactly-once, so the same message can arrive twice and that is not a bug.
+   * For email, its idempotency lives in the `dedupeKey` on notification_logs —
+   * not in a hope that a message will never be resent.
    *
-   * Kegagalan penanganan TIDAK melempar. Melempar akan membuat pg-boss mencoba
-   * ulang, dan percobaan ulang atas alamat email yang memang salah hanya
-   * menghasilkan kegagalan yang sama berkali-kali. Kegagalannya tercatat pada
-   * barisnya sendiri, tempat ia dapat dilihat dan ditindaklanjuti.
+   * A handling failure does NOT throw. Throwing would make pg-boss retry, and
+   * retrying a genuinely wrong email address only produces the same failure over
+   * and over. The failure is recorded on its own row, where it can be seen and
+   * acted on.
    */
   for (const [topic, consumer] of Object.entries(CONSUMERS) as Array<[EventTopic, Consumer]>) {
     if (consumer.kind === 'drain') {
-      // Dikuras tanpa efek. Alasannya ada di katalog konsumen, bukan di sini.
+      // Drained with no effect. Its reason is in the consumer catalogue, not here.
       await boss.work(topic, async () => {});
       continue;
     }
 
     await boss.work(topic, async (jobs) => {
       for (const job of jobs) {
-        // Pompa membungkus setiap event: `{ tenantId, correlationId, payload }`.
-        // Payload bisnisnya ada satu tingkat di dalam, bukan di akar `job.data`.
+        // The pump wraps every event: `{ tenantId, correlationId, payload }`. The
+        // business payload is one level inside, not at the root of `job.data`.
         const envelope = job.data as OutboxEnvelope;
         if (!envelope?.tenantId || !envelope.payload) continue;
 
@@ -109,16 +109,16 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void stop('SIGTERM'));
 
   /**
-   * Pengingat kontrak berjalan sekali sehari.
+   * Contract reminders run once a day.
    *
-   * Dipicu interval, bukan cron, karena pemindaiannya idempoten: constraint
-   * unique pada (contractId, threshold) membuat pemanggilan kedua di hari yang
-   * sama tidak menerbitkan apa pun. Itu menghapus seluruh kelas masalah
-   * penjadwalan — worker yang restart tiga kali sehari tetap benar, dan tidak
-   * ada jendela yang terlewat bila satu putaran gagal.
+   * Triggered by an interval rather than cron, because the scan is idempotent: a
+   * unique constraint on (contractId, threshold) means a second call on the same
+   * day publishes nothing. That removes an entire class of scheduling problem —
+   * a worker restarting three times a day is still correct, and no window is
+   * missed when one round fails.
    *
-   * Dijalankan sekali saat startup supaya deploy pertama tidak menunggu
-   * 24 jam untuk pengingat pertamanya.
+   * Run once at startup so the first deploy does not wait 24 hours for its first
+   * reminder.
    */
   const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
@@ -134,11 +134,11 @@ async function main(): Promise<void> {
   };
 
   /**
-   * Retensi foto presensi berjalan bersama pengingat kontrak.
+   * Attendance photo retention runs alongside the contract reminders.
    *
-   * Idempoten dengan sendirinya: yang dicari adalah foto yang sudah melewati
-   * `photoExpiresAt`, dan begitu terhapus ia tidak lagi masuk pencarian.
-   * Worker yang restart berkali-kali sehari tetap benar.
+   * Idempotent by nature: what it looks for are photos past their
+   * `photoExpiresAt`, and once deleted they no longer appear in that search. A
+   * worker restarting many times a day stays correct.
    */
   const runRetention = async (): Promise<void> => {
     try {
@@ -152,15 +152,15 @@ async function main(): Promise<void> {
   };
 
   /**
-   * Pemeriksaan drift skema.
+   * The schema drift check.
    *
-   * Dijalankan bersama job harian lain, dan sekali segera saat worker menyala.
-   * Yang dicari adalah keadaan basis data produksi yang tidak digambarkan
-   * migrasi mana pun — tabel ber-`tenant_id` tanpa RLS, RLS tanpa kebijakan,
-   * atau peran aplikasi yang dapat menembus RLS.
+   * Runs alongside the other daily jobs, and once immediately when the worker
+   * starts. What it looks for is a production database state no migration
+   * describes — a `tenant_id` table without RLS, RLS with no policy, or an
+   * application role that can bypass RLS.
    *
-   * Menjalankannya saat startup disengaja: bila sesuatu rusak semalam,
-   * restart pagi hari adalah kesempatan paling awal untuk mengetahuinya.
+   * Running it at startup is deliberate: if something broke overnight, the
+   * morning restart is the earliest chance to find out.
    */
   const runDriftCheck = async (): Promise<void> => {
     try {
@@ -171,13 +171,13 @@ async function main(): Promise<void> {
   };
 
   /**
-   * Akrual jatah cuti.
+   * Leave allowance accrual.
    *
-   * Harian dan idempoten, dengan alasan yang sama seperti pengingat kontrak:
-   * ia membandingkan jatah yang ada dengan jatah yang seharusnya sudah
-   * diperoleh hari ini, bukan menambahkan sebulan setiap kali dipanggil.
-   * Worker yang restart lima kali sehari tetap benar, dan worker yang mati
-   * tiga bulan mengejar ketertinggalannya pada putaran pertama setelah menyala.
+   * Daily and idempotent, for the same reason as the contract reminders: it
+   * compares the existing allowance against the allowance that should have been
+   * earned by today, rather than adding a month on every call. A worker
+   * restarting five times a day stays correct, and a worker dead for three
+   * months catches up on its first round after starting.
    */
   const runAccrualJob = async (): Promise<void> => {
     try {

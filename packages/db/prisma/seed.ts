@@ -8,25 +8,25 @@ import { PrismaClient } from '@prisma/client';
 loadEnv({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env'), quiet: true });
 
 /**
- * Seed katalog produk dan satu tenant demo.
+ * Seeds the product catalogue and one demo tenant.
  *
- * Dijalankan sebagai role **owner**: katalog (modules, plans, permissions, menus)
- * sengaja baca-saja bagi aplikasi, karena menambah modul adalah keputusan produk
- * yang melewati migrasi, bukan aksi runtime.
+ * Runs as the **owner** role: the catalogue (modules, plans, permissions, menus)
+ * is deliberately read-only to the application, because adding a module is a
+ * product decision that goes through a migration, not a runtime action.
  *
- * Idempoten. Dijalankan berkali-kali tidak menggandakan apa pun.
+ * Idempotent. Running it repeatedly duplicates nothing.
  */
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env['DATABASE_URL']! }),
 });
 
 // -----------------------------------------------------------------------------
-// Katalog modul
+// The module catalogue
 //
-// Hanya empat modul domain yang masuk cakupan 18 bulan (PLAN/12 §1). Modul lain
-// dari katalog referensi sengaja belum ada di sini — menambah baris ke tabel ini
-// adalah janji kepada pelanggan, dan janji yang belum dibangun lebih mahal
-// daripada baris yang belum ditulis.
+// Only the four domain modules in the 18-month scope (PLAN/12 §1). The other
+// modules from the reference catalogue are deliberately absent — adding a row to
+// this table is a promise to a customer, and an unbuilt promise costs more than
+// an unwritten row.
 // -----------------------------------------------------------------------------
 const MODULES = [
   { code: 'core', name: 'Inti', tier: 'CORE', isCore: true, sortOrder: 0,
@@ -56,13 +56,13 @@ const PLANS = [
 ] as const;
 
 // -----------------------------------------------------------------------------
-// Permission
+// Permissions
 //
-// Format: <modul>.<sumber daya>.<aksi>[.<cakupan>]
-// Cakupan `own` berarti data milik sendiri; `team` bawahan langsung; `all` seluruh
-// tenant. Memisahkan cakupan di kode permission — bukan sebagai logika tersembunyi
-// di dalam handler — yang membuat "manajer lini tidak menerima widget biaya"
-// dapat diuji, bukan sekadar diyakini.
+// Format: <module>.<resource>.<action>[.<scope>]
+// The `own` scope means one's own data; `team` direct reports; `all` the whole
+// tenant. Keeping the scope in the permission code — rather than as hidden logic
+// inside a handler — is what makes "a line manager receives no cost widget"
+// testable rather than merely believed.
 // -----------------------------------------------------------------------------
 const PERMISSIONS: Array<[string, string, string]> = [
   ['core', 'core.dashboard.view.own', 'Melihat beranda milik sendiri'],
@@ -150,9 +150,9 @@ const MENUS: MenuSeed[] = [
     ] },
   { code: 'attendance', label: 'Presensi', moduleCode: 'attendance', icon: 'clock', sortOrder: 20,
     children: [
-      // Tombol presensi diletakkan PALING ATAS dalam grupnya, dan sengaja.
-      // Ia satu-satunya menu yang dibuka setiap hari oleh setiap orang;
-      // sisanya dibuka HR sesekali.
+      // The punch button is placed FIRST in its group, deliberately. It is the
+      // only menu opened every day by everyone; the rest are opened by HR
+      // occasionally.
       { code: 'attendance.punch', label: 'Absen Sekarang', moduleCode: 'attendance',
         permissionCode: 'attendance.punch.create.own', path: '/attendance/punch', sortOrder: 0 },
       { code: 'attendance.me', label: 'Presensi Saya', moduleCode: 'attendance',
@@ -206,12 +206,12 @@ const MENUS: MenuSeed[] = [
 ];
 
 // -----------------------------------------------------------------------------
-// Peran sistem
+// System roles
 //
-// Dibuat untuk setiap tenant baru. EMPLOYEE sengaja diberi permission paling
-// sedikit yang masih memungkinkan seseorang bekerja — menambah izin ke peran
-// dasar jauh lebih mudah daripada menariknya kembali setelah ratusan orang
-// terlanjur memakainya.
+// Created for every new tenant. EMPLOYEE deliberately gets the fewest
+// permissions that still let someone work — adding a permission to a base role
+// is far easier than taking one back after hundreds of people have come to rely
+// on it.
 // -----------------------------------------------------------------------------
 const SYSTEM_ROLES: Array<{ code: string; name: string; permissions: string[] | '*' }> = [
   { code: 'TENANT_OWNER', name: 'Pemilik Akun', permissions: '*' },
@@ -331,12 +331,12 @@ async function seedCatalog(): Promise<void> {
 }
 
 /**
- * Tenant demo.
+ * The demo tenant.
  *
- * Sengaja memakai paket `starter` — tanpa payroll. Itu membuat penegakan
- * entitlement terlihat sejak hari pertama: menu Penggajian tidak dirender, dan
- * endpoint-nya menolak dengan 402 meski TENANT_OWNER memegang seluruh permission.
- * Bila keduanya tidak berlaku, ada yang salah dan lebih baik ketahuan sekarang.
+ * Deliberately on the `starter` plan — without payroll. That makes entitlement
+ * enforcement visible from day one: the Payroll menu is not rendered, and its
+ * endpoints refuse with 402 even though TENANT_OWNER holds every permission. If
+ * either fails to happen, something is wrong and it is better known now.
  */
 async function seedDemoTenant(): Promise<string> {
   const { hashPassword } = await import('@node-rs/argon2').then((m) => ({
@@ -421,21 +421,21 @@ async function seedDemoTenant(): Promise<string> {
 }
 
 /**
- * Superuser demo.
+ * The demo superuser.
  *
- * Rahasia TOTP-nya tetap (bukan acak) supaya pengembang dapat menghasilkan kode
- * yang sah dari skrip tanpa memindai QR. Hanya untuk lingkungan lokal — di
- * produksi superuser dibuat lewat prosedur terpisah, dan constraint basis data
- * menolak akun aktif tanpa rahasia TOTP.
+ * Its TOTP secret is fixed (not random) so a developer can generate a valid code
+ * from a script without scanning a QR. For local environments only — in
+ * production a superuser is created through a separate procedure, and a database
+ * constraint refuses an active account with no TOTP secret.
  */
 const DEMO_TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 
 /**
- * Data presensi awal untuk tenant demo.
+ * The initial attendance data for the demo tenant.
  *
- * Lokasi kerja memakai koordinat Monas — titik yang mudah dikenali saat menguji
- * geofence dari peta mana pun. Radius 150 m adalah nilai wajar untuk satu
- * gedung perkantoran; area pabrik biasanya jauh lebih besar.
+ * The work site uses the coordinates of the Monas monument — a point that is
+ * easy to recognise when testing the geofence from any map. A 150 m radius is a
+ * reasonable value for one office building; a factory site is usually far larger.
  */
 async function seedAttendance(tenantId: string): Promise<void> {
   await db.workSite.upsert({
@@ -453,13 +453,13 @@ async function seedAttendance(tenantId: string): Promise<void> {
   });
 
   const shifts = [
-    // Toleransi 15 menit pada shift pagi: kemacetan Jakarta membuat toleransi
-    // 5 menit menghasilkan seluruh kantor tercatat terlambat setiap hari, dan
-    // angka yang selalu merah berhenti dibaca siapa pun.
+    // A 15-minute tolerance on the morning shift: Jakarta traffic makes a
+    // 5-minute tolerance record the entire office as late every day, and a figure
+    // that is always red stops being read by anyone.
     { code: 'pagi', name: 'Shift Pagi', startMinute: 8 * 60, endMinute: 17 * 60, graceMinutes: 15, breakMinutes: 60 },
     { code: 'siang', name: 'Shift Siang', startMinute: 14 * 60, endMinute: 22 * 60, graceMinutes: 10, breakMinutes: 45 },
-    // Shift malam dinyatakan melewati 1440 — 22:00 sampai 06:00 keesokan hari.
-    // Itu yang membuat satu tanggal kerja tidak terbelah dua.
+    // The night shift is expressed as passing 1440 — 22:00 until 06:00 the next
+    // day. That is what keeps one working date from being split in two.
     { code: 'malam', name: 'Shift Malam', startMinute: 22 * 60, endMinute: 30 * 60, graceMinutes: 10, breakMinutes: 45 },
   ];
 
@@ -471,9 +471,9 @@ async function seedAttendance(tenantId: string): Promise<void> {
     });
   }
 
-  // Hari libur nasional 2026 yang tetap tanggalnya. Yang mengikuti kalender
-  // Hijriah sengaja tidak di-seed: tanggalnya ditetapkan SKB tiga menteri dan
-  // menebaknya lebih buruk daripada mengosongkannya.
+  // The 2026 national holidays with fixed dates. The ones following the Hijri
+  // calendar are deliberately not seeded: their dates are set by a joint
+  // ministerial decree, and guessing is worse than leaving them empty.
   const holidays = [
     { date: '2026-01-01', name: 'Tahun Baru Masehi' },
     { date: '2026-05-01', name: 'Hari Buruh Internasional' },
@@ -492,24 +492,23 @@ async function seedAttendance(tenantId: string): Promise<void> {
 }
 
 /**
- * Jenis cuti bawaan menurut UU Ketenagakerjaan Indonesia.
+ * The default leave types under Indonesian labour law.
  *
- * Angkanya bukan tebakan: 12 hari cuti tahunan setelah 12 bulan masa kerja
- * (UU 13/2003 Pasal 79), 3 bulan cuti melahirkan (Pasal 82), 2 hari cuti
- * menikah dan cuti kematian keluarga inti (Pasal 93).
+ * The figures are not guesses: 12 days of annual leave after 12 months of
+ * service (Law 13/2003 Article 79), 3 months of maternity leave (Article 82),
+ * 2 days for marriage and for the death of an immediate family member
+ * (Article 93).
  *
- * Cuti melahirkan dan cuti sakit tidak memotong saldo — keduanya hak yang tidak
- * berbasis kuota tahunan, dan memotongnya dari jatah 12 hari akan membuat
- * seorang ibu kehilangan seluruh cuti tahunannya karena melahirkan.
- */
+ * Maternity and sick leave do not deduct from the balance — both are rights not
+ * based on an annual quota, and deducting them from the 12-day allowance would
+ * cost a mother her entire annual leave for giving birth.
 async function seedLeaveTypes(tenantId: string): Promise<void> {
-  // Diambil dari `@hrms/contracts`, bukan ditulis ulang di sini.
+  // Taken from `@hrms/contracts` rather than rewritten here.
   //
-  // Daftar ini pernah hanya ada di seed, sehingga tenant sungguhan yang
-  // mendaftar mandiri lahir TANPA satu pun jenis cuti — modulnya aktif, menunya
-  // tampil, dan dropdown-nya kosong. Kini `provisionTenant` memakai daftar yang
-  // sama, dan menyalinnya ke sini akan membuat keduanya berbeda pada perubahan
-  // pertama yang lupa disalin.
+  // This list once existed only in the seed, so a real tenant registering itself
+  // was born with NO leave types at all — its module active, its menu shown, and
+  // its dropdown empty. `provisionTenant` now uses the same list, and copying it
+  // here would make the two diverge at the first change somebody forgets to copy.
   const types = DEFAULT_LEAVE_TYPES;
 
   for (const type of types) {
@@ -522,17 +521,17 @@ async function seedLeaveTypes(tenantId: string): Promise<void> {
 }
 
 /**
- * Komponen gaji contoh.
+ * Example salary components.
  *
- * SENGAJA tidak memuat PPh21 maupun BPJS. Keduanya terkunci Gerbang C
- * (dokumen 12 §F5): ahli payroll terikat, 30 slip nyata sebagai kasus uji, dan
- * spike S1 lulus 30/30. Menaruh angka pajak di seed berarti menaruh angka yang
- * belum diperiksa siapa pun ke dalam basis data setiap tenant baru — dan angka
- * itu akan terlihat resmi justru karena ia sudah ada di sana sejak awal.
+ * DELIBERATELY containing neither PPh21 nor BPJS. Both are locked behind Gate C
+ * (document 12 §P5): a payroll expert engaged, 30 real payslips as test cases,
+ * and spike S1 passing 30/30. Putting a tax figure in the seed means putting a
+ * figure nobody has checked into every new tenant's database — and that figure
+ * will look official precisely because it has been there from the start.
  *
- * Yang ada di sini hanya komponen yang bentuknya universal dan tidak
- * memerlukan penafsiran peraturan: gaji pokok, tunjangan tetap, tunjangan
- * kehadiran harian, lembur per jam, dan potongan alfa.
+ * What is here is only the components whose shape is universal and that need no
+ * interpretation of regulation: basic salary, a fixed allowance, a daily
+ * attendance allowance, hourly overtime, and the absence deduction.
  */
 async function seedPayrollComponents(tenantId: string): Promise<void> {
   const components = DEFAULT_PAYROLL_COMPONENTS;
