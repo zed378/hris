@@ -1,4 +1,4 @@
-# 02 — Database Modelling (Database-per-Service, PostgreSQL 16)
+# 02 — Database Modelling (Database-per-Service, PostgreSQL 18)
 
 ---
 

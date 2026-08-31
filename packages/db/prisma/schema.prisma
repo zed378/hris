@@ -670,7 +670,12 @@ model Employee {
 
   employments Employment[]
   contracts   EmployeeContract[]
+  documents   EmployeeDocument[]
 
+  /// Referenced by `EmployeeDocument`'s tenant-aware foreign key. Redundant as a
+  /// uniqueness rule — `id` is already the primary key — and required as a
+  /// TARGET, because a composite key can only reference a unique pair.
+  @@unique([tenantId, id], map: "employees_tenant_id_id_key")
   @@unique([tenantId, employeeNumber])
   @@unique([tenantId, nationalIdIndex])
   @@index([tenantId, status])
@@ -1240,6 +1245,19 @@ model EmployeeDocument {
   archivedBy String?   @map("archived_by") @db.Uuid
 
   reminders DocumentReminder[]
+
+  /// Restrict, not cascade — unlike `EmployeeContract`.
+  ///
+  /// A document row owns a file in object storage. Cascading would delete the
+  /// row and strand the file, which is the exact order that photo retention and
+  /// `cleanupOrphanAttachments` both reverse on purpose: the file goes first,
+  /// because a file connected to no record is one no sweep will ever find again.
+  ///
+  /// The key references the PAIR. `references: [id]` alone would accept an
+  /// employee of another tenant — PostgreSQL runs referential integrity checks
+  /// without RLS, so the row is found even though no query can see it. Measured,
+  /// not assumed; see the migration.
+  employee Employee @relation(fields: [tenantId, employeeId], references: [tenantId, id], onDelete: Restrict)
 
   @@index([tenantId, employeeId])
   @@index([tenantId, expiresAt])

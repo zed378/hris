@@ -77,7 +77,7 @@ Rules 1–3 are **the price paid now so that §9 is possible later**. Without al
 |-------|---------------|-----------|-----------------------|
 | Deployables | 16–24 services | **1 web + 1 worker** | One build, one deploy, one log. Operable by one person. |
 | Runtime | NestJS per service | **Next.js 15 (App Router) + a Node worker** | One language, one build tool, one pipeline. The domain logic stays in `packages/core`, framework-free. |
-| Database | 24 DBs, one per service | **1 PostgreSQL 16, a schema per module** | Logical isolation is kept through schemas + RLS. A single backup, a single PITR. |
+| Database | 24 DBs, one per service | **1 PostgreSQL 18, a schema per module** | Logical isolation is kept through schemas + RLS. A single backup, a single PITR. |
 | Message broker | RabbitMQ 4 quorum queues | **pg-boss (inside PostgreSQL)** | Removes one system that has to be kept alive. HRIS volume (thousands of messages a minute) is far below pg-boss's limits. |
 | Cache / locks | Redis 7 | **PostgreSQL advisory locks + in-process cache** | Redis is added when there is evidence it is needed, not before. |
 | Real time | Socket.IO + Redis Streams | **SSE + `LISTEN/NOTIFY`, polling fallback** | A single web process needs no cross-node fan-out. Socket.IO follows if the web tier scales horizontally. |
@@ -489,6 +489,23 @@ This plan does not discard the architecture in document `01` — it defers it un
 
 If those four rules are **not** enforced, the same figure becomes 4–6 months per service. That is the entire value of module boundary discipline — and it is why boundary linting is a CI gate rather than a suggestion.
 
+### 9.1 Amendment — auth is being split ahead of these triggers
+
+**None of the triggers above has fired**, and `auth` is not in the table. It is
+being extracted anyway, by decision recorded in
+[`14-Service-Split-and-Platform-Evolution.md`](14-Service-Split-and-Platform-Evolution.md).
+
+That document argues the case on grounds specific to auth — a dependency star
+with no back-edges, the lowest change rate paired with the widest blast radius, a
+different scaling profile, and being the only sensible home for SSO, SAML, and a
+public API — and it states the costs plainly rather than claiming a trigger fired
+when none did.
+
+This section is **not** thereby weakened for any other module. A split without
+evidence is still the wrong default, and §14 §3 makes the same point about
+itself: if SSO and a public API are not genuinely on the roadmap, the extraction
+should stop after its fifth stage, which is valuable on its own.
+
 ---
 
 ## 10. Risks: Gone, Remaining, New
@@ -541,7 +558,7 @@ Document `04` §12 lists 30+ metrics. A 2-person team will not monitor 30 metric
 | Aspect | Decision |
 |--------|----------|
 | Architecture | A modular monolith: 1 web + 1 worker, module boundaries enforced by lint, events through the outbox + pg-boss. Ready to split against measurable triggers (§9) |
-| Database | One managed PostgreSQL 16, a schema per module, **RLS on every `tenant_id` table**, an application role that is `NOBYPASSRLS` |
+| Database | One managed PostgreSQL 18, a schema per module, **RLS on every `tenant_id` table**, an application role that is `NOBYPASSRLS` |
 | Infrastructure | Docker Compose on 1 VPS + managed PostgreSQL and object storage. No K8s, RabbitMQ, Redis, or distributed tracing |
 | 18-month scope | **Four modules**: Employees, Attendance, Leave, Payroll — equal to the reference product's Basic plan |
 | Frontend | Next.js 15 + AG Grid + PWA. No native app |

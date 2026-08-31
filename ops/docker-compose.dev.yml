@@ -23,7 +23,7 @@ name: hrms-dev
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: hrms-postgres
     restart: unless-stopped
     environment:
@@ -35,7 +35,15 @@ services:
       # sudah terpasang di mesin pengembang.
       - '5433:5432'
     volumes:
-      - hrms-pgdata:/var/lib/postgresql/data
+      # /var/lib/postgresql, NOT /var/lib/postgresql/data.
+      #
+      # The postgres:18 image moved PGDATA to /var/lib/postgresql/18/docker and
+      # declares its volume one level up. Keeping the old path would leave the
+      # named volume mounted somewhere the server never writes: the container
+      # starts, initialises a fresh cluster inside its own writable layer, and
+      # everything works — until the container is replaced and every row is gone,
+      # with no error at any point before that.
+      - hrms-pgdata:/var/lib/postgresql
       # Membuat role runtime (hrms_app, hrms_worker, hrms_platform) beserta kata
       # sandi pengembangan. Hanya berjalan saat volume masih kosong; role itu
       # sendiri dibuat oleh migrasi, sehingga produksi tidak pernah mewarisi

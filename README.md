@@ -10,6 +10,11 @@ work: **[`PLAN/12-Small-Team-Execution-Plan.md`](PLAN/12-Small-Team-Execution-Pl
 Current state is tracked honestly, bugs included, in
 **[`PLAN/13-Implementation-Status.md`](PLAN/13-Implementation-Status.md)**.
 
+The agreed next architectural step — extracting **auth** into its own service,
+and the message broker, Redis, and log shipping that follow it — is in
+**[`PLAN/14-Service-Split-and-Platform-Evolution.md`](PLAN/14-Service-Split-and-Platform-Evolution.md)**.
+Decided, not yet built; the containers below are still the ones that exist.
+
 > The product interface is in Indonesian, because its users are Indonesian HR
 > staff. Code, comments, and documentation are in English. Do not translate
 > user-facing strings, error messages, seed data, or leave-type names.
@@ -23,7 +28,7 @@ Prerequisites: Node 24+, pnpm 11+, Docker.
 ```bash
 cp .env.example .env          # dev credentials are pre-filled
 pnpm install
-pnpm db:up                    # PostgreSQL 16 on port 5433
+pnpm db:up                    # PostgreSQL 18 on port 5433
 pnpm db:migrate
 pnpm db:seed
 
@@ -68,7 +73,10 @@ Three containers, and no more:
 | `worker` | **Backend** — outbox pump, payroll runs, scheduled jobs | nothing |
 
 PostgreSQL doing three jobs at once is what makes this stack operable by one
-person: there is no RabbitMQ and no Redis to keep alive (PLAN/12 §3.2).
+person: there is no RabbitMQ and no Redis to keep alive (PLAN/12 §3.2). Both are
+now planned rather than ruled out — `PLAN/14` §9 sets out what has to become true
+first, and why the rate limiter is already wrong the moment `web` runs on more
+than one replica.
 
 The `migrate` service runs to completion before `web` and `worker` start, and it
 is the only one using owner credentials.

@@ -765,7 +765,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     services:
-      postgres: { image: postgres:16, ports: ['5432:5432'] }
+      postgres: { image: postgres:18, ports: ['5432:5432'] }
     steps:
       - uses: actions/checkout@v4
 

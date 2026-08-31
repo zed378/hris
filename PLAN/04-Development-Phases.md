@@ -547,7 +547,7 @@ Stage 4 — Expansion: once comfortable with the core modules, offer add-ons thr
 | Authorisation | Roles + permissions + menus + per-user grants (doc. 05); enforced at the gateway, not in the frontend |
 | Subscriptions | The frontend renders the menu from `/me/bootstrap`; the `EntitlementGuard` at the gateway is the real enforcer |
 | Frontend | Next.js 15, React 19, AG Grid, dynamic module bundle loading according to the subscription. Packaged as a **PWA**: installable, limited offline, Web Push. `admin.hrms.id` is deliberately not a PWA (doc. `11`) |
-| Database | PostgreSQL 16 per service: RLS, `daterange` + `EXCLUDE`, partitioning, `NUMERIC` for money |
+| Database | PostgreSQL 18 per service: RLS, `daterange` + `EXCLUDE`, partitioning, `NUMERIC` for money |
 | Attendance | Coordinates plus a selfie with explicit consent; a Haversine geofence; layered trust scoring with human review; an offline queue; 90-day photo retention (doc. `10`) |
 | Migrations | Non-destructive and additive. No `DROP`/`RENAME`/`TRUNCATE` in production; column removal goes through a deprecation ladder with a 90-day archive plus 2 approvals. Enforced by the SQL linter in CI (doc. `09`) |
 | Real time | Socket.IO + Redis Streams; snapshot and delta; a 250 ms storm damper; degradation to polling |

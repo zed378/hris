@@ -43,6 +43,23 @@ export async function scanDocumentReminders(
       // document no longer applies — reminding about it means asking for action
       // on a decision already taken.
       archivedAt: null,
+      /**
+       * The employee is reached THROUGH the relation, and the relation now
+       * exists.
+       *
+       * This file used to read employees with a second query and join them in a
+       * `Map`, because `employee_documents.employee_id` had no foreign key and
+       * Prisma therefore did not know the two tables were related — a gap found
+       * while writing this scan. Migration `20260901120000_employee_documents_fk`
+       * added it, so the join belongs in the database again.
+       *
+       * A document whose employee has LEFT is skipped, and its silence is
+       * correct: there is no action to take on the work permit of someone who no
+       * longer works here. Expressed as a filter rather than a `continue`, it is
+       * now one statement instead of two, and rows for departed employees never
+       * cross the wire.
+       */
+      employee: { tenantId, status: { in: ['ACTIVE', 'PROBATION'] } },
     },
     select: {
       id: true,
@@ -51,34 +68,12 @@ export async function scanDocumentReminders(
       expiresAt: true,
       employeeId: true,
       reminders: { select: { threshold: true } },
+      employee: { select: { id: true, employeeNumber: true, fullName: true } },
     },
   });
-
-  // Employees are read separately rather than through a relation.
-  //
-  // `employee_documents.employee_id` has no foreign key in the database — a state
-  // found while writing this file, not one that was designed — and Prisma
-  // therefore does not know the relation. Adding that FK is a schema change of
-  // its own that first has to check for orphan rows, and slipping it into this
-  // change would put two different things in one migration.
-  //
-  // An employee who is NOT found is skipped. A document belonging to someone who
-  // has left, or whose row is gone, produces a reminder to nobody — and its
-  // silence here is right: there is no action to take on the work permit of
-  // someone who no longer works here.
-  const employees = await tx.employee.findMany({
-    where: {
-      tenantId,
-      id: { in: [...new Set(documents.map((d) => d.employeeId))] },
-      status: { in: ['ACTIVE', 'PROBATION'] },
-    },
-    select: { id: true, employeeNumber: true, fullName: true },
-  });
-  const byId = new Map(employees.map((e) => [e.id, e]));
 
   for (const document of documents) {
-    const employee = byId.get(document.employeeId);
-    if (!employee) continue;
+    const employee = document.employee;
 
     // Contracts have a reminder path of their own, with a different legal warning
     // (a lapsed fixed-term contract becomes permanent by operation of law).

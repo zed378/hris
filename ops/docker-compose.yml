@@ -52,7 +52,7 @@ services:
   #
   # Found while testing PITR, before this configuration was ever used.
   wal-init:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: hrms-wal-init
     user: root
     command: ['sh', '-c', 'mkdir -p /wal && chown 70:70 /wal && chmod 700 /wal']
@@ -61,7 +61,7 @@ services:
     restart: 'no'
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: hrms-postgres-full
     depends_on:
       wal-init:
@@ -72,7 +72,15 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hrms_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-hrms}
     volumes:
-      - hrms-pgdata:/var/lib/postgresql/data
+      # /var/lib/postgresql, NOT /var/lib/postgresql/data.
+      #
+      # The postgres:18 image moved PGDATA to /var/lib/postgresql/18/docker and
+      # declares its volume one level up. Keeping the old path would leave the
+      # named volume mounted somewhere the server never writes: the container
+      # starts, initialises a fresh cluster inside its own writable layer, and
+      # everything works — until the container is replaced and every row is gone,
+      # with no error at any point before that.
+      - hrms-pgdata:/var/lib/postgresql
       # Creates the runtime roles when the database is first created. This script
       # only runs on an empty volume — on an existing one the roles are created by
       # migrations and their passwords set through the runbook.
@@ -241,7 +249,7 @@ services:
   # is far from what was intended. For scheduling that must be punctual, use cron
   # on the host — see ops/RUNBOOK.md §6.
   backup:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     profiles: ['backup']
     restart: unless-stopped
     depends_on:

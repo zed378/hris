@@ -641,11 +641,70 @@ are worth knowing:
   and then deleting automatically is a way to destroy evidence that may be
   needed. What is needed first: a retention classification per document kind,
   agreed with the tenant's legal adviser.
-- **`employee_documents.employee_id` has no foreign key** — found while building
-  the expiry reminders. A document can be orphaned if its employee row
-  disappears, and Prisma therefore does not know the relation (the scan reads
-  employees through a separate query). Fixing it requires checking for orphan
-  rows first.
+- ~~**`employee_documents.employee_id` has no foreign key**~~ — **done**, and the
+  obvious fix turned out to be the wrong one.
+
+  The single-column key (`REFERENCES employees(id)`) was written, applied, and
+  then **tested against a cross-tenant insert, which succeeded**: connected as
+  `hrms_app` with `app.tenant_id` set to one tenant, a document was written
+  pointing at an employee of another. **PostgreSQL performs referential integrity
+  checks without row level security** — deliberately, because a key that saw only
+  visible rows would report "no such row" for a row that exists, and that
+  difference is a covert channel.
+
+  So RLS and the foreign key each check something real and neither checked this.
+  The resulting row is invisible from **both** tenants — filtered out of its
+  owner's folder by `employee_id`, filtered out of the other's by RLS — while the
+  file it points at sits in object storage holding someone's identity card.
+  Invisible from both sides reads like containment and is really a leak nobody can
+  find.
+
+  Shipped instead: `FOREIGN KEY (tenant_id, employee_id) REFERENCES
+  employees(tenant_id, id)`, which closes it at the database regardless of RLS,
+  of role, and of what the application believes about itself. Re-run of the same
+  insert now fails with `Key is not present in table "employees"`.
+
+  `ON DELETE RESTRICT`, where `employee_contracts` uses `CASCADE`. A document row
+  owns a file; cascading deletes the row and strands the file, which is the exact
+  order photo retention and `cleanupOrphanAttachments` both reverse on purpose.
+  A contract row owns no file, so cascading one strands nothing.
+
+  With the relation known to Prisma, `scanDocumentReminders` no longer reads
+  employees through a second query and joins them in a `Map`.
+- **A migration that must run outside a transaction has no runner.** Found while
+  writing the above: **Prisma wraps every migration in a transaction and offers
+  no way to opt out** (7.9.1 — `CREATE INDEX CONCURRENTLY` fails with SQLSTATE
+  25001). Two consequences, both previously believed otherwise:
+
+  - `CREATE INDEX CONCURRENTLY` cannot be used at all, though `ops/scripts/lint-migrations.mjs`
+    requires it and suggests a `-- prisma-no-transaction` marker **that Prisma
+    does not implement** — it is borrowed from other migration tools. The rule has
+    never fired because no migration has yet needed a concurrent index.
+  - The `ADD CONSTRAINT ... NOT VALID` / `VALIDATE CONSTRAINT` split buys nothing
+    inside one transaction: the exclusive lock from the first statement is held
+    until commit, so the scan runs under it anyway.
+
+  Harmless so far — every index built to date was on a table created in the same
+  migration, and both tables in the foreign key above are small. It stops being
+  harmless the first time an index or constraint is needed on `punch_logs` or
+  `attendance_days`, which is risk R33 exactly. Needs a runner that executes
+  statement-by-statement outside a transaction, or an explicit exception process.
+- **`accessVersion` (`av`) is issued into every token and read by nothing.**
+  `packages/core/src/auth/tokens.ts` mints it, `accessTokenClaimsSchema` validates
+  it, and its comment describes the gateway comparing it against the recorded
+  version and rejecting stale tokens — **no such comparison exists anywhere.**
+
+  Currently harmless: access is resolved fresh from the database on every request,
+  so the cache the version invalidates does not exist. It becomes load-bearing the
+  moment a permission cache does — which is `PLAN/14` §5 option C, the mechanism
+  that makes the auth split affordable. Must be implemented **before** the cache,
+  not alongside it.
+- **The rate limiter is per-process and silently multiplies by replica count.**
+  `apps/web/src/lib/rate-limit.ts` keeps buckets in a local `Map`; the per-tenant
+  quota in `define-route.ts` has the same shape. With one container it is correct.
+  With two replicas it permits twice the configured rate, with no error and no log
+  — the limit is simply not the number in the config. Blocks horizontal scaling,
+  which is one of the stated reasons for `PLAN/14`.
 - **The PII encryption key has never been rotated** — its cipher format is
   versioned (`v1.`), so rotation is possible without a large migration, but the
   procedure does not exist and has not been tested. It matters more since number
