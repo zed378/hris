@@ -158,6 +158,10 @@ describe('ROUTE_RULES', () => {
       'GET /api/health',
       'GET /api/ready',
       'GET /api/.well-known/jwks.json',
+      // Metrics: scraped every few seconds from one address by design, and it
+      // carries its own token. Rate limiting it would break the collector while
+      // protecting nothing the token does not already protect.
+      'GET /api/metrics',
     ];
 
     const unlimited = Object.entries(ROUTE_RULES)

@@ -1,4 +1,4 @@
-import { log, runWithContext } from '@hrms/observability';
+import { log, runWithContext, incrementCounter, observeDuration } from '@hrms/observability';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { withTenant, type TenantClient } from '@hrms/db';
@@ -148,9 +148,32 @@ function build(
      * authorisation that reads implicit state can leak across requests when one
      * `await` goes unawaited.
      */
-    return runWithContext({ correlationId: ctx.correlationId, routeId }, () =>
-      handleRequest(req, ctx, params),
-    );
+    /**
+     * Every request is counted and timed here, at the one point they all pass
+     * through (PLAN/14 §9.3).
+     *
+     * Labelled by route and status, and **never by tenant**. A scrape endpoint is
+     * read by infrastructure and stored in a time-series database that outlives
+     * every access control in this system; a `tenant_id` label would publish the
+     * customer list, and a per-tenant business figure would publish their
+     * business. Those numbers belong on the dashboard, behind a permission, and
+     * they are already there.
+     */
+    const startedAt = Date.now();
+
+    return runWithContext({ correlationId: ctx.correlationId, routeId }, async () => {
+      const response = await handleRequest(req, ctx, params);
+
+      incrementCounter('hrms_http_requests_total', {
+        route: routeId,
+        status: String(response.status),
+      });
+      observeDuration('hrms_http_request_duration_seconds', (Date.now() - startedAt) / 1000, {
+        route: routeId,
+      });
+
+      return response;
+    });
   };
 
   async function handleRequest(

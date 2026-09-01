@@ -180,6 +180,10 @@ export const ROUTE_MANIFEST = {
   // a token, and a public key discloses nothing. It is what lets a verifier
   // check a signature without holding anything that could produce one.
   'GET /api/.well-known/jwks.json': { module: 'core', permission: null, public: true },
+  // Public in the manifest, and guarded by its own token inside the handler.
+  // It cannot use a permission: Prometheus scrapes without a session, which is
+  // the same reason /api/health is public.
+  'GET /api/metrics': { module: 'core', permission: null, public: true },
   'GET /api/health': { module: 'core', permission: null, public: true },
   'GET /api/ready': { module: 'core', permission: null, public: true },
 

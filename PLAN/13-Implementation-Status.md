@@ -610,8 +610,33 @@ are worth knowing:
 - **The `LogFields` type makes `scope` mandatory.** Three log sites that had gone
   without a scope were caught at compile time, not when somebody searched an
   aggregator.
-- **There are no metrics yet.** No Prometheus endpoint and no request counters;
-  there are only logs. Added when someone actually collects them.
+- ~~**There are no metrics yet**~~ — **done**, and off by default.
+  `GET /api/metrics` in Prometheus format, counting and timing every request at
+  the one point they all pass through.
+
+  **404 unless `METRICS_TOKEN` is set**, and 404 for a wrong token too: an
+  unconfigured endpoint should be indistinguishable from an absent one, and a 401
+  confirms there is something here to find a token for. The original restraint —
+  "added when someone actually collects them" — is preserved exactly: a
+  deployment that collects nothing gets what it had before.
+
+  **Technical metrics only, and never a tenant identifier.** That is a security
+  rule rather than a design preference: this is read by infrastructure and stored
+  in a time-series database that outlives every access control in this system. A
+  `tenant_id` label publishes the customer list; a per-tenant flagged ratio
+  publishes their business. PLAN/12 §11 lists several metrics of exactly that
+  kind, and they belong on the dashboard behind a permission — where they are.
+  A test asserts the emitted output contains no tenant, no employee, no email,
+  and no UUID-shaped string at all.
+
+  Per-process counters are **correct** here, unlike the rate limiter where
+  per-process counting silently multiplied the limit by the replica count:
+  Prometheus scrapes each instance separately and sums across them itself.
+  Sharing these would make two replicas each report the other's traffic.
+
+  Bucket boundaries cluster around 500 ms because PLAN/12 §11 sets that as the
+  p95 target; edges at 250 ms and 1 s could not tell 400 ms from 900 ms, which is
+  the only distinction anybody acts on.
 - **The request context is for LOGGING ONLY.** The tenant, as the basis of
   isolation, is still passed explicitly to `withTenant` — authorisation that
   reads implicit state can leak across requests when one `await` goes unawaited.
