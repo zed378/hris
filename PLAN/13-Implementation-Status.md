@@ -848,8 +848,23 @@ are worth knowing:
 
 ### Leave — what is missing
 
-- **Tiered approval** — §2.4 above. Still a single step, but **two control
-  failures in that single step are now closed** (numbers 38 and 39 below): a
+- **Tiered approval** — §2.4 above. Still a single step, and **still waiting on a
+  customer rather than on code.**
+
+  Worth stating precisely, because one of its two blockers has gone and the other
+  has not. `Employment.managerId` being unread was the first, and it is fixed:
+  the manager is now resolved and preselected as the approver. The second is the
+  one §2.4 names — *who the second approver is* differs at every company, and
+  the schema is already tiered (`step_order`, one row per step), so what is
+  missing is a rule and not a migration.
+
+  Building a rule now means building something the first customer to use it tears
+  out. The nearest defensible parameterisation — "requests longer than N days
+  need a second approval" — is the common Indonesian pattern, but it is still a
+  guess about which dimension matters, and it is cheap to add once somebody says
+  which one does.
+
+  Two control failures in that single step are closed (numbers 38 and 39 below): a
   requester can no longer approve their own leave, and replacing the designated
   approver is now recorded.
 - ~~**`Employment.managerId` is never read**~~ — **done**, and reading it
@@ -1232,7 +1247,12 @@ the suite.
   measured under load.
 - **The proxy configuration** in `ops/proxy`. Its syntax is checked with
   `nginx -t`; the routing rules it encodes are not exercised by CI.
-- **A real container build.** `ops/Dockerfile.auth` has not been built in CI.
+- **A real container build in CI.** `ops/Dockerfile.auth` has now been built and
+  run by hand — the image starts, connects as `hrms_auth`, reports
+  `{"status":"ready","signing":"hybrid","rateLimit":"in-process"}`, and serves a
+  real login. `rateLimit: in-process` there is correct: no `REDIS_URL` was passed.
+  What is still missing is that nothing rebuilds it automatically, so a change
+  breaking the image would not be caught until a deploy.
 - **Anything gated** — payroll tax rules, billing, WhatsApp, Lighthouse, real
   devices. Unchanged, and listed under the gates below.
 
