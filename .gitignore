@@ -18,3 +18,8 @@ ops/.env
 # Cadangan basis data. Memuat seluruh data pelanggan.
 backups/
 backups-skala
+
+# Editor and assistant tool state. Not project source: it belongs to whoever's
+# machine it is on, and committing it means one person's tool session becomes
+# everyone's repository history.
+.kilo/
