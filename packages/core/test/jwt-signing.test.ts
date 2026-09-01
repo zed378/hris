@@ -257,9 +257,18 @@ describe('the HS256 fallback window', () => {
     delete process.env['JWT_PRIVATE_JWK'];
     delete process.env['JWT_PUBLIC_JWKS'];
 
+    /**
+     * Matched on the variable name, not on the prose.
+     *
+     * The wording is a message to an operator and may be rewritten or
+     * translated; `JWT_PRIVATE_JWK` is the thing they actually have to set, and
+     * it is the part of this error that cannot change without the contract
+     * changing. An assertion on the sentence broke the first time somebody
+     * edited it, which taught nothing about signing.
+     */
     await expect(
       signJwt({}, { subject: 'u1', audience: AUDIENCE, ttlSeconds: 60 }),
-    ).rejects.toThrow(/kunci penandatangan/i);
+    ).rejects.toThrow(/JWT_PRIVATE_JWK/);
   });
 });
 
