@@ -167,6 +167,9 @@ export const ROUTE_MANIFEST = {
   // Dashboard scope is decided by permissions inside the handler, not by a
   // parameter. The manifest permission is therefore the basic one everyone holds.
   'GET /api/dashboard': { module: 'core', permission: 'core.dashboard.view.own' },
+  // Tenant-wide by construction: there is no per-employee version of "the
+  // flagged ratio across the company".
+  'GET /api/dashboard/trends': { module: 'core', permission: 'core.dashboard.view.tenant' },
 
   // --- Health -----------------------------------------------------------------
   //

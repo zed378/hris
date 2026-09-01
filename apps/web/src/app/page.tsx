@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/app-shell.tsx';
+import { TrendChart } from '@/components/trend-chart.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
@@ -40,6 +41,20 @@ interface Dashboard {
     expiringContracts: number | null;
     payrollRunsPendingApproval: number | null;
   } | null;
+}
+
+interface Trends {
+  months: string[];
+  attendance: Array<{
+    month: string;
+    punches: number;
+    flagged: number;
+    flaggedRatio: number | null;
+    absentDays: number;
+    lateDays: number;
+    presentDays: number;
+  }> | null;
+  leave: Array<{ month: string; days: number; requests: number }> | null;
 }
 
 const BULAN = [
@@ -103,6 +118,7 @@ function Kartu({
 export default function HomePage() {
   const { bootstrap, api } = useSession();
   const [data, setData] = useState<Dashboard | null>(null);
+  const [trends, setTrends] = useState<Trends | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -110,6 +126,21 @@ export default function HomePage() {
       const response = await api('/api/dashboard');
       if (response.ok) setData((await response.json()) as Dashboard);
       setLoading(false);
+    })();
+  }, [api]);
+
+  /**
+   * Trends are fetched separately, and after the summary.
+   *
+   * The summary is what the screen needs before it can show anything; three
+   * grouped queries over six months are not. A 403 here is the ordinary answer
+   * for a user without the tenant-wide permission, so it is left silent — the
+   * section simply does not appear, which is what P9 asks of a screen.
+   */
+  useEffect(() => {
+    void (async () => {
+      const response = await api('/api/dashboard/trends?months=6');
+      if (response.ok) setTrends((await response.json()) as Trends);
     })();
   }, [api]);
 
@@ -287,6 +318,71 @@ export default function HomePage() {
                   tone="perhatian"
                 />
               )}
+          </div>
+        </section>
+      )}
+
+
+      {trends && (trends.attendance || trends.leave) && (
+        <section className="mt-8">
+          <h2 className="mb-1 text-lg font-medium">Tren enam bulan</h2>
+          <p className="mb-4 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+            Satu bulan tidak dapat menjawab satu-satunya pertanyaan yang penting
+            dari angka-angka ini: apakah keadaannya memburuk. Rasio 9% wajar;
+            rasio 9% setelah tiga bulan di 4% adalah hal yang sama sekali lain.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {trends.attendance && (
+              <>
+                <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+                  <h3 className="text-sm font-medium">Rasio presensi ditandai</h3>
+                  <p className="mb-2 text-xs text-slate-500">
+                    Di atas 12% HR berhenti meninjau dan skor kepercayaan menjadi
+                    teater (PLAN/12 §11). Ambangnya belum dikalibrasi — grafik
+                    inilah yang memungkinkan kalibrasinya.
+                  </p>
+                  <TrendChart
+                    points={trends.attendance.map((p) => ({
+                      label: p.month,
+                      value: p.flaggedRatio,
+                    }))}
+                    format={(v) => `${(v * 100).toFixed(1)}%`}
+                    threshold={0.12}
+                    thresholdLabel="12%"
+                  />
+                </div>
+
+                <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+                  <h3 className="text-sm font-medium">Hari tidak hadir</h3>
+                  <p className="mb-2 text-xs text-slate-500">
+                    Tanpa keterangan. Kenaikannya adalah persoalan yang tidak
+                    muncul di mana pun sampai penggajian.
+                  </p>
+                  <TrendChart
+                    points={trends.attendance.map((p) => ({
+                      label: p.month,
+                      value: p.absentDays,
+                    }))}
+                    format={(v) => `${v} hari`}
+                  />
+                </div>
+              </>
+            )}
+
+            {trends.leave && (
+              <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+                <h3 className="text-sm font-medium">Hari cuti diambil</h3>
+                <p className="mb-2 text-xs text-slate-500">
+                  Hanya yang disetujui. Cuti bersifat musiman, dan yang menyetujui
+                  pengajuan Desember perlu tahu Desember biasanya seperti apa.
+                </p>
+                <TrendChart
+                  points={trends.leave.map((p) => ({ label: p.month, value: p.days }))}
+                  format={(v) => `${v} hari`}
+                />
+              </div>
+            )}
           </div>
         </section>
       )}

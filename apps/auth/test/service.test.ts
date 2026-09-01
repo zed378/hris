@@ -45,8 +45,26 @@ const SECRET = 'test-internal-secret-test-internal-secret';
 let server: Server;
 let base: string;
 
+/**
+ * Every request in this suite claims a fresh client address.
+ *
+ * Rate-limit counters live in Redis now (PLAN/14 stage 3), keyed by route and
+ * address, and they OUTLIVE the test run — `password/forgot` allows five per
+ * fifteen minutes. Running the suite twice inside that window exhausted the
+ * budget and the second run failed with 429 on a test asserting 204, which reads
+ * as a broken endpoint rather than as a shared counter doing its job.
+ *
+ * A random address per run isolates the suite without reaching into Redis to
+ * delete keys, and it exercises the real path: the limiter keys by
+ * `x-forwarded-for`, so this also proves it does.
+ */
+const CLIENT_IP = `10.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}.1`;
+
 async function call(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(`${base}${path}`, init);
+  return fetch(`${base}${path}`, {
+    ...init,
+    headers: { ...(init.headers ?? {}), 'x-forwarded-for': CLIENT_IP },
+  });
 }
 
 async function currentVersion(): Promise<number> {

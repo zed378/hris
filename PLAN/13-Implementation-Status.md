@@ -1213,8 +1213,42 @@ What is not locked behind Gate C but is still unbuilt:
   Late **still counts as present**, and is shown as an additional column. Counting
   it separately makes "present + late + absent" fail to equal the working days,
   and whoever reads it will think a day has gone missing.
-- **There are no charts or month-over-month trends.** What exists is one month at
-  a glance.
+- ~~**There are no charts or month-over-month trends**~~ — **done.**
+  `GET /api/dashboard/trends`, and three charts on the dashboard.
+
+  One month cannot answer the only question these numbers exist for: **is it
+  getting worse?** A flagged ratio of 9% is fine; 9% after three months at 4% is
+  a different fact, and the screen showed them identically.
+
+  Three series, each clearing the dashboard's own bar that a number earns its
+  place by being actionable:
+
+  - **The flagged ratio**, which PLAN/12 §11 makes the metric deciding whether
+    the trust score does anything. Its 12% threshold is drawn on the chart and is
+    explicitly *not calibrated* — and it cannot be calibrated from one month, so
+    this series is what makes calibration possible at all. Measured on the
+    development data: August sits at **26.3%**, comfortably above it.
+  - **Absence**, which is a management problem showing up nowhere else until
+    payroll.
+  - **Leave days taken**, approved only, because leave is seasonal and whoever
+    approves December needs to know what December usually looks like.
+
+  A month with no rows is reported as a gap, never as zero. Left to a `GROUP BY`
+  an empty month simply does not come back, and a chart drawn from that joins the
+  month before to the month after — continuity where there was none. Its ratio is
+  `null` rather than 0, for the same reason: zero is a measurement and an absent
+  month is not one.
+
+  Drawn as inline SVG, with no charting library. Recharts and its peers bring a
+  dependency tree measured in megabytes to a PWA whose proposition is a cheap
+  phone on a slow connection, and what is needed is six bars and a threshold
+  line. The threshold is also why: a chart of a metric that HAS a threshold must
+  draw it and make crossing it obvious, which is more work to obtain from a
+  general-purpose library than to write.
+
+  Fetched separately from the summary and after it — the summary is what the
+  screen needs before it can show anything, and three grouped six-month queries
+  are not.
 - **The P6 hardening is complete**: per-tenant quotas (600/minute, with refusals
   recorded), `statement_timeout`/`lock_timeout`/
   `idle_in_transaction_session_timeout` per role, daily schema drift detection
