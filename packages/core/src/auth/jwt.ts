@@ -57,8 +57,8 @@ export async function signJwt(
   const secret = legacySecret(realm);
   if (!secret) {
     throw new Error(
-      'Tidak ada kunci penandatangan. Pasang JWT_PRIVATE_JWK (disarankan) ' +
-        'atau JWT_SECRET minimal 32 karakter.',
+      'No signing key configured. Set JWT_PRIVATE_JWK (recommended) ' +
+        'or a JWT_SECRET of at least 32 characters.',
     );
   }
 
@@ -97,7 +97,7 @@ export async function verifyJwt(
   try {
     kid = decodeProtectedHeader(token).kid;
   } catch {
-    throw new JwtVerificationError('Token tidak sah', 'invalid');
+    throw new JwtVerificationError('Invalid token', 'invalid');
   }
 
   const keys = await publicVerificationKeys(realm);
@@ -139,6 +139,6 @@ export async function verifyJwt(
     }
   }
 
-  if (expired) throw new JwtVerificationError('Token kedaluwarsa', 'expired');
-  throw new JwtVerificationError('Token tidak sah', 'invalid');
+  if (expired) throw new JwtVerificationError('Token expired', 'expired');
+  throw new JwtVerificationError('Invalid token', 'invalid');
 }

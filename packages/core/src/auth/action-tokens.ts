@@ -2,16 +2,16 @@ import { createHash, randomBytes } from 'node:crypto';
 import { appClient, withTenant, type TenantClient } from '@hrms/db';
 
 /**
- * Token sekali pakai untuk reset kata sandi dan undangan pengguna.
+ * One-time tokens for password reset and user invitations.
  *
- * Keduanya berbagi bentuk yang persis sama — nilai acak, satu pengguna, masa
- * berlaku, sekali pakai — sehingga berbagi satu tabel dan satu potong kode.
- * Yang berbeda hanya masa berlakunya.
+ * Both share the exact same shape — random value, single user, expiry,
+ * single-use — so they share one table and one code path. The only difference
+ * is the expiry.
  *
- * Perbedaan masa berlaku itu sendiri disengaja: reset kata sandi dipicu oleh
- * orang yang sedang duduk di depan layar dan menunggu emailnya, sedangkan
- * undangan dikirim ke orang yang mungkin sedang cuti. Satu jam terlalu pendek
- * untuk yang kedua; tujuh hari terlalu longgar untuk yang pertama.
+ * That difference is deliberate: password reset is triggered by someone sitting
+ * at the screen waiting for the email, while invitations go to someone who may
+ * be on vacation. One hour is too short for the latter; seven days too loose for
+ * the former.
  */
 
 export type ActionTokenPurpose = 'PASSWORD_RESET' | 'INVITATION';
@@ -79,14 +79,13 @@ export class ActionTokenError extends Error {
 }
 
 /**
- * Memakai token: memvalidasi, menandainya terpakai, lalu menjalankan `apply`
- * dalam transaksi yang sama.
+ * Consumes a token: validates it, marks it used, then runs `apply` within the
+ * same transaction.
  *
- * Penandaan dan efeknya harus commit bersama. Bila dipisah, dua request yang
- * tiba bersamaan dengan token yang sama dapat sama-sama lolos validasi sebelum
- * salah satunya sempat menandainya — dan token sekali pakai berhenti menjadi
- * sekali pakai. `updateMany` berkondisi `usedAt: null` membuat hanya satu yang
- * berhasil, dan yang kedua melihat `count === 0`.
+ * The marking and its effect must commit together. If separated, two concurrent
+ * requests with the same token can both pass validation before either marks it —
+ * and a one-time token ceases to be one-time. The conditional `updateMany` with
+ * `usedAt: null` ensures only one succeeds, and the second sees `count === 0`.
  */
 export async function consumeActionToken<T>(
   rawToken: string,
@@ -95,14 +94,14 @@ export async function consumeActionToken<T>(
 ): Promise<T> {
   const tokenHash = hashActionToken(rawToken);
 
-  // Tenantnya belum diketahui saat token masuk, sehingga konteks belum dapat
-  // dipasang dan RLS akan mengembalikan nol baris. Fungsi SECURITY DEFINER
-  // sempit; lihat migrasi 20260818074552.
+  // The tenant is not yet known when the token arrives, so the context cannot be
+  // set and RLS would return zero rows. Uses a narrow SECURITY DEFINER function;
+  // see migration 20260818074552.
   const found = await appClient().$queryRaw<Array<{ tenant_id: string }>>`
     SELECT tenant_id FROM public.resolve_action_token_owner(${tokenHash})
   `;
   const tenantId = found[0]?.tenant_id;
-  if (!tenantId) throw new ActionTokenError('Tautan tidak sah atau sudah kedaluwarsa');
+  if (!tenantId)     throw new ActionTokenError('Invalid or expired link');
 
   return withTenant(tenantId, async (tx) => {
     const claimed = await tx.actionToken.updateMany({
@@ -111,7 +110,7 @@ export async function consumeActionToken<T>(
     });
 
     if (claimed.count !== 1) {
-      throw new ActionTokenError('Tautan tidak sah atau sudah kedaluwarsa');
+      throw new ActionTokenError('Invalid or expired link');
     }
 
     const token = await tx.actionToken.findUniqueOrThrow({

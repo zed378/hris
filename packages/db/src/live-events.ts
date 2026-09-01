@@ -37,7 +37,7 @@ let active = 0;
 
 export class TooManyStreamsError extends Error {
   constructor() {
-    super('Terlalu banyak aliran langsung yang aktif');
+    super('Too many live streams active');
     this.name = 'TooManyStreamsError';
   }
 }
@@ -110,7 +110,7 @@ export async function listenTenant(
   const channel = tenantChannel(tenantId);
   if (!/^att_[0-9a-f]{32}$/.test(channel)) {
     await close();
-    throw new Error('Nama kanal tidak sah');
+    throw new Error('Invalid channel name');
   }
   await client.query(`LISTEN "${channel}"`);
 

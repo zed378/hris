@@ -88,8 +88,8 @@ export interface StoredRow extends Omit<ParsedRow, 'nationalId' | 'taxId' | 'ban
  * Prepares one row's PII for storage, or reports it as an error.
  *
  * A value `preparePii` refuses — already masked, or containing not one digit —
- * becomes an ordinary row error, not a failure of the whole import. One cell
- * reading "tidak ada" must not fail the other 999 rows.
+ * becomes an ordinary row error, not a failure of the whole import. A cell
+ * reading "empty" must not fail the other 999 rows.
  */
 export function prepareRowPii(
   parsed: ParsedRow,
@@ -109,7 +109,7 @@ export function prepareRowPii(
     } catch (error) {
       errors.push({
         field: field.key,
-        message: error instanceof Error ? error.message : `${field.label} tidak sah`,
+        message: error instanceof Error ? error.message : `${field.label} is invalid`,
       });
       prepared[field.key] = { encrypted: null, index: null, masked: null };
     }
@@ -152,7 +152,6 @@ export function prepareRowPii(
  * error message can point at exactly what the user typed" — is a plan, not a
  * feature. It is kept because the plan is reasonable and this shape makes it
  * safe; if it stays unused, the column deserves deleting.
- * layak dihapus.
  */
 const PII_FIELDS = new Set(['nationalId', 'taxId', 'bankAccount']);
 
@@ -207,7 +206,7 @@ export async function parseImportFile(
     sheets = (await readXlsxFile(file.buffer)) as never;
   } catch {
     throw new ImportError(
-      'Berkas tidak dapat dibaca. Pastikan berformat .xlsx, bukan .xls atau CSV.',
+      'File cannot be read. Make sure it is .xlsx, not .xls or CSV.',
       'invalid_file',
     );
   }
@@ -221,13 +220,13 @@ export async function parseImportFile(
 
   if (sheet.length < 2) {
     throw new ImportError(
-      `Sheet "${first?.sheet ?? "?"}" kosong atau hanya berisi baris judul.`,
+      `Sheet "${first?.sheet ?? "?"}" is empty or contains only a header row.`,
       'invalid_file',
     );
   }
   if (sheet.length - 1 > MAX_ROWS) {
     throw new ImportError(
-      `Berkas berisi ${sheet.length - 1} baris; batasnya ${MAX_ROWS}. Bagi menjadi beberapa berkas.`,
+      `File contains ${sheet.length - 1} rows; the limit is ${MAX_ROWS}. Split into multiple files.`,
       'too_large',
     );
   }
@@ -237,8 +236,8 @@ export async function parseImportFile(
 
   if (columns.missingRequired.length > 0) {
     throw new ImportError(
-      `Kolom wajib tidak ditemukan: ${columns.missingRequired.join(', ')}. ` +
-        'Unduh templat untuk melihat judul kolom yang dikenali.',
+      `Required columns not found: ${columns.missingRequired.join(', ')}. ` +
+        'Download the template to see recognized column headers.',
       'invalid_file',
     );
   }
@@ -281,7 +280,7 @@ export async function parseImportFile(
 
   for (let i = 1; i < sheet.length; i += 1) {
     const cells = sheet[i] ?? [];
-    const rowNumber = i + 1; // 1-indeks, dan baris 1 adalah judul.
+    const rowNumber = i + 1; // 1-indexed, and row 1 is the header.
 
     // A row whose cells are all empty is skipped silently. An Excel file almost
     // always has a few hundred empty rows below the data, and reporting them as
@@ -296,14 +295,14 @@ export async function parseImportFile(
       if (takenNumbers.has(parsed.employeeNumber)) {
         errors.push({
           field: 'employeeNumber',
-          message: `Nomor karyawan "${parsed.employeeNumber}" sudah ada di sistem`,
+          message: `Employee number "${parsed.employeeNumber}" already exists in the system`,
         });
       }
       const firstSeen = seenNumbers.get(parsed.employeeNumber);
       if (firstSeen !== undefined) {
         errors.push({
           field: 'employeeNumber',
-          message: `Nomor karyawan "${parsed.employeeNumber}" juga ada di baris ${firstSeen}`,
+          message: `Employee number "${parsed.employeeNumber}" also appears in row ${firstSeen}`,
         });
       } else {
         seenNumbers.set(parsed.employeeNumber, rowNumber);
@@ -318,11 +317,11 @@ export async function parseImportFile(
       const candidates = blindIndexCandidates(parsed.nationalId);
       const index = candidates[0]!;
       if (candidates.some((candidate) => takenNationalIds.has(candidate))) {
-        errors.push({ field: 'nationalId', message: 'NIK ini sudah terdaftar di sistem' });
+        errors.push({ field: 'nationalId', message: 'This NIK is already registered in the system' });
       }
       const firstSeen = seenNationalIds.get(index);
       if (firstSeen !== undefined) {
-        errors.push({ field: 'nationalId', message: `NIK ini juga ada di baris ${firstSeen}` });
+        errors.push({ field: 'nationalId', message: `This NIK also appears in row ${firstSeen}` });
       } else {
         seenNationalIds.set(index, rowNumber);
       }
@@ -405,9 +404,9 @@ export async function commitImport(
     where: { id: jobId, tenantId },
     select: { id: true, status: true, fileName: true },
   });
-  if (!job) throw new ImportError('Pratinjau impor tidak ditemukan', 'not_found');
+  if (!job) throw new ImportError('Import preview not found', 'not_found');
   if (job.status !== 'PREVIEW') {
-    throw new ImportError('Pratinjau ini sudah disimpan atau dibatalkan', 'conflict');
+    throw new ImportError('This preview has already been saved or cancelled', 'conflict');
   }
 
   const validRows = await tx.importRow.findMany({
@@ -519,7 +518,7 @@ export async function getImportPreview(
       errorRows: true,
     },
   });
-  if (!job) throw new ImportError('Pratinjau impor tidak ditemukan', 'not_found');
+  if (!job) throw new ImportError('Import preview not found', 'not_found');
 
   const rows = await tx.importRow.findMany({
     where: { jobId, tenantId, ...(options.onlyErrors ? { status: 'ERROR' } : {}) },

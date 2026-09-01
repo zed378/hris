@@ -44,7 +44,6 @@ export type DayOffMap = ReadonlyMap<string, boolean>;
  * off rotate. In a six-day factory, a Monday–Saturday request deducted five days
  * of balance while six working days were missed — the company lost a working day
  * every time, and nothing revealed it because the number still looked plausible.
- * akal.
  *
  * The right answer lives in `attendance.schedules`: one row per employee per
  * date, with an `is_day_off` the attendance module already uses to decide
@@ -161,10 +160,9 @@ async function nextRequestNumber(tx: TenantClient, tenantId: string, year: numbe
  *
  * All in one transaction. A balance hold separate from creating the request
  * would leave one without the other if the process died in between — and both
- * are equally bad: a hold with no request cannot be released by anyone, and a
- * request with no hold removes the entire point of holding.
- * gunanya penahanan.
- */
+  * are equally bad: a hold with no request cannot be released by anyone, and a
+  * request with no hold removes the entire point of holding.
+  */
 export async function submitRequest(
   tx: TenantClient,
   tenantId: string,
@@ -172,13 +170,13 @@ export async function submitRequest(
   actorUserId: string,
 ): Promise<RequestView> {
   if (input.endDate < input.startDate) {
-    throw new LeaveError('Tanggal selesai mendahului tanggal mulai', 'invalid_state');
+    throw new LeaveError('End date precedes start date', 'invalid_state');
   }
 
   const type = await tx.leaveType.findFirst({
     where: { id: input.leaveTypeId, tenantId, isActive: true },
   });
-  if (!type) throw new LeaveError('Jenis cuti tidak ditemukan atau tidak aktif', 'not_found');
+  if (!type)     throw new LeaveError('Leave type not found or inactive', 'not_found');
 
   /**
    * A mandatory attachment means a FILE that was genuinely uploaded.
@@ -198,7 +196,7 @@ export async function submitRequest(
   if (type.requiresAttachment) {
     if (!input.attachmentKey) {
       throw new LeaveError(
-        `${type.name} wajib menyertakan lampiran, mis. surat dokter. Unggah berkasnya lebih dulu.`,
+        `${type.name} requires an attachment, e.g. a doctor's note. Upload the file first.`,
         'invalid_state',
       );
     }
@@ -218,14 +216,14 @@ export async function submitRequest(
     where: { id: input.employeeId, tenantId },
     select: { joinDate: true },
   });
-  if (!employee) throw new LeaveError('Karyawan tidak ditemukan', 'not_found');
+  if (!employee) throw new LeaveError('Employee not found', 'not_found');
 
   const monthsOfService =
     (input.startDate.getTime() - employee.joinDate.getTime()) / (30.44 * 86_400_000);
   if (monthsOfService < type.minServiceMonths) {
     throw new LeaveError(
-      `${type.name} baru dapat diambil setelah ${type.minServiceMonths} bulan masa kerja. ` +
-        `Saat tanggal cuti, masa kerja baru ${Math.floor(monthsOfService)} bulan.`,
+       `${type.name} can only be requested after ${type.minServiceMonths} months of service. ` +
+         `At the leave date, tenure is only ${Math.floor(monthsOfService)} months.`,
       'not_entitled',
     );
   }
@@ -254,7 +252,7 @@ export async function submitRequest(
   const workingDays = countWorkingDays(input.startDate, input.endDate, holidaySet, dayOffs);
   if (workingDays === 0) {
     throw new LeaveError(
-      'Rentang yang dipilih tidak memuat satu pun hari kerja — seluruhnya akhir pekan atau hari libur.',
+       'The selected range contains no working days — the entire range is weekend or holiday.',
       'invalid_state',
     );
   }
@@ -277,7 +275,7 @@ export async function submitRequest(
     // on a value that may already have changed.
     if (balance.availableDays < totalDays) {
       throw new LeaveError(
-        `Saldo ${type.name} tidak mencukupi: tersisa ${balance.availableDays} hari, diminta ${totalDays} hari.`,
+        `Insufficient ${type.name} balance: ${balance.availableDays} days available, ${totalDays} days requested.`,
         'insufficient_balance',
       );
     }
@@ -305,8 +303,8 @@ export async function submitRequest(
   const approverAccess = await resolveEffectiveAccess(tx, tenantId, input.approverId);
   if (!approverAccess.permissions.includes('leave.request.approve')) {
     throw new LeaveError(
-      'Penyetuju yang dipilih tidak memiliki wewenang menyetujui cuti. ' +
-        'Pilih dari daftar penyetuju yang tersedia.',
+    'The selected approver lacks authority to approve leave. ' +
+      'Choose from the available approvers.',
       'invalid_state',
     );
   }
@@ -342,7 +340,7 @@ export async function submitRequest(
       String(error).includes('excl_leave_overlap')
     ) {
       throw new LeaveError(
-        'Sudah ada pengajuan cuti Anda yang mencakup salah satu tanggal ini.',
+        'There is already a leave request covering one of these dates.',
         'overlap',
       );
     }
@@ -373,7 +371,7 @@ export async function submitRequest(
       days: -totalDays,
       referenceType: 'leave_request',
       referenceId: request.id,
-      note: `Ditahan untuk ${requestNumber}`,
+      note: `Held for ${requestNumber}`,
       actorUserId,
     });
   }
@@ -424,7 +422,7 @@ export async function decideRequest(
     where: { id: decision.requestId, tenantId },
     include: { leaveType: { select: { name: true, deductFromBalance: true } } },
   });
-  if (!request) throw new LeaveError('Pengajuan tidak ditemukan', 'not_found');
+  if (!request) throw new LeaveError('Request not found', 'not_found');
 
   /**
    * Who may decide.
@@ -466,8 +464,8 @@ export async function decideRequest(
 
   if (actorEmployee && actorEmployee.id === request.employeeId) {
     throw new LeaveError(
-      'Anda tidak dapat memutuskan pengajuan cuti Anda sendiri. ' +
-        'Tunjuk penyetuju lain saat mengajukan, atau minta HR yang memutuskan.',
+    'You cannot decide your own leave request. ' +
+      'Nominate a different approver when submitting, or have HR decide.',
       'forbidden',
     );
   }
@@ -488,7 +486,7 @@ export async function decideRequest(
   });
   if (fresh?.status !== 'PENDING') {
     throw new LeaveError(
-      `Pengajuan ini sudah ${fresh?.status === 'APPROVED' ? 'disetujui' : 'diputuskan'} sebelumnya.`,
+      `This request has already been ${fresh?.status === 'APPROVED' ? 'approved' : 'decided'} previously.`,
       'invalid_state',
     );
   }
@@ -514,7 +512,7 @@ export async function decideRequest(
         days: 0,
         referenceType: 'leave_request',
         referenceId: request.id,
-        note: `Disetujui: ${request.requestNumber}`,
+        note: `Approved: ${request.requestNumber}`,
         actorUserId,
       });
     } else {
@@ -531,7 +529,7 @@ export async function decideRequest(
         days: totalDays,
         referenceType: 'leave_request',
         referenceId: request.id,
-        note: `Ditolak: ${request.requestNumber}`,
+        note: `Rejected: ${request.requestNumber}`,
         actorUserId,
       });
     }
@@ -556,7 +554,7 @@ export async function decideRequest(
       // This comment is what a person reads when tracing a decision back; a
       // marker in another column is a marker its reader will never see.
       comment: menggantikan
-        ? `[diputuskan bukan oleh penyetuju yang ditunjuk] ${decision.comment}`
+        ? `[decided by someone other than the designated approver] ${decision.comment}`
         : decision.comment,
       decidedAt: now,
     },
@@ -615,12 +613,12 @@ export async function cancelRequest(
     where: { id: requestId, tenantId },
     include: { leaveType: { select: { deductFromBalance: true } } },
   });
-  if (!request) throw new LeaveError('Pengajuan tidak ditemukan', 'not_found');
+  if (!request) throw new LeaveError('Request not found', 'not_found');
   if (request.employeeId !== employeeId) {
-    throw new LeaveError('Hanya pengaju yang dapat membatalkan', 'forbidden');
+    throw new LeaveError('Only the requester can cancel', 'forbidden');
   }
   if (request.status !== 'PENDING') {
-    throw new LeaveError('Hanya pengajuan yang belum diputuskan dapat dibatalkan', 'invalid_state');
+    throw new LeaveError('Only requests not yet decided can be cancelled', 'invalid_state');
   }
 
   const totalDays = Number(request.totalDays);
@@ -647,7 +645,7 @@ export async function cancelRequest(
         days: totalDays,
         referenceType: 'leave_request',
         referenceId: request.id,
-        note: `Dibatalkan: ${request.requestNumber}`,
+        note: `Cancelled: ${request.requestNumber}`,
         actorUserId,
       });
     }

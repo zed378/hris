@@ -36,7 +36,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     // 404 rather than 405 for a known path with the wrong method. Distinguishing
     // them tells a scanner which paths exist, and nothing legitimate needs the
     // difference.
-    send(res, fail(404, ErrorCode.NOT_FOUND, 'Tidak ditemukan', ctx.correlationId), ctx.correlationId);
+    send(res, fail(404, ErrorCode.NOT_FOUND, 'Not found', ctx.correlationId), ctx.correlationId);
     return;
   }
 
@@ -63,7 +63,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     if (!expected || presented !== expected) {
       send(
         res,
-        fail(404, ErrorCode.NOT_FOUND, 'Tidak ditemukan', ctx.correlationId),
+        fail(404, ErrorCode.NOT_FOUND, 'Not found', ctx.correlationId),
         ctx.correlationId,
       );
       return;
@@ -83,7 +83,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
         fail(
           429,
           ErrorCode.RATE_LIMITED,
-          'Terlalu banyak permintaan. Coba lagi beberapa saat.',
+           'Too many requests. Try again in a moment.',
           ctx.correlationId,
         ),
         ctx.correlationId,
@@ -98,7 +98,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     log.error({ scope: 'auth-service', routeId: id, correlationId: ctx.correlationId, error });
     send(
       res,
-      fail(500, ErrorCode.INTERNAL, 'Terjadi kesalahan pada sistem', ctx.correlationId),
+      fail(500, ErrorCode.INTERNAL,        'A system error occurred', ctx.correlationId),
       ctx.correlationId,
     );
   }

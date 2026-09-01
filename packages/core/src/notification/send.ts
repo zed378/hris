@@ -210,7 +210,7 @@ export async function deliverNotification(
         return { plan, logId: log.id };
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          return { skipped: 'sudah pernah dikirim' };
+          return { skipped: 'already sent' };
         }
         throw error;
       }

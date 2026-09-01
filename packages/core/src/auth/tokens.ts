@@ -3,7 +3,7 @@ import { accessTokenClaimsSchema, type AccessTokenClaims } from '@hrms/contracts
 import { signJwt, verifyJwt, JwtVerificationError } from './jwt.ts';
 
 export const TENANT_AUDIENCE = 'hrms-tenant';
-/** Audience control plane. Sengaja tidak pernah diterima gateway tenant (P11). */
+/** Audience control plane. Intentionally never accepted by the tenant gateway (P11). */
 export const ADMIN_AUDIENCE = 'hrms-admin';
 
 function accessTtlSeconds(): number {
@@ -23,14 +23,16 @@ export interface AccessTokenInput {
 }
 
 /**
- * Token akses berumur 15 menit.
+ * Access token, 15-minute lifetime.
  *
- * Umur pendek adalah yang membuat pencabutan bekerja tanpa daftar-cabut
- * terpusat: seorang pengguna yang aksesnya dicabut kehilangan akses paling lama
- * satu TTL kemudian, tanpa gateway perlu memeriksa basis data pada tiap request.
+ * The short lifetime is what makes revocation work without a central
+ * blocklist: a user whose access has been revoked loses access at most
+ * one TTL later, without the gateway needing to check the database on each
+ * request.
  *
- * `av` (versi akses) mempersempitnya lebih jauh untuk perubahan permission —
- * gateway membandingkan versi di token dengan yang tercatat dan menolak yang basi.
+ * `av` (access version) narrows it further for permission changes —
+ * the gateway compares the version in the token against the one on record and
+ * rejects stale tokens.
  */
 export async function issueAccessToken(input: AccessTokenInput): Promise<string> {
   return signJwt(
@@ -59,11 +61,11 @@ export class TokenVerificationError extends Error {
 }
 
 /**
- * Memverifikasi token akses tenant.
+ * Verifies a tenant access token.
  *
- * `audience` diperiksa secara eksplisit. Inilah yang menegakkan pemisahan dua
- * bidang: token superuser (`hrms-admin`) gagal di sini, sehingga kredensial
- * control plane tidak pernah dapat dipakai pada endpoint data tenant.
+ * The `audience` is checked explicitly. This is what enforces separation of the
+ * two fields: superuser tokens (`hrms-admin`) fail here, so control plane
+ * credentials can never be used on tenant data endpoints.
  */
 export async function verifyAccessToken(token: string): Promise<AccessTokenClaims> {
   try {
@@ -74,21 +76,21 @@ export async function verifyAccessToken(token: string): Promise<AccessTokenClaim
     // the claims are not what this system issues, which is a token from
     // somewhere else rather than an expired one from here.
     if (error instanceof JwtVerificationError && error.reason === 'expired') {
-      throw new TokenVerificationError('Token akses kedaluwarsa', 'expired');
+      throw new TokenVerificationError('Access token expired', 'expired');
     }
-    throw new TokenVerificationError('Token akses tidak sah', 'invalid');
+    throw new TokenVerificationError('Invalid access token', 'invalid');
   }
 }
 
 /**
- * Refresh token adalah nilai acak, bukan JWT.
+ * Refresh token is a random value, not a JWT.
  *
- * Alasannya: refresh token harus dapat dicabut seketika, dan itu menuntut
- * pencarian ke basis data pada setiap pemakaian. Bila pencarian tetap diperlukan,
- * menandatanganinya sebagai JWT tidak menambah apa pun selain ukuran.
+ * The reason: a refresh token must be revocable instantly, which requires a
+ * database lookup on every use. If the lookup is needed anyway, signing it as a
+ * JWT adds nothing but size.
  *
- * Yang disimpan adalah SHA-256-nya. Basis data yang bocor tidak memberi penyerang
- * satu pun sesi yang dapat dipakai.
+ * What is stored is its SHA-256 hash. A leaked database gives an attacker not a
+ * single usable session.
  */
 export function generateRefreshToken(): { raw: string; hash: string } {
   const raw = randomBytes(48).toString('base64url');

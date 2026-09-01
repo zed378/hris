@@ -182,11 +182,11 @@ export async function uploadDocument(
     where: { id: input.employeeId, tenantId },
     select: { id: true },
   });
-  if (!employee) throw new DocumentError('Karyawan tidak ditemukan', 'not_found');
+  if (!employee) throw new DocumentError('Employee not found', 'not_found');
 
   if (input.content.length > MAX_DOCUMENT_BYTES) {
     throw new DocumentError(
-      `Ukuran berkas ${Math.round(input.content.length / 1024 / 1024)} MB melebihi batas ${MAX_DOCUMENT_BYTES / 1024 / 1024} MB.`,
+      `File size ${Math.round(input.content.length / 1024 / 1024)} MB exceeds the ${MAX_DOCUMENT_BYTES / 1024 / 1024} MB limit.`,
       'too_large',
     );
   }
@@ -196,8 +196,8 @@ export async function uploadDocument(
 
   if (!mimeType || !extension) {
     throw new DocumentError(
-      'Jenis berkas tidak diterima. Unggah PDF, JPG, PNG, atau WebP. ' +
-        'Berkas Word atau Excel harap disimpan sebagai PDF terlebih dahulu.',
+      'Unsupported file type. Upload PDF, JPG, PNG, or WebP. ' +
+        'Word or Excel files should be converted to PDF first.',
       'invalid_type',
     );
   }
@@ -250,8 +250,8 @@ export async function readDocument(
   const row = await tx.employeeDocument.findFirst({
     where: { id: documentId, tenantId },
   });
-  if (!row) throw new DocumentError('Dokumen tidak ditemukan', 'not_found');
-  if (row.archivedAt) throw new DocumentError('Dokumen sudah diarsipkan', 'archived');
+  if (!row) throw new DocumentError('Document not found', 'not_found');
+  if (row.archivedAt) throw new DocumentError('Document has been archived', 'archived');
 
   // An employee opening their own document is not logged. What this table exists
   // to answer is "who ELSE has opened it", and filling it with the owner's own
@@ -273,7 +273,7 @@ export async function readDocument(
   } catch (error) {
     if (error instanceof BlobError) {
       throw new DocumentError(
-        'Berkas dokumen ini tidak ditemukan di penyimpanan. Barisnya masih ada, tetapi isinya hilang.',
+        'This document file is missing from storage. The row still exists, but its contents are lost.',
         'not_found',
       );
     }
@@ -318,7 +318,7 @@ export async function archiveDocument(
     entityId: row.id,
     actorUserId,
     before: { employeeId: row.employeeId, title: row.title },
-    after: { berkasDihapus: outcome.removed, berkasSudahTidakAda: outcome.alreadyGone },
+    after: { fileDeleted: outcome.removed, fileAlreadyGone: outcome.alreadyGone },
     ip: ip ?? undefined,
   });
 }

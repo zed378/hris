@@ -89,11 +89,11 @@ export async function login(
     // Pay the same time cost as a real verification, so a latency difference does
     // not reveal which tenants exist.
     await burnTimingBudget(input.password);
-    throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Kredensial tidak sah');
+    throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Invalid credentials');
   }
 
   if (tenant.status === 'SUSPENDED' || tenant.status === 'CHURNED') {
-    throw new AuthError(ErrorCode.TENANT_SUSPENDED, 'Akun perusahaan sedang tidak aktif');
+    throw new AuthError(ErrorCode.TENANT_SUSPENDED, 'Company account is temporarily inactive');
   }
 
   const outcome = await withTenant(tenant.id, async (tx): Promise<LoginOutcome> => {
@@ -207,7 +207,7 @@ export async function login(
     case 'locked':
       throw new AuthError(
         ErrorCode.ACCOUNT_LOCKED,
-        'Akun terkunci sementara karena terlalu banyak percobaan gagal',
+        'Account temporarily locked due to too many failed attempts',
         outcome.retryAfterSeconds,
       );
 
@@ -217,10 +217,10 @@ export async function login(
       await withTenant(tenant.id, (tx) =>
         registerFailedAttempt(tx, tenant.id, outcome.userId, ctx),
       );
-      throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Kredensial tidak sah');
+      throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Invalid credentials');
 
     case 'rejected':
-      throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Kredensial tidak sah');
+      throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Invalid credentials');
   }
 }
 
@@ -302,7 +302,7 @@ export async function refresh(rawToken: string, ctx: LoginContext = {}): Promise
 
   const tenantId = found[0]?.tenant_id;
   if (!tenantId) {
-    throw new AuthError(ErrorCode.TOKEN_INVALID, 'Refresh token tidak sah');
+    throw new AuthError(ErrorCode.TOKEN_INVALID, 'Invalid refresh token');
   }
 
   const outcome = await withTenant(tenantId, async (tx): Promise<RefreshOutcome> => {
@@ -412,23 +412,23 @@ export async function refresh(rawToken: string, ctx: LoginContext = {}): Promise
       });
       throw new AuthError(
         ErrorCode.TOKEN_REUSE_DETECTED,
-        'Sesi dicabut karena terdeteksi pemakaian ulang token',
+        'Session revoked due to detected token reuse',
       );
 
     case 'tenant_suspended':
-      throw new AuthError(ErrorCode.TENANT_SUSPENDED, 'Akun perusahaan sedang tidak aktif');
+      throw new AuthError(ErrorCode.TENANT_SUSPENDED, 'Company account is temporarily inactive');
 
     case 'revoked':
       throw new AuthError(
         ErrorCode.TOKEN_EXPIRED,
-        'Sesi Anda telah berakhir. Silakan masuk kembali.',
+        'Your session has ended. Please sign in again.',
       );
 
     case 'expired':
-      throw new AuthError(ErrorCode.TOKEN_EXPIRED, 'Refresh token kedaluwarsa');
+      throw new AuthError(ErrorCode.TOKEN_EXPIRED, 'Refresh token expired');
 
     case 'invalid':
-      throw new AuthError(ErrorCode.TOKEN_INVALID, 'Refresh token tidak sah');
+      throw new AuthError(ErrorCode.TOKEN_INVALID, 'Invalid refresh token');
   }
 }
 

@@ -1,14 +1,14 @@
 /**
- * Templat email.
+ * Email templates.
  *
- * Teks biasa, bukan HTML. Tiga alasan, dan yang ketiga yang paling menentukan:
- * teks lolos filter spam lebih baik, terbaca di klien email apa pun, dan tidak
- * dapat menyembunyikan tautan di balik tulisan yang berbeda — yang justru ciri
- * khas email phishing yang meniru pemberitahuan HR.
+ * Plain text, not HTML. Three reasons, and the third is decisive:
+ * plain text filters better through spam filters, reads in any email client, and
+ * cannot hide a link behind different-looking text — which is precisely the hallmark
+ * of phishing emails that impersonate HR notifications.
  *
- * Nada tulisannya sengaja datar dan spesifik. Email dari sistem HR yang berbunyi
- * seperti materi pemasaran akan dilewatkan; yang menyebutkan nama, tanggal, dan
- * satu tindakan yang jelas akan dibaca.
+ * The tone is deliberately flat and specific. HR emails that sound like marketing
+ * material get skimmed; those that mention a name, a date, and one concrete action
+ * get read.
  */
 
 function appUrl(path: string): string {
@@ -30,23 +30,23 @@ export function passwordResetEmail(input: {
   const expires = formatDateTime(input.expiresAt);
 
   return {
-    subject: `Atur ulang kata sandi — ${input.tenantName}`,
+    subject: `Password reset — ${input.tenantName}`,
     text: [
-      `Halo ${input.fullName},`,
+      `Hello ${input.fullName},`,
       '',
-      `Kami menerima permintaan untuk mengatur ulang kata sandi akun Anda di ${input.tenantName}.`,
+      `We received a request to reset the password for your account on ${input.tenantName}.`,
       '',
-      'Buka tautan berikut untuk memasang kata sandi baru:',
+      'Open the following link to set a new password:',
       appUrl(`/reset-password?token=${input.token}`),
       '',
-      `Tautan ini berlaku sampai ${expires} dan hanya dapat dipakai satu kali.`,
+      `This link is valid until ${expires} and can be used only once.`,
       '',
-      // Kalimat ini yang membuat email reset kata sandi berguna sebagai sinyal
-      // keamanan: penerima yang tidak meminta apa pun kini tahu ada yang mencoba.
-      'Jika Anda tidak meminta ini, abaikan email ini — kata sandi Anda tidak berubah.',
-      'Namun bila ini berulang, beri tahu admin HR perusahaan Anda.',
+      // This is the line that makes a password reset email useful as a security
+      // signal: the recipient who did not request it now knows someone is trying.
+      'If you did not make this request, ignore this email — your password has not changed.',
+      'However, if this repeats, alert your company\'s HR department.',
       '',
-      'Setelah kata sandi diganti, seluruh sesi Anda di perangkat lain akan berakhir.',
+      'After the password is changed, all your sessions on other devices will end.',
     ].join('\n'),
   };
 }
@@ -59,43 +59,42 @@ export function invitationEmail(input: {
   expiresAt: string;
 }): RenderedEmail {
   return {
-    subject: `Undangan bergabung — ${input.tenantName}`,
+    subject: `Join invitation — ${input.tenantName}`,
     text: [
-      `Halo ${input.fullName},`,
+      `Hello ${input.fullName},`,
       '',
-      `Anda diundang untuk mengakses sistem HR ${input.tenantName}.`,
+      `You have been invited to access the HR system for ${input.tenantName}.`,
       '',
-      'Buka tautan berikut untuk memasang kata sandi Anda:',
+      'Open the following link to set your password:',
       appUrl(`/accept-invitation?token=${input.token}`),
       '',
-      `Tautan ini berlaku sampai ${formatDateTime(input.expiresAt)}.`,
+      `This link is valid until ${formatDateTime(input.expiresAt)}.`,
       '',
-      'Saat masuk nanti, Anda akan diminta tiga hal:',
-      `  Kode perusahaan : ${input.tenantCode}`,
-      '  Email           : alamat email ini',
-      '  Kata sandi      : yang Anda pasang lewat tautan di atas',
+      'When you sign in later, you will need three things:',
+      `  Company code  : ${input.tenantCode}`,
+      '  Email         : this email address',
+      '  Password      : that you set via the link above',
       '',
-      // Kode perusahaan adalah bagian yang paling sering membuat orang gagal
-      // masuk pada percobaan pertama. Menyebutkannya di sini menghemat satu
-      // tiket dukungan per pengguna baru.
-      'Simpan kode perusahaan tersebut — ia dibutuhkan setiap kali masuk.',
+      // The company code is what most people get wrong on the first login attempt.
+      // Stating it here saves one support ticket per new user.
+      'Save that company code — it is needed every time you sign in.',
     ].join('\n'),
   };
 }
 
 /**
- * Sisa hari yang SEBENARNYA, bukan label ambangnya.
+ * The actual remaining days, not the threshold label.
  *
- * Ambang D7 menangkap kontrak dengan sisa 0 sampai 7 hari. Menulis "berakhir
- * dalam 7 hari" untuk kontrak yang tersisa 5 hari membuat HR merencanakan dua
- * hari terlambat — dan pada modul yang seluruh nilainya adalah menyampaikan
- * tenggat yang benar, itu bukan ketidaktelitian kecil.
+ * A D7 threshold catches contracts with 0 to 7 days left. Writing "expires in
+ * 7 days" for a contract with 5 days left makes HR plan two days late — and on
+ * modules whose every value is about communicating the right deadline, that is
+ * not a minor inaccuracy.
  */
 function remainingText(daysLeft: number): string {
-  if (daysLeft < 0) return 'SUDAH BERAKHIR';
-  if (daysLeft === 0) return 'berakhir HARI INI';
-  if (daysLeft === 1) return 'berakhir BESOK';
-  return `berakhir dalam ${daysLeft} hari`;
+  if (daysLeft < 0) return 'EXPIRED';
+  if (daysLeft === 0) return 'expires TODAY';
+  if (daysLeft === 1) return 'expires TOMORROW';
+  return `expires in ${daysLeft} days`;
 }
 
 export function contractExpiringEmail(input: {
@@ -111,49 +110,49 @@ export function contractExpiringEmail(input: {
   const expired = input.threshold === 'EXPIRED';
 
   const subject = expired
-    ? `PERLU TINDAKAN: kontrak ${input.employeeName} sudah berakhir`
-    : `Kontrak ${input.employeeName} ${remainingText(input.daysLeft)}`;
+    ? `ACTION REQUIRED: contract for ${input.employeeName} has expired`
+    : `Contract for ${input.employeeName} ${remainingText(input.daysLeft)}`;
 
   const body = [
-    `Kontrak kerja berikut ${remainingText(input.daysLeft)}:`,
+    `The following employment contract ${remainingText(input.daysLeft)}:`,
     '',
-    `  Karyawan       : ${input.employeeName} (${input.employeeNumber})`,
-    `  Nomor kontrak  : ${input.contractNumber}`,
-    `  Jenis          : ${input.contractType}`,
-    `  Tanggal berakhir: ${formatDate(input.endDate)}`,
+    `  Employee        : ${input.employeeName} (${input.employeeNumber})`,
+    `  Contract number : ${input.contractNumber}`,
+    `  Type            : ${input.contractType}`,
+    `  Expiry date     : ${formatDate(input.endDate)}`,
     '',
   ];
 
   if (expired) {
-    // Peringatan ini yang membuat modul ini bernilai. PKWT yang lewat tidak
-    // sekadar "terlambat diperpanjang" — statusnya berubah demi hukum, dan
-    // perubahan itu tidak dapat dibatalkan.
+    // This warning is what makes the module worthwhile. A PKWT that is left
+    // expired does not merely "need renewal" — its legal status changes, and
+    // that change is irreversible.
     body.push(
-      `Kontrak ini berakhir ${Math.abs(input.daysLeft)} hari lalu dan belum ditindaklanjuti.`,
+      `This contract expired ${Math.abs(input.daysLeft)} days ago and has not been actioned.`,
       '',
-      'PKWT yang dibiarkan lewat tanpa perpanjangan atau pengakhiran resmi dapat',
-      'dianggap berubah menjadi PKWTT (karyawan tetap) demi hukum. Perubahan itu',
-      'tidak dapat dibatalkan. Segera hubungi bagian hukum atau HR senior Anda.',
+      'A PKWT left expired without renewal or formal closure may be deemed converted',
+      'to a permanent employee (PKWTT) by law. This conversion is irreversible.',
+      'Contact your legal department or senior HR immediately.',
     );
   } else {
     body.push(
-      'Tindakan yang perlu diputuskan: perpanjang, angkat menjadi karyawan tetap,',
-      'atau akhiri sesuai ketentuan. Keputusan perlu diambil sebelum tanggal di atas.',
+      'Action required: renew, convert to permanent employee, or close according',
+      'to the terms. A decision must be made before the date above.',
     );
   }
 
-  body.push('', 'Lihat daftar kontrak yang akan berakhir:', appUrl('/employees/contracts'));
+  body.push('', 'See contracts expiring soon:', appUrl('/employees/contracts'));
 
-  return { subject, text: [`Halo,`, '', ...body].join('\n') };
+  return { subject, text: [`Hello,`, '', ...body].join('\n') };
 }
 
 /**
- * Pengingat dokumen yang akan kedaluwarsa.
+ * Reminder for documents about to expire.
  *
- * Isinya berbeda menurut jenis dokumen, dan itu yang membuat email ini bernilai.
- * "Dokumen KITAS akan berakhir" tidak dapat ditindaklanjuti siapa pun yang
- * membacanya sambil lalu; "tenaga kerja asing bekerja tanpa izin adalah pidana
- * bagi perusahaan" dapat.
+ * Its content varies by document type, and that is what makes this email
+ * valuable. "KITAS document will expire" cannot be actioned by anyone reading it
+ * while walking past; "foreign workers working without a permit is a criminal
+ * offence against the company" can.
  */
 export function documentExpiringEmail(input: {
   tenantName: string;
@@ -168,16 +167,16 @@ export function documentExpiringEmail(input: {
   const expired = input.threshold === 'EXPIRED';
 
   const subject = expired
-    ? `PERLU TINDAKAN: ${input.kind} ${input.employeeName} sudah kedaluwarsa`
-    : `${input.kind} ${input.employeeName} ${remainingText(input.daysLeft)}`;
+    ? `ACTION REQUIRED: ${input.kind} for ${input.employeeName} has expired`
+    : `${input.kind} for ${input.employeeName} ${remainingText(input.daysLeft)}`;
 
   const body = [
-    `Dokumen berikut ${remainingText(input.daysLeft)}:`,
+    `The following document ${remainingText(input.daysLeft)}:`,
     '',
-    `  Karyawan        : ${input.employeeName} (${input.employeeNumber})`,
-    `  Jenis dokumen   : ${input.kind}`,
-    `  Judul           : ${input.title}`,
-    `  Berlaku sampai  : ${formatDate(input.expiresAt)}`,
+    `  Employee        : ${input.employeeName} (${input.employeeNumber})`,
+    `  Document type   : ${input.kind}`,
+    `  Title           : ${input.title}`,
+    `  Expires         : ${formatDate(input.expiresAt)}`,
     '',
   ];
 
@@ -186,42 +185,42 @@ export function documentExpiringEmail(input: {
 
   if (expired) {
     body.push(
-      `Dokumen ini kedaluwarsa ${Math.abs(input.daysLeft)} hari lalu dan belum diperbarui.`,
+      `This document expired ${Math.abs(input.daysLeft)} days ago and has not been updated.`,
     );
   } else {
-    body.push('Perpanjangan perlu dimulai sekarang — sebagian izin memakan waktu berminggu-minggu.');
+    body.push('Renewal should start now — some permits take weeks to process.');
   }
 
-  body.push('', 'Lihat dokumen karyawan:', appUrl('/employees/documents'));
+  body.push('', 'See employee documents:', appUrl('/employees/documents'));
 
-  return { subject, text: [`Halo,`, '', ...body].join('\n') };
+  return { subject, text: [`Hello,`, '', ...body].join('\n') };
 }
 
 /**
- * Akibat yang menunggu bila dokumen ini dibiarkan lewat.
+ * The consequence of letting this document expire.
  *
- * Hanya untuk jenis yang akibatnya konkret dan dapat dinyatakan tanpa menebak.
- * Jenis lain tidak diberi kalimat apa pun — peringatan yang dikarang untuk
- * setiap jenis dokumen akan membuat yang sungguhan ikut diabaikan.
+ * Only for types whose consequence is concrete and can be stated without guessing.
+ * Other types get no sentence — a warning fabricated for every type only makes
+ * the real ones ignored.
  */
 function consequenceText(kind: string): string | null {
   switch (kind.toUpperCase()) {
     case 'KITAS':
     case 'IMTA':
       return (
-        'KITAS/IMTA yang kedaluwarsa berarti tenaga kerja asing bekerja tanpa izin.\n' +
-        'Menurut UU 6/2011 tentang Keimigrasian, ini pidana bagi perusahaan dan dapat\n' +
-        'berujung deportasi bagi yang bersangkutan.'
+        'An expired KITAS/IMTA means a foreign worker is working without a permit.\n' +
+        'Under Indonesian Immigration Law No. 6/2011, this is a criminal offence\n' +
+        'against the company and may result in deportation for the individual.'
       );
     case 'SIM':
       return (
-        'SIM yang kedaluwarsa berarti mengemudi tanpa izin. Klaim asuransi kendaraan\n' +
-        'dapat ditolak pada kecelakaan pertama, dan tanggung jawabnya jatuh ke perusahaan.'
+        'An expired driver\'s licence means driving without a permit. Vehicle insurance\n' +
+        'claims can be denied on the first accident, and liability falls to the company.'
       );
     case 'SERTIFIKAT':
       return (
-        'Sertifikat kompetensi yang kedaluwarsa dapat membatalkan kelayakan pada\n' +
-        'pekerjaan yang mensyaratkannya.'
+        'An expired competency certificate can invalidate eligibility for\n' +
+        'work that requires it.'
       );
     default:
       return null;
@@ -231,8 +230,8 @@ function consequenceText(kind: string): string | null {
 function formatDate(iso: string): string {
   const [year, month, day] = iso.slice(0, 10).split('-');
   const months = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
   ];
   return `${Number(day)} ${months[Number(month) - 1]} ${year}`;
 }

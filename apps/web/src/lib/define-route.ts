@@ -117,12 +117,12 @@ function build(
   const rule: RouteRule | undefined = ROUTE_MANIFEST[routeId];
 
   if (!rule) {
-    throw new Error(`Route "${routeId}" tidak terdaftar di ROUTE_MANIFEST.`);
+    throw new Error(`Route "${routeId}" is not registered in ROUTE_MANIFEST.`);
   }
   if ((rule.public === true) !== declaredPublic) {
     throw new Error(
-      `Route "${routeId}": manifest menyatakan public=${rule.public === true}, ` +
-        `tetapi handler memakai ${declaredPublic ? 'definePublicRoute' : 'defineRoute'}.`,
+      `Route "${routeId}": manifest declares public=${rule.public === true}, ` +
+        `but the handler uses ${declaredPublic ? 'definePublicRoute' : 'defineRoute'}.`,
     );
   }
 
@@ -192,7 +192,7 @@ function build(
         return fail(
           429,
           ErrorCode.RATE_LIMITED,
-          'Terlalu banyak permintaan. Coba lagi beberapa saat.',
+           'Too many requests. Try again in a moment.',
           ctx.correlationId,
         );
       }
@@ -213,7 +213,7 @@ function build(
 
     const authorization = req.headers.get('authorization');
     if (!authorization?.startsWith('Bearer ')) {
-      return fail(401, ErrorCode.TOKEN_INVALID, 'Token akses tidak ada', ctx.correlationId);
+      return fail(401, ErrorCode.TOKEN_INVALID, 'Access token not found', ctx.correlationId);
     }
 
     const bearer = authorization.slice(7);
@@ -263,7 +263,7 @@ function build(
         const response = fail(
           AUTH_UNAVAILABLE_STATUS,
           ErrorCode.INTERNAL,
-          'Layanan autentikasi sedang tidak dapat dihubungi. Coba lagi sebentar lagi.',
+          'Auth service is not reachable. Try again shortly.',
           ctx.correlationId,
         );
         response.headers.set('retry-after', '5');
@@ -281,7 +281,7 @@ function build(
         return fail(
           403,
           ErrorCode.TENANT_MISMATCH,
-          'Header X-Tenant-ID tidak cocok dengan sesi',
+          'X-Tenant-ID header does not match the session',
           ctx.correlationId,
         );
       }
@@ -291,7 +291,7 @@ function build(
         const response = fail(
           429,
           ErrorCode.RATE_LIMITED,
-          `Permintaan dari organisasi Anda melebihi ${TENANT_QUOTA_MAX} per menit. ` +
+          `Your organization's requests have exceeded ${TENANT_QUOTA_MAX} per minute. ` +
             'Coba lagi sebentar lagi.',
           ctx.correlationId,
         );
@@ -345,11 +345,11 @@ function build(
         );
       } catch (error) {
         log.error({ scope: 'route', correlationId: ctx.correlationId, routeId, error });
-        return fail(500, ErrorCode.INTERNAL, 'Terjadi kesalahan pada sistem', ctx.correlationId);
-      }
-    }
+       return fail(500, ErrorCode.INTERNAL, 'A system error occurred', ctx.correlationId);
+     }
+   }
 
-    let claims;
+   let claims;
     try {
       claims = await verifyAccessToken(bearer);
     } catch (error) {
@@ -357,7 +357,7 @@ function build(
       return fail(
         401,
         expired ? ErrorCode.TOKEN_EXPIRED : ErrorCode.TOKEN_INVALID,
-        expired ? 'Token akses kedaluwarsa' : 'Token akses tidak sah',
+           expired ? 'Access token expired' : 'Invalid access token',
         ctx.correlationId,
       );
     }

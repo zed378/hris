@@ -166,6 +166,10 @@ export const ROUTE_MANIFEST = {
   // behalf, and that is the heart of the rule.
   // Dashboard scope is decided by permissions inside the handler, not by a
   // parameter. The manifest permission is therefore the basic one everyone holds.
+  // An API specification is a complete map of the system. Behind an
+  // administrator's permission, not an employee's — and not public, because
+  // there is no public API yet for which that trade would be worth making.
+  'GET /api/openapi.json': { module: 'core', permission: 'core.settings.manage' },
   'GET /api/dashboard': { module: 'core', permission: 'core.dashboard.view.own' },
   // Tenant-wide by construction: there is no per-employee version of "the
   // flagged ratio across the company".

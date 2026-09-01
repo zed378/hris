@@ -147,7 +147,7 @@ async function readRows(file: { name: string; buffer: Buffer }): Promise<unknown
       sheets = (await readXlsxFile(file.buffer)) as never;
     } catch {
       throw new DeviceImportError(
-        'Berkas .xlsx tidak dapat dibaca. Bila berkasnya .xls lama, simpan ulang sebagai .xlsx atau .csv.',
+        'File cannot be read. If it is an old .xls file, save it as .xlsx or .csv.',
         'invalid_file',
       );
     }
@@ -168,13 +168,13 @@ export async function importDevicePunches(
 
   if (rows.length < 2) {
     throw new DeviceImportError(
-      'Berkas kosong atau hanya berisi baris judul.',
+      'File is empty or contains only a header row.',
       'invalid_file',
     );
   }
   if (rows.length - 1 > MAX_ROWS) {
     throw new DeviceImportError(
-      `Berkas berisi ${rows.length - 1} baris; batasnya ${MAX_ROWS}. Ekspor per bulan, bukan per tahun.`,
+      `File contains ${rows.length - 1} rows; the limit is ${MAX_ROWS}. Export monthly, not annually.`,
       'too_large',
     );
   }
@@ -184,8 +184,8 @@ export async function importDevicePunches(
 
   if (mapping.missing.length > 0) {
     throw new DeviceImportError(
-      `Kolom yang tidak ditemukan: ${mapping.missing.join('; ')}. ` +
-        `Judul yang terbaca: ${headers.filter(Boolean).join(', ') || '(kosong)'}.`,
+      `Columns not found: ${mapping.missing.join('; ')}. ` +
+        `Headers read: ${headers.filter(Boolean).join(', ') || '(empty)'}.`,
       'no_columns',
     );
   }
@@ -201,7 +201,7 @@ export async function importDevicePunches(
 
     const employeeNumber = String(row[index.employeeNumber] ?? '').trim();
     if (employeeNumber === '') {
-      issues.push({ rowNumber, raw, reason: 'Nomor karyawan kosong' });
+      issues.push({ rowNumber, raw, reason: 'Empty employee number' });
       continue;
     }
 
@@ -211,7 +211,7 @@ export async function importDevicePunches(
         : parseWallClock(row[index.date], row[index.time]);
 
     if (!wallClock) {
-      issues.push({ rowNumber, raw, reason: 'Waktu tidak dapat dibaca' });
+      issues.push({ rowNumber, raw, reason: 'Time could not be parsed' });
       continue;
     }
 
@@ -251,7 +251,7 @@ export async function importDevicePunches(
       issues.push({
         rowNumber: punch.rowNumber,
         raw: punch.employeeNumber,
-        reason: `Nomor karyawan "${punch.employeeNumber}" tidak terdaftar`,
+         reason: `Employee number "${punch.employeeNumber}" is not registered`,
       });
     }
   }
@@ -291,7 +291,7 @@ export async function importDevicePunches(
         issues.push({
           rowNumber: punch.rowNumber,
           raw: punch.employeeNumber,
-          reason: error instanceof Error ? error.message : 'Gagal disimpan',
+          reason: error instanceof Error ? error.message : 'Failed to save',
         });
       }
     }

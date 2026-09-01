@@ -75,7 +75,6 @@ export interface EmployeeInput {
  * Not `Partial<EmployeeInput>`: with `exactOptionalPropertyTypes`, `Partial`
  * only marks a property as possibly absent, while an object parsed by Zod
  * carries properties that are present but `undefined`. This type accepts both.
- * keduanya.
  */
 export type EmployeeUpdate = {
   [K in keyof EmployeeInput]?: EmployeeInput[K] | undefined;
@@ -221,7 +220,7 @@ export async function getEmployee(
     },
   });
 
-  if (!row) throw new EmployeeError('Karyawan tidak ditemukan', 'not_found');
+  if (!row) throw new EmployeeError('Employee not found', 'not_found');
 
   return {
     id: row.id,
@@ -244,7 +243,7 @@ export async function getEmployee(
 function piiColumns(input: EmployeeInput) {
   const nationalId = preparePii(input.nationalId, maskNationalId, 'NIK');
   const taxId = preparePii(input.taxId, maskTaxId, 'NPWP');
-  const bankAccount = preparePii(input.bankAccount, maskBankAccount, 'nomor rekening');
+  const bankAccount = preparePii(input.bankAccount, maskBankAccount, 'bank account number');
 
   return {
     nationalIdEncrypted: nationalId.encrypted,
@@ -327,7 +326,7 @@ export async function updateEmployee(
     where: { id: employeeId, tenantId },
     select: { version: true, employeeNumber: true, fullName: true, status: true },
   });
-  if (!before) throw new EmployeeError('Karyawan tidak ditemukan', 'not_found');
+  if (!before) throw new EmployeeError('Employee not found', 'not_found');
 
   const piiTouched =
     input.nationalId !== undefined ||
@@ -351,7 +350,7 @@ export async function updateEmployee(
 
   if (updated.count === 0) {
     throw new EmployeeError(
-      'Data ini sudah diubah orang lain. Muat ulang sebelum menyimpan.',
+      'This data has been modified by someone else. Reload before saving.',
       'stale',
     );
   }

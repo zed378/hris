@@ -1,28 +1,27 @@
 /**
- * Mengunduh berkas dari endpoint yang butuh otentikasi.
+ * Downloads a file from an authenticated endpoint.
  *
- * Ada karena `<a href="/api/…/export">` tidak dapat bekerja di sini. Peramban
- * mengikuti tautan dengan permintaan biasa yang tidak membawa header
- * `Authorization`, dan seluruh API di aplikasi ini menuntut token Bearer —
- * sehingga tautan unduh yang terlihat wajar selalu menghasilkan 401, dan
- * kegagalannya muncul sebagai berkas rusak atau halaman kosong, bukan sebagai
- * pesan yang dapat dipahami.
+ * Exists because `<a href="/api/…/export">` cannot work here. The browser follows
+ * the link with a plain request that does not carry the `Authorization` header, and
+ * every API in this app demands a Bearer token — so an export link that looks
+ * correct always yields 401, and the failure appears as a corrupt file or a blank
+ * page rather than a readable message.
  *
- * Ada manfaat kedua yang sama pentingnya: karena responsnya lewat `fetch`,
- * header dapat dibaca. Ekspor karyawan mengembalikan `x-export-truncated` ketika
- * hasilnya melebihi batas baris, dan tanpa jalur ini tidak ada satu pun tempat
- * yang dapat memberi tahu penggunanya — ia mengunduh berkas yang tampak lengkap.
+ * Equally important: because the response comes through `fetch`, its headers can
+ * be read. The employee export returns `x-export-truncated` when the result exceeds
+ * the row cap, and without this path there is nowhere to surface that to the user
+ * — they download a file that appears complete.
  */
 
 export interface DownloadOutcome {
   ok: boolean;
   /** Nama berkas yang benar-benar disimpan. */
   fileName: string;
-  /** True bila server memotong hasilnya karena melebihi batas. */
+  /** True if the server truncated its result for exceeding the row limit. */
   truncated: boolean;
-  /** Jumlah baris yang disertakan, bila server menyebutkannya. */
+  /** Number of rows included, if the server reports it. */
   rows: number | null;
-  /** Pesan untuk ditampilkan bila gagal. */
+  /** Message to display if the download failed. */
   error: string | null;
 }
 
@@ -41,7 +40,7 @@ export async function downloadFile(
 
   const response = await api(path).catch(() => null);
   if (!response) {
-    return { ...empty, ok: false, error: 'Tidak dapat menghubungi server.' };
+    return { ...empty, ok: false, error: 'Could not reach the server.' };
   }
 
   if (!response.ok) {
@@ -51,16 +50,16 @@ export async function downloadFile(
     return {
       ...empty,
       ok: false,
-      error: json?.error?.message ?? `Unduhan gagal (HTTP ${response.status}).`,
+       error: json?.error?.message ?? `Download failed (HTTP ${response.status}).`,
     };
   }
 
   const blob = await response.blob();
   const fileName = fileNameFrom(response.headers.get('content-disposition'), fallbackName);
 
-  // Objek URL dicabut setelah klik dijalankan. Tanpa itu, berkas ekspor tetap
-  // tertahan di memori tab sampai halamannya ditutup — dan berkas ekspor
-  // karyawan berisi data pribadi.
+  // The object URL is revoked after the click fires. Without this, export files
+  // remain held in tab memory until the page closes — and employee exports
+  // contain personal data.
   const url = URL.createObjectURL(blob);
   try {
     const anchor = document.createElement('a');
@@ -70,8 +69,8 @@ export async function downloadFile(
     anchor.click();
     anchor.remove();
   } finally {
-    // Jeda singkat: sebagian peramban membatalkan unduhan bila URL-nya dicabut
-    // pada saat yang sama dengan kliknya.
+    // Brief pause: some browsers cancel the download if the URL is revoked at the
+    // same instant as the click.
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
@@ -87,17 +86,17 @@ export async function downloadFile(
 }
 
 /**
- * Membuka berkas dari endpoint berotentikasi di tab baru.
+ * Opens a file from an authenticated endpoint in a new tab.
  *
- * `window.open('/api/…')` mengalami persis masalah yang sama dengan
- * `<a href>`: peramban membuka URL itu dengan permintaan tanpa header
- * `Authorization`, dan yang muncul di tab baru adalah JSON 401 — bukan
- * dokumennya.
+ * `window.open('/api/…')` suffers from exactly the same problem as
+ * `<a href>`: the browser opens the URL with a request that carries no
+ * `Authorization` header, and what appears in the new tab is a 401 JSON error —
+ * not the document.
  *
- * Tab dibuka LEBIH DULU, sebelum `await`, lalu diarahkan setelah berkasnya
- * siap. Peramban memblokir `window.open` yang dipanggil setelah await karena
- * ia tidak lagi terhubung ke klik penggunanya, dan pemblokiran itu muncul
- * sebagai "tidak terjadi apa-apa" tanpa satu pun pesan.
+ * The tab is opened FIRST, before `await`, then navigated after the file is
+ * ready. Browsers block `window.open` called after an await because it is no
+ * longer tied to the user's click, and that blockage appears as "nothing
+ * happened" with no error message at all.
  */
 export async function openFile(
   api: (path: string, init?: RequestInit) => Promise<Response>,
@@ -111,20 +110,20 @@ export async function openFile(
     const json = (await response?.json().catch(() => null)) as {
       error?: { message?: string };
     } | null;
-    return { ok: false, error: json?.error?.message ?? 'Berkas tidak dapat dibuka.' };
+    return { ok: false, error: json?.error?.message ?? 'File could not be opened.' };
   }
 
   const url = URL.createObjectURL(await response.blob());
   if (tab) {
     tab.location.href = url;
   } else {
-    // Pemblokir popup menutup jalur di atas. Membuka di tab ini lebih baik
-    // daripada gagal diam-diam.
+    // The popup blocker is the path that closes the one above. Opening in this
+    // tab is better than failing silently.
     window.location.href = url;
   }
 
-  // Objek URL dicabut setelah tabnya sempat memuatnya. Dokumen identitas tidak
-  // dibiarkan tertahan di memori halaman ini lebih lama dari perlunya.
+  // The object URL is revoked after the tab has had time to load it. Identity
+  // documents are not left held in this page's memory longer than necessary.
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
   return { ok: true, error: null };
 }

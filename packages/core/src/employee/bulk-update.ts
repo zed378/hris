@@ -3,30 +3,31 @@ import { updateEmployee, EmployeeError, type ActorContext } from './employees.ts
 import { MaskedValueError, InvalidIdentifierError } from './pii.ts';
 
 /**
- * Penyuntingan massal dari grid ala Excel (PLAN/12 F2, risiko R6).
+ * Mass editing from an Excel-like grid (PLAN/12 F2, risk R6).
  *
- * Risiko R6 menyatakannya terus terang: adopsi gagal bila UI terasa lebih rumit
- * daripada Excel. HR yang sekarang mengubah lima puluh departemen dengan satu
- * tempel di spreadsheet tidak akan pindah ke sistem yang menuntut lima puluh
- * formulir — dan tidak ada pelatihan yang mengubah itu.
+ * Risk R6 says it plainly: adoption fails if the UI feels more complex than
+ * Excel. HR who now change fifty departments with one paste in a spreadsheet
+ * will not move to a system that demands fifty forms — and no training changes
+ * that.
  *
- * Yang membuat berkas ini tidak sekadar perulangan atas `updateEmployee`:
+ * What makes this file not just a loop over `updateEmployee`:
  *
- * **Keberhasilan sebagian dilaporkan, bukan digagalkan seluruhnya.** Satu sel
- * salah di baris ke-37 tidak boleh membuang tiga puluh enam baris yang sudah
- * benar. Orang yang baru menempel dua ratus baris dari Excel tidak punya cara
- * mengulanginya, dan penolakan menyeluruh akan mendorongnya kembali ke Excel —
- * yaitu kegagalan yang justru hendak dicegah.
+ * **Partial success is reported, not all-or-nothing.** One wrong cell on row 37
+ * must not discard the 36 rows that were already correct. Someone who just
+ * pasted two hundred rows from Excel has no way to repeat it, and an all-or-
+ * nothing rejection would push them back to Excel — the very failure this
+ * exists to prevent.
  *
- * Karena itu setiap baris ditulis dalam transaksinya sendiri. Yang hilang adalah
- * atomisitas seluruh operasi; yang didapat adalah pekerjaan orang tidak lenyap.
- * Pertukaran itu benar di sini karena tidak ada invarian lintas baris pada data
- * karyawan — mengubah departemen satu orang tidak bergantung pada yang lain.
+ * For this reason each row runs in its own transaction. What is lost is the
+ * atomicity of the whole operation; what is gained is that nobody's work
+ * disappears. That trade is correct here because there is no invariant across
+ * rows in employee data — changing one person's department does not depend on
+ * what happens to another.
  */
 
 export interface BulkChange {
   id: string;
-  /** Versi baris yang dilihat pengguna saat menyunting. Penjaga penulisan hilang. */
+  /** Version of the row the user saw when editing. Optimistic lock token. */
   version: number;
   fields: {
     employeeNumber?: string | undefined;
@@ -45,7 +46,7 @@ export interface BulkChange {
 export interface BulkRowResult {
   id: string;
   ok: boolean;
-  /** Versi baru bila berhasil, supaya grid dapat menyunting lagi tanpa memuat ulang. */
+  /** New version if successful, so the grid can edit again without reloading. */
   version: number | null;
   error: string | null;
 }
@@ -57,18 +58,18 @@ export interface BulkUpdateResult {
 }
 
 /**
- * Batas jumlah baris per permintaan.
+ * The row limit per request.
  *
- * Tempelan dari Excel bisa sebesar apa pun, dan permintaan yang menyimpan lima
- * ribu baris akan menahan satu koneksi basis data selama menit-menit sementara
- * penggunanya menatap layar yang tidak bergerak. Klien memecahnya menjadi
- * beberapa permintaan; batas ini yang membuat pemecahan itu wajib.
+ * Pastes from Excel can be any size, and a request saving five thousand rows
+ * would hold a database connection for minutes while the user stares at a
+ * screen that does not move. The client splits it into multiple requests; this
+ * limit is what makes that split mandatory.
  */
 export const MAX_BULK_ROWS = 200;
 
 export class BulkTooLargeError extends Error {
   constructor(readonly received: number) {
-    super(`Terlalu banyak baris sekaligus: ${received}. Batasnya ${MAX_BULK_ROWS}.`);
+    super(`Too many rows at once: ${received}. The limit is ${MAX_BULK_ROWS}.`);
     this.name = 'BulkTooLargeError';
   }
 }
@@ -84,10 +85,10 @@ export async function bulkUpdateEmployees(
   const rows: BulkRowResult[] = [];
 
   for (const change of changes) {
-    // Baris tanpa perubahan dilewati tanpa menyentuh basis data. Grid mengirim
-    // apa yang ditempel, dan tempelan hampir selalu memuat kolom yang nilainya
-    // sama — menaikkan `version` untuk itu akan membuat penyuntingan berikutnya
-    // ditolak sebagai "sudah diubah orang lain" tanpa ada yang mengubahnya.
+    // Rows with no changes are skipped without touching the database. The grid sends
+    // what was pasted, and a paste almost always loads columns whose values are
+    // the same — bumping `version` for those would make the next edit fail as
+    // "changed by someone else" with nobody having changed anything.
     if (Object.keys(change.fields).length === 0) {
       rows.push({ id: change.id, ok: true, version: change.version, error: null });
       continue;
@@ -109,8 +110,8 @@ export async function bulkUpdateEmployees(
           error instanceof InvalidIdentifierError
             ? error.message
             : error instanceof Error && error.message.includes('Unique constraint')
-              ? 'Nomor karyawan sudah dipakai orang lain'
-              : 'Baris ini gagal disimpan',
+              ? 'Employee number already used by another person'
+              : 'This row failed to save',
       });
     }
   }

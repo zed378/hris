@@ -81,7 +81,7 @@ export const ROUTES: Record<string, RouteRule> = {
         return fail(
           400,
           ErrorCode.VALIDATION_FAILED,
-          'Data login tidak lengkap atau tidak sah',
+          'Incomplete or invalid login data',
           ctx.correlationId,
           parsed.error.flatten().fieldErrors as Record<string, string[]>,
         );
@@ -118,7 +118,7 @@ export const ROUTES: Record<string, RouteRule> = {
     handler: async (req, ctx) => {
       const token = readRefreshCookie(req);
       if (!token) {
-        return fail(401, ErrorCode.TOKEN_INVALID, 'Tidak ada sesi', ctx.correlationId);
+        return fail(401, ErrorCode.TOKEN_INVALID, 'No session', ctx.correlationId);
       }
 
       try {
@@ -176,7 +176,7 @@ export const ROUTES: Record<string, RouteRule> = {
         return fail(
           400,
           ErrorCode.VALIDATION_FAILED,
-          'Data tidak lengkap atau kata sandi kurang dari 12 karakter',
+           'Incomplete data or password must be at least 12 characters',
           ctx.correlationId,
           parsed.error.flatten().fieldErrors as Record<string, string[]>,
         );
@@ -203,7 +203,7 @@ export const ROUTES: Record<string, RouteRule> = {
         return fail(
           400,
           ErrorCode.VALIDATION_FAILED,
-          'Kata sandi minimal 12 karakter',
+           'Password must be at least 12 characters',
           ctx.correlationId,
         );
       }
@@ -266,7 +266,7 @@ export const ROUTES: Record<string, RouteRule> = {
 
       const parsed = schema.safeParse(await readJson(req));
       if (!parsed.success) {
-        return fail(400, ErrorCode.VALIDATION_FAILED, 'Permintaan tidak sah', ctx.correlationId);
+        return fail(400, ErrorCode.VALIDATION_FAILED, 'Invalid request', ctx.correlationId);
       }
 
       const { verifyAccessToken, TokenVerificationError } = await import('@hrms/core/auth');
@@ -280,7 +280,7 @@ export const ROUTES: Record<string, RouteRule> = {
         return fail(
           401,
           expired ? ErrorCode.TOKEN_EXPIRED : ErrorCode.TOKEN_INVALID,
-          expired ? 'Token akses kedaluwarsa' : 'Token akses tidak sah',
+           expired ? 'Access token expired' : 'Invalid access token',
           ctx.correlationId,
         );
       }

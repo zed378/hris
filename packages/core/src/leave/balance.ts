@@ -163,7 +163,7 @@ export async function readBalances(
     select: { id: true, code: true, name: true, defaultQuotaDays: true, accrualMethod: true },
   });
 
-  const belum: BalanceView[] = [];
+  const withoutRow: BalanceView[] = [];
   for (const type of types) {
     if (withRow.has(type.id)) continue;
 
@@ -175,7 +175,7 @@ export async function readBalances(
       asOf,
     });
 
-    belum.push({
+    withoutRow.push({
       // No row yet, so no id. An empty string is chosen over a fake id: a caller
       // that uses it to move a balance fails immediately rather than writing
       // into somebody else's row.
@@ -195,7 +195,7 @@ export async function readBalances(
     });
   }
 
-  return [...existing, ...belum].sort((a, b) => a.leaveTypeCode.localeCompare(b.leaveTypeCode));
+  return [...existing, ...withoutRow].sort((a, b) => a.leaveTypeCode.localeCompare(b.leaveTypeCode));
 }
 
 /**
@@ -298,13 +298,13 @@ export async function ensureBalance(
     where: { id: leaveTypeId, tenantId },
     select: { defaultQuotaDays: true, accrualMethod: true },
   });
-  if (!type) throw new LeaveError('Jenis cuti tidak ditemukan', 'not_found');
+  if (!type)     throw new LeaveError('Leave type not found', 'not_found');
 
   const employee = await tx.employee.findFirst({
     where: { id: employeeId, tenantId },
     select: { joinDate: true },
   });
-  if (!employee) throw new LeaveError('Karyawan tidak ditemukan', 'not_found');
+  if (!employee) throw new LeaveError('Employee not found', 'not_found');
 
   const method = type.accrualMethod as AccrualMethod;
   const target = entitlementAsOf({
@@ -344,18 +344,18 @@ export async function ensureBalance(
   }
 
   const balance = await lockBalance(tx, tenantId, employeeId, leaveTypeId, periodYear);
-  if (!balance) throw new LeaveError('Saldo gagal dibuat', 'not_found');
+  if (!balance) throw new LeaveError('Balance creation failed', 'not_found');
   return balance;
 }
 
 function grantNote(method: AccrualMethod, periodYear: number, days: number): string {
   switch (method) {
     case 'MONTHLY_ACCRUAL':
-      return `Akrual bulanan ${periodYear} — ${days} hari terkumpul`;
+      return `Monthly accrual ${periodYear} — ${days} days earned`;
     case 'ANNIVERSARY':
-      return `Jatah ulang tahun masa kerja ${periodYear}`;
+      return `Service anniversary allowance ${periodYear}`;
     default:
-      return `Jatah tahunan ${periodYear}`;
+      return `Annual allowance ${periodYear}`;
   }
 }
 
@@ -396,8 +396,8 @@ async function reconcileEntitlement(
     days: Number(delta),
     note:
       method === 'ANNIVERSARY'
-        ? `Jatah lahir pada ulang tahun masa kerja — ${Number(target)} hari`
-        : `Akrual bulanan — bertambah ${Number(delta)} hari, total ${Number(target)}`,
+        ? `Anniversary entitlement — ${Number(target)} days`
+        : `Monthly accrual — increased by ${Number(delta)} days, total ${Number(target)}`,
     ...(actorUserId ? { actorUserId } : {}),
   });
 
@@ -430,7 +430,7 @@ export async function adjustBalance(
 
   if (balance.availableDays + input.days < 0) {
     throw new LeaveError(
-      `Penyesuaian ${input.days} hari akan membuat saldo minus. Tersedia ${balance.availableDays} hari.`,
+      `Adjustment of ${input.days} days would make the balance negative. Available: ${balance.availableDays} days.`,
       'insufficient_balance',
     );
   }
@@ -577,7 +577,7 @@ export async function runCarryOver(
         balanceId: row.id,
         entryType: 'EXPIRE',
         days: -expired,
-        note: `Hangus pada penutupan tahun ${fromYear} (batas bawa ${maxCarry} hari)`,
+        note: `Expired on year close ${fromYear} (default carry limit ${maxCarry} days)`,
         ...(actorUserId ? { actorUserId } : {}),
       });
       result.expired += expired;
@@ -604,7 +604,7 @@ export async function runCarryOver(
         balanceId: next.id,
         entryType: 'GRANT',
         days: carried,
-        note: `Sisa cuti ${fromYear} yang dibawa ke ${fromYear + 1}`,
+        note: `Leave balance carried over from ${fromYear} to ${fromYear + 1}`,
         ...(actorUserId ? { actorUserId } : {}),
       });
 
@@ -716,8 +716,8 @@ export async function runAccrual(
       days: Number(delta),
       note:
         row.accrual_method === 'ANNIVERSARY'
-          ? `Jatah lahir pada ulang tahun masa kerja — ${Number(target)} hari`
-          : `Akrual bulanan — bertambah ${Number(delta)} hari, total ${Number(target)}`,
+          ? `Anniversary entitlement — ${Number(target)} days`
+          : `Monthly accrual — increased by ${Number(delta)} days, total ${Number(target)}`,
       ...(actorUserId ? { actorUserId } : {}),
     });
 

@@ -3,28 +3,27 @@ import { withTenant, workerClient } from '@hrms/db';
 import { sendPush } from '@hrms/core/notification';
 
 /**
- * Memberi tahu karyawan bahwa cutinya sudah diputuskan.
+ * Notifies an employee that their leave has been decided.
  *
- * Ini notifikasi yang paling ditunggu di seluruh sistem: seseorang mengajukan
- * cuti, lalu memeriksa layar berulang kali sampai ada jawabannya. Sebelum ini
- * kedua topiknya di-`drain` — dicatat lalu dibuang — sehingga jawabannya hanya
- * terlihat oleh yang membuka aplikasinya sendiri.
+ * This is the most awaited notification in the whole system: someone applies
+ * for leave, then checks the screen repeatedly until there is an answer. Before
+ * this, both topics were drained — recorded then discarded — so the answer was
+ * visible only to whoever opened the app themselves.
  *
- * ## Isinya sengaja tipis
+ * ## Content is deliberately thin
  *
- * Judul dan satu baris: keputusannya, jenis cutinya, tanggalnya. **Tidak ada
- * alasan pengajuan, tidak ada komentar penyetuju.** Notifikasi muncul di layar
- * terkunci yang dapat dilihat siapa pun yang kebetulan berada di dekat
- * perangkat itu, dan enkripsi push tidak menolong di sana — "cuti sakit Anda
- * ditolak karena surat dokternya tidak sah" adalah kalimat yang tidak
- * seharusnya terbaca orang lain di angkutan umum.
+ * Title and one line: the decision, the leave type, the dates. **No reason for
+ * the request, no approver comment.** The notification appears on a locked
+ * screen that anyone nearby can see, and push encryption does nothing there —
+ * "your sick leave was rejected because the doctor's note was invalid" is a
+ * sentence that should not be readable by others on public transport.
  *
- * ## Push adalah tambahan, bukan pengganti
+ * ## Push is supplementary, not a replacement
  *
- * Web Push tidak berfungsi di iOS kecuali PWA sudah dipasang ke Layar Utama
- * (dokumen 04 §R52), dan sebagian besar pengguna tidak memasangnya. Karena itu
- * kegagalan di sini **tidak dianggap kegagalan pemberitahuan** — layar cuti
- * tetap menampilkan keputusannya, dan itulah jalur yang dijamin.
+ * Web Push does not work on iOS unless a PWA is installed on the Home Screen
+ * (document 04 §R52), and most users do not install it. So a failure here is
+ * **not treated as a notification failure** — the leave screen still shows the
+ * decision, and that is the guaranteed channel.
  */
 
 export interface LeaveNotifyPayload {
@@ -47,10 +46,9 @@ export async function notifyLeaveDecision(
   return withTenant(
     tenantId,
     async (tx) => {
-      // Karyawan → pengguna lewat email, referensi lunak yang sama dengan yang
-      // dipakai presensi (PLAN/01 §4.2). Karyawan tanpa akun tidak menerima
-      // push, dan itu keadaan normal — ia melihat keputusannya saat HR
-      // memberitahunya, seperti sebelum ada sistem ini.
+      // Employee → user via email, the same link used by attendance (PLAN/01 §4.2).
+      // An employee without an account does not receive push, and that is normal —
+      // they see the decision when HR tells them, as before this system existed.
       const employee = await tx.employee.findFirst({
         where: { id: employeeId, tenantId },
         select: { email: true },
@@ -63,16 +61,16 @@ export async function notifyLeaveDecision(
       });
       if (!user) return { sent: 0, pruned: 0 };
 
-      const tanggal =
+      const dateRange =
         payload.startDate === payload.endDate
           ? payload.startDate
-          : `${payload.startDate} s.d. ${payload.endDate}`;
+          : `${payload.startDate} to ${payload.endDate}`;
 
       const result = await sendPush(tx, tenantId, user.id, {
-        title: approved ? 'Cuti Anda disetujui' : 'Cuti Anda ditolak',
-        body: `${tanggal} · ${payload.totalDays ?? 0} hari`,
-        // Ber-tag pengajuan: percobaan kedua untuk keputusan yang SAMA menimpa
-        // notifikasi pertama alih-alih menumpuk di atasnya.
+        title: approved ? 'Your leave has been approved' : 'Your leave has been rejected',
+        body: `${dateRange} · ${payload.totalDays ?? 0} days`,
+        // Tagged by request: a second attempt for the SAME decision overrides
+        // the first notification instead of stacking above it.
         tag: `leave:${payload.requestId ?? 'x'}`,
         url: '/leave/me',
       });
@@ -81,7 +79,7 @@ export async function notifyLeaveDecision(
     },
     { client: workerClient() },
   ).catch((error: unknown) => {
-    // Kegagalan push bukan kegagalan pemberitahuan. Dicatat, lalu dilupakan.
+    // Push failure is not a notification failure. Logged, then forgotten.
     log.warn({ scope: 'leave-notify', tenantId, employeeId, error });
     return { sent: 0, pruned: 0 };
   });

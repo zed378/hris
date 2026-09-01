@@ -1,19 +1,19 @@
 'use client';
 
 /**
- * Pengambilan dan kompresi foto swafoto presensi (dokumen 10 §4.2).
+ * Capturing and compressing selfie photos for attendance (document 10 §4.2).
  *
- * Kompresi dilakukan di perangkat, bukan di server. Foto mentah dari kamera
- * ponsel modern berukuran 3–8 MB; mengirimkannya lewat jaringan seluler di
- * kawasan industri berarti presensi yang gagal karena timeout, atau kuota
- * karyawan yang habis untuk sesuatu yang seharusnya tidak terasa.
+ * Compression is done on the device, not on the server. Raw photos from modern
+ * phone cameras are 3–8 MB; sending them over mobile networks in industrial
+ * areas means attendance that fails on timeout, or employee data quotas spent on
+ * something that should be invisible.
  *
- * Efek samping yang menguntungkan: menggambar ulang ke canvas membuang seluruh
- * metadata, termasuk EXIF berisi koordinat GPS. Server tetap membuangnya lagi —
- * apa yang dikirim klien tidak pernah menjadi dasar jaminan privasi.
+ * A beneficial side effect: drawing to canvas discards all metadata, including
+ * EXIF GPS coordinates. The server still strips them again — what the client
+ * sends is never the basis for a privacy guarantee.
  */
 
-/** Sisi terpanjang setelah pengubahan ukuran. Cukup untuk mengenali wajah. */
+/** The longest side after resizing. Small enough to recognise a face. */
 const MAX_DIMENSION = 800;
 const JPEG_QUALITY = 0.7;
 
@@ -28,15 +28,15 @@ export class CaptureError extends Error {
 }
 
 /**
- * Mengubah ukuran dan mengompresi berkas gambar menjadi JPEG.
+ * Resizes and compresses an image file to JPEG.
  *
- * Memakai `createImageBitmap` yang menghormati orientasi EXIF sebelum metadata
- * itu dibuang — tanpanya, foto dari sebagian ponsel tersimpan terbalik 90 derajat
- * dan HR meninjau antrean berisi wajah menyamping.
+ * Uses `createImageBitmap` which honours EXIF orientation before the metadata is
+ * discarded — without it, photos from some phones are stored rotated 90 degrees
+ * and HR reviews a queue of sideways faces.
  */
 export async function compressImage(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => {
-    throw new CaptureError('Gambar tidak dapat dibaca', 'failed');
+    throw new CaptureError('Image could not be read', 'failed');
   });
 
   const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
@@ -48,7 +48,7 @@ export async function compressImage(file: File): Promise<Blob> {
   canvas.height = height;
 
   const context = canvas.getContext('2d');
-  if (!context) throw new CaptureError('Perangkat tidak mendukung pemrosesan gambar', 'unavailable');
+  if (!context) throw new CaptureError('Device does not support image processing', 'unavailable');
 
   context.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
@@ -58,7 +58,7 @@ export async function compressImage(file: File): Promise<Blob> {
       (blob) =>
         blob
           ? resolve(blob)
-          : reject(new CaptureError('Gagal mengompresi foto', 'failed')),
+          :           reject(new CaptureError('Photo compression failed', 'failed')),
       'image/jpeg',
       JPEG_QUALITY,
     );
@@ -66,18 +66,16 @@ export async function compressImage(file: File): Promise<Blob> {
 }
 
 /**
- * Membuka kamera lewat input berkas, bukan `getUserMedia`.
+ * Opens the camera via a file input, not `getUserMedia`.
  *
- * `capture="user"` membuka kamera depan langsung di ponsel, dan di desktop ia
- * jatuh ke pemilih berkas biasa. `getUserMedia` memberi pratinjau langsung yang
- * lebih baik, tetapi menuntut izin kamera yang bertahan, penanganan orientasi
- * sendiri, dan pembersihan stream — kompleksitas yang tidak sebanding untuk satu
- * foto per ketukan.
+ * `capture="user"` opens the front camera on phones, and on desktop falls back to
+ * the ordinary file picker. `getUserMedia` offers a live preview, but demands a
+ * persistent camera permission, its own orientation handling, and stream cleanup —
+ * complexity disproportionate for one photo per click.
  *
- * Batas yang perlu diketahui: input berkas mengizinkan pengguna memilih foto
- * dari galeri alih-alih memotret. Itu tidak dapat dicegah di web sama sekali,
- * dan justru alasan presensi peramban selalu mendapat penalti kepercayaan
- * (dokumen 10 §1.1).
+ * A known limit: the file input lets the user pick from their gallery instead of
+ * taking a new photo. This cannot be prevented on the web, and is exactly why
+ * browser-based attendance always carries a trust penalty (document 10 §1.1).
  */
 export function openCamera(): Promise<File> {
   return new Promise((resolve, reject) => {
@@ -89,12 +87,12 @@ export function openCamera(): Promise<File> {
     input.onchange = () => {
       const file = input.files?.[0];
       if (file) resolve(file);
-      else reject(new CaptureError('Tidak ada foto yang dipilih', 'failed'));
+      else reject(new CaptureError('No photo selected', 'failed'));
     };
 
-    // Peramban tidak memberi tahu bila dialog ditutup tanpa memilih. Yang terjadi
-    // hanyalah promise yang tidak pernah selesai — jadi pemanggil harus tetap
-    // dapat melanjutkan tanpa foto.
+    // The browser does not signal when the dialog is closed without choosing. What
+    // happens is a promise that never resolves — so the caller must still be able
+    // to proceed without a photo.
     input.click();
   });
 }
