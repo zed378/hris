@@ -698,169 +698,47 @@ are worth knowing:
 
   With the relation known to Prisma, `scanDocumentReminders` no longer reads
   employees through a second query and joins them in a `Map`.
-- **A migration that must run outside a transaction has no runner.** Found while
-  writing the above: **Prisma wraps every migration in a transaction and offers
-  no way to opt out** (7.9.1 — `CREATE INDEX CONCURRENTLY` fails with SQLSTATE
-  25001). Two consequences, both previously believed otherwise:
+- ~~**A migration that must run outside a transaction has no runner**~~ —
+  **done.** `packages/db/prisma/migrations-online/`, applied by
+  `ops/scripts/run-online-migrations.mjs` and chained after `prisma migrate
+  deploy` in both `pnpm db:migrate` and the `migrate` container.
 
-  - `CREATE INDEX CONCURRENTLY` cannot be used at all, though `ops/scripts/lint-migrations.mjs`
-    requires it and suggests a `-- prisma-no-transaction` marker **that Prisma
-    does not implement** — it is borrowed from other migration tools. The rule has
-    never fired because no migration has yet needed a concurrent index.
-  - The `ADD CONSTRAINT ... NOT VALID` / `VALIDATE CONSTRAINT` split buys nothing
-    inside one transaction: the exclusive lock from the first statement is held
-    until commit, so the scan runs under it anyway.
+  Ordinary migrations stay with Prisma. Only the handful that genuinely cannot
+  run in a transaction move, and a test refuses a file here that contains no
+  `CONCURRENTLY` — a file that does not need to be here should have been an
+  ordinary migration, where it would be rollback-safe.
 
-  Harmless so far — every index built to date was on a table created in the same
-  migration, and both tables in the foreign key above are small. It stops being
-  harmless the first time an index or constraint is needed on `punch_logs` or
-  `attendance_days`, which is risk R33 exactly. Needs a runner that executes
-  statement-by-statement outside a transaction, or an explicit exception process.
-- ~~**`accessVersion` (`av`) is issued into every token and read by nothing**~~ —
-  **done.** `PLAN/14` stage 2: the gateway compares it and answers 401
-  `TOKEN_STALE`, which the client turns into a refresh and a retry the user never
-  sees. Nothing observable changes yet — access is still resolved from the
-  database per request — and that is the point: the mechanism is live and tested
-  before stage 6's permission cache comes to depend on it.
+  Nothing here rolls back, because each statement commits on its own; that is the
+  whole point. So every statement must be safe to run twice, and a test enforces
+  that too (`IF NOT EXISTS`, `IF EXISTS`, or `VALIDATE CONSTRAINT`).
 
-  It also brought `apps/web/test/gateway.test.ts` into existence. The gateway's
-  decisions — P7, P8, P9, the tenant-header check, DENY precedence — had been
-  verified only by driving a running server with curl, which proves a behaviour
-  once and proves nothing on the next change.
-- ~~**`accessVersion` (`av`) is issued into every token and read by nothing.**~~
-  `packages/core/src/auth/tokens.ts` mints it, `accessTokenClaimsSchema` validates
-  it, and its comment describes the gateway comparing it against the recorded
-  version and rejecting stale tokens — **no such comparison exists anywhere.**
+  The statement splitter is the part most likely to be quietly wrong — a naive
+  `split(';')` destroys any dollar-quoted function body — so it is imported by
+  its test rather than reimplemented, and covered for dollar quotes, tagged
+  dollar quotes, escaped string literals, and both comment forms.
 
-  Currently harmless: access is resolved fresh from the database on every request,
-  so the cache the version invalidates does not exist. It becomes load-bearing the
-  moment a permission cache does — which is `PLAN/14` §5 option C, the mechanism
-  that makes the auth split affordable. Must be implemented **before** the cache,
-  not alongside it.
-- ~~**The rate limiter is per-process and silently multiplies by replica count**~~
-  — **done.** `PLAN/14` stage 3: counters move to Redis when `REDIS_URL` is set,
-  and stay in the process `Map` when it is not, so a single container still needs
-  nothing extra.
+  It also **reports INVALID indexes on every run**. A failed
+  `CREATE INDEX CONCURRENTLY` leaves one behind: never used to answer a query,
+  still maintained on every write, and reported by nothing.
 
-  **A cold-start bypass was found by restarting the real server.** The first
-  request after a deploy was rejected by ioredis before its socket was ready,
-  fell back to the local counter, and never touched the shared one — the Redis
-  counter did not move at all. A few hundred milliseconds of exactly the failure
-  the stage removes, after every deploy, invisible to any test holding a warm
-  connection. Now covered by a regression test that throws the connection away
-  first, which is what a fresh process has.
+  The linter now points at this directory. It previously told authors to add a
+  `-- prisma-no-transaction` marker, which is borrowed from other migration tools
+  and does nothing in Prisma — advice that had never been caught because no
+  migration had yet needed it.
 
-  Fail-open when Redis is configured but unreachable, logged once per outage.
-  Failing closed would make a Redis blip a total outage.
-
-  **Test note:** the shared-counter suite requires a running Redis. With
-  `REDIS_URL` unset it SKIPS and says so; with it set but unreachable it FAILS.
-  Skipping in both cases would let a broken Redis in CI look exactly like a
-  developer who never started one, and the suite would go green having tested
-  nothing.
-- ~~**The rate limiter is per-process and silently multiplies by replica count.**~~
-  `apps/web/src/lib/rate-limit.ts` keeps buckets in a local `Map`; the per-tenant
-  quota in `define-route.ts` has the same shape. With one container it is correct.
-  With two replicas it permits twice the configured rate, with no error and no log
-  — the limit is simply not the number in the config. Blocks horizontal scaling,
-  which is one of the stated reasons for `PLAN/14`.
-- ~~**The PII encryption key has never been rotated**~~ — **done.** The format
-  was versioned from the start, so rotation was said to be "possible without a
-  large migration". What actually made it impossible was simpler than the format:
-  `PII_ENCRYPTION_KEY` held exactly one key, so the moment it changed every row
-  already written became unreadable. Rotation would have had to be atomic across
-  the whole database.
-
-  Now a **key ring**: `PII_ENCRYPTION_KEY` is the only key that encrypts,
-  `PII_ENCRYPTION_KEYS_OLD` is a comma-separated list that may only decrypt, and
-  the same pair exists for `PII_INDEX_KEY`. Trying keys in turn is sound only
-  because the cipher is GCM — the wrong key fails its authentication tag rather
-  than returning plausible rubbish, so the decision is the cipher's rather than a
-  guess. Under CBC the identical loop would be a padding oracle.
-
-  Procedure in [runbook §8](../ops/RUNBOOK.md); job at
-  `apps/worker/src/pii-rotation.ts` (`pnpm --filter @hrms/worker pii:rotate`).
-  It carries **no progress state at all** — each row is asked whether the current
-  key can read it — so it is idempotent and resumable for free, and there is no
-  stale cursor that can skip rows. Every value is decrypted, re-encrypted, and
-  **decrypted again and compared** before the update is issued: this is the one
-  job in the system capable of destroying data that exists nowhere else.
-
-  **Rehearsed against a real database**, 7 employees / 19 values / 5 tenants:
-
-  | Step | Result |
-  |---|---|
-  | Rotate forward, old key on the ring | `rotated: 7, columns: 19, unreadable: 0` |
-  | Fingerprint of all decrypted values, new key alone | **identical** to before |
-  | Fingerprint under the old key alone | `values: 0, unreadable: 19` |
-  | Second run | `rotated: 0` — idempotent |
-  | Index key rotated too | `indexes: 7, columns: 0` |
-  | Both rotated back | fingerprint identical again |
-
-  The fingerprint tool (`verify-pii-fingerprint.ts`) exists because comparing
-  ciphertext proves nothing — it is *supposed* to change, and a rotation that
-  replaced every national ID with rubbish would change it too. It hashes the
-  decrypted values and prints only the digest, so the check never puts PII on a
-  terminal.
-
-  **A data-loss bug was found by running it**, not by reading it: the job first
-  used `active_tenant_ids()`, like every other scheduled job, and so scanned
-  **1 of the 7** rows holding encrypted values — the other six belonged to
-  CHURNED tenants — while reporting success. For accrual, skipping a departed
-  tenant is correct. Here the rotation ends by withdrawing the old key, so every
-  skipped row becomes permanently unreadable: not work skipped but data
-  destroyed, and for a tenant whose records are still personal data under Act
-  No. 27/2022 and may still be subject to an export or erasure request. Now
-  `public.all_tenant_ids()`, added by migration and registered in
-  `rls-coverage.test.ts` — the guard that requires every `SECURITY DEFINER`
-  function to be justified caught it on the same commit.
-
-  **Two limits, both stated in the runbook.** Rotating `PII_INDEX_KEY` needs a
-  maintenance window that rotating the encryption key does not: `UNIQUE
-  (tenant_id, national_id_index)` compares stored values, and the same national
-  ID indexed under two keys yields two values that never collide — so during the
-  window the database will accept a duplicate employee that the constraint exists
-  to prevent. The application lookups do check every candidate index and are
-  covered; anything writing outside them is not. And the ciphertext carries a
-  format version but **no key identifier**, so which key wrote a row is
-  established by trial rather than read off the row.
-- ~~**`attendance_policies` does not exist**~~ — **done.** Four behaviours that
-  determine attendance were constants inside the code: a review threshold of 60,
-  a 90-day photo retention, and location and photo requirements applying to
-  everyone. Document 10 §2.4 states the reason exactly: *"This decision belongs
-  to the tenant, not to the system — a construction firm and a consultancy have
-  different answers."*
-
-  It also closes one of the technical debts recorded in this very document: a
-  flagged ratio far above the 12% threshold **because the test punches had no
-  photo**, not because anything was suspicious. A tenant who genuinely does not
-  ask for photos would experience that every day — and HR whose review queue is
-  full stop reviewing, which turns the trust score into theatre (PLAN/12 §11).
-
-  Its default values are **exactly the same** as the constants they replaced: a
-  tenant who never touches the settings screen behaves as they did before this
-  table existed. A behaviour change arriving alongside a configuration feature is
-  a change nobody asked for.
-
-  Verified through the real `recordPunch` path:
-
-  | Policy change | Measured effect |
-  |---|---|
-  | `requireLocation` true → false | `NO_LOCATION` 30 → **0**, score 20 → 50 |
-  | `photoRetentionDays` 90 → 30 | photo expiry 2026-11-29 → **2026-09-30** |
-  | `autoApproveThreshold` → 95 | a score of 50 now enters the review queue |
-  | `onPermissionDenied` → BLOCK | the punch is refused, and the message names **what is missing** |
-
-  The flag **still appears** even when its penalty is zero. Removing it would
-  make "no location" indistinguishable from "inside the fence", and that is
-  information lost with nobody asking for it.
-
-  Retention is computed **when the photo is stored**, not when it is deleted —
-  raising it does not extend the life of existing photos, and lowering it does
-  not shorten them. A photo is subject to the promise in force when it was taken.
-
-  ~~`FALLBACK_ONLY` is accepted but does not yet behave differently from
-  `ALLOW_FLAGGED`~~ — **done.** See the entry below.
+  **The first real online migration found two mistakes of my own**, which is
+  roughly the point of running things. Its first draft added
+  `(tenant_id, employee_id, work_date)` — an exact duplicate of an existing
+  index, pure write cost and never read — and a partial index on
+  `(tenant_id, work_date)`, when the review queue orders by `punched_at`. Both
+  were written from what the query looked like it did. Neither would have failed
+  anything: a redundant index and an unused one are both entirely silent. What
+  shipped is `punch_logs_review_queue_idx` on
+  `(tenant_id, punched_at DESC) WHERE review = 'NEEDS_REVIEW'`, and `EXPLAIN`
+  confirms it serves the query **and supplies the ordering** — no `Sort` node.
+  On the development table the planner still prefers a bitmap scan, correctly,
+  because thirty rows do not need an index; that it is *chosen* at production
+  size is not something a thirty-row table can demonstrate.
 - **`FALLBACK_ONLY` now behaves differently from `ALLOW_FLAGGED`, and work sites
   finally have a screen.** Two halves of one hole.
 

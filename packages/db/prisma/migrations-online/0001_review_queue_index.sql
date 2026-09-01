@@ -1,0 +1,51 @@
+-- =============================================================================
+-- The review queue index, built without holding a write lock
+-- =============================================================================
+--
+-- `GET /api/attendance/review` runs this on every load:
+--
+--   WHERE tenant_id = ? AND review = 'NEEDS_REVIEW'
+--   ORDER BY punched_at DESC
+--   LIMIT 100
+--
+-- The existing `punch_logs_tenant_id_review_idx` on `(tenant_id, review)` finds
+-- the rows but cannot supply the order, so PostgreSQL sorts them. That is
+-- tolerable while the queue is small and stops being tolerable at exactly the
+-- moment it matters: the flagged ratio is supposed to stay under 12%
+-- (PLAN/12 §11), and the screen an HR user opens when it does not is this one.
+--
+-- Partial, because the queue only ever reads rows awaiting review. An index over
+-- every punch would be roughly eight times larger on a healthy tenant, slower on
+-- every single clock-in, and no faster for this question.
+--
+-- ## Why this file is not a Prisma migration
+--
+-- Prisma wraps every migration in a transaction, and `CREATE INDEX CONCURRENTLY`
+-- cannot run inside one — SQLSTATE 25001, verified on 7.9.1. `punch_logs` is the
+-- busiest table in the system and the one whose unavailability is most visible:
+-- a lock held for the length of an index build is every employee in the company
+-- unable to clock in (risk R33).
+--
+-- This directory is run by `ops/scripts/run-online-migrations.mjs`, statement by
+-- statement, with no transaction anywhere.
+--
+-- ## Two indexes were nearly shipped here that should not have been
+--
+-- The first draft of this file created `(tenant_id, employee_id, work_date)` and
+-- a partial index on `(tenant_id, work_date)`. Running it revealed that the
+-- first is an exact duplicate of `punch_logs_tenant_id_employee_id_work_date_idx`
+-- — pure write cost, never read — and that the second indexes the wrong column,
+-- because the query orders by `punched_at` and not by `work_date`.
+--
+-- Both were written from what the query looked like it did. Neither would have
+-- failed anything; a redundant index and an unused one are both silent.
+--
+-- ## Re-runnable, because nothing here can roll back
+--
+-- `IF NOT EXISTS` is not decoration. Each statement commits on its own, so a
+-- file that fails partway leaves everything before it applied, and the only sane
+-- recovery is to run the file again.
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS punch_logs_review_queue_idx
+  ON attendance.punch_logs (tenant_id, punched_at DESC)
+  WHERE review = 'NEEDS_REVIEW';

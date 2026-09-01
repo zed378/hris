@@ -55,6 +55,11 @@ COPY packages/db         ./packages/db
 COPY packages/core       ./packages/core
 COPY apps/worker         ./apps/worker
 
+# This image is also the migrate container. `run-online-migrations.mjs` applies
+# the migrations that cannot run inside a transaction — CREATE INDEX
+# CONCURRENTLY above all — which Prisma cannot do at all.
+COPY ops/scripts         ./ops/scripts
+
 RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S worker -G nodejs \
  && chown -R worker:nodejs /repo
 USER worker

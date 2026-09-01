@@ -150,7 +150,20 @@ services:
       DATABASE_URL: postgresql://hrms_owner:${POSTGRES_PASSWORD:-hrms_dev_password}@postgres:5432/${POSTGRES_DB:-hrms}
     working_dir: /repo/packages/db
     user: root
-    command: ['npx', 'prisma', 'migrate', 'deploy']
+    # Two steps, in this order.
+    #
+    # Prisma wraps every migration in a transaction, so anything needing to run
+    # WITHOUT one — `CREATE INDEX CONCURRENTLY` above all — cannot live in a
+    # Prisma migration at all. Those live in `migrations-online/` and are applied
+    # by the second command, statement by statement, with no transaction.
+    #
+    # Online second because it builds indexes and validates constraints on tables
+    # the transactional migrations have just created. The reverse order fails on
+    # a table that does not exist yet.
+    command:
+      - sh
+      - -c
+      - npx prisma migrate deploy && node /repo/ops/scripts/run-online-migrations.mjs
     restart: 'no'
 
   # ---------------------------------------------------------------------------

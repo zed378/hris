@@ -14,7 +14,8 @@
     "test": "turbo run test",
     "db:up": "docker compose -f ops/docker-compose.dev.yml up -d",
     "db:down": "docker compose -f ops/docker-compose.dev.yml down",
-    "db:migrate": "pnpm --filter @hrms/db migrate",
+    "db:migrate": "pnpm --filter @hrms/db migrate && pnpm db:migrate:online",
+    "db:migrate:online": "node ops/scripts/run-online-migrations.mjs",
     "db:seed": "pnpm --filter @hrms/db seed",
     "db:reset": "pnpm --filter @hrms/db reset",
     "lint:migrations": "node ops/scripts/lint-migrations.mjs",
@@ -25,14 +26,16 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.10.1",
+    "dotenv": "^17.4.2",
     "eslint": "^10.8.1",
     "eslint-plugin-boundaries": "^7.2.0",
+    "jose": "^6.2.9",
+    "otplib": "^13.4.1",
+    "pg": "^8.23.0",
     "turbo": "^2.10.10",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.67.0",
-    "vitest": "^4.1.10",
-    "otplib": "^13.4.1",
-    "jose": "^6.2.9"
+    "vitest": "^4.1.10"
   },
   "type": "module"
 }

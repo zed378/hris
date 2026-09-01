@@ -46,9 +46,9 @@ const FORBIDDEN = [
  */
 const REQUIRE_CONCURRENT = [
   { pattern: /\bCREATE\s+(UNIQUE\s+)?INDEX\s+(?!CONCURRENTLY)/i, rule: 'CREATE INDEX non-concurrent',
-    hint: 'Pakai CREATE INDEX CONCURRENTLY IF NOT EXISTS.' },
+    hint: 'Pindahkan ke packages/db/prisma/migrations-online/, lalu CREATE INDEX CONCURRENTLY IF NOT EXISTS.' },
   { pattern: /\bDROP\s+INDEX\s+(?!CONCURRENTLY)/i, rule: 'DROP INDEX non-concurrent',
-    hint: 'Pakai DROP INDEX CONCURRENTLY.' },
+    hint: 'Pindahkan ke packages/db/prisma/migrations-online/, lalu DROP INDEX CONCURRENTLY.' },
 ];
 
 /**
@@ -117,7 +117,9 @@ function main() {
         violations.push({
           where,
           rule: `CREATE INDEX non-concurrent pada ${target}`,
-          hint: 'Tabel ini sudah berisi data. Pakai CREATE INDEX CONCURRENTLY IF NOT EXISTS.',
+          hint:
+            'Tabel ini sudah berisi data. Pindahkan ke ' +
+            'packages/db/prisma/migrations-online/, lalu CREATE INDEX CONCURRENTLY IF NOT EXISTS.',
         });
       }
     }
@@ -128,13 +130,28 @@ function main() {
       if (rule.startsWith('DROP') && pattern.test(sql)) violations.push({ where, rule, hint });
     }
 
-    // CONCURRENTLY tidak dapat berjalan di dalam blok transaksi. Prisma
-    // membungkus setiap migrasi dalam transaksi kecuali diberi penanda ini.
-    if (/\bCONCURRENTLY\b/i.test(sql) && !/--\s*prisma-no-transaction/i.test(raw)) {
+    /**
+     * CONCURRENTLY tidak dapat berjalan di dalam blok transaksi, dan Prisma
+     * SELALU membungkus migrasi dalam transaksi.
+     *
+     * Aturan ini dulu menyarankan menambahkan penanda `-- prisma-no-transaction`.
+     * Penanda itu dipinjam dari alat migrasi lain; Prisma tidak mengenalnya sama
+     * sekali — diuji pada 7.9.1, CREATE INDEX CONCURRENTLY tetap gagal dengan
+     * SQLSTATE 25001. Sarannya tidak pernah ketahuan salah hanya karena belum ada
+     * satu pun migrasi yang membutuhkannya.
+     *
+     * Tempatnya sekarang `packages/db/prisma/migrations-online/`, dijalankan
+     * `ops/scripts/run-online-migrations.mjs` pernyataan demi pernyataan, tanpa
+     * transaksi sama sekali.
+     */
+    if (/\bCONCURRENTLY\b/i.test(sql)) {
       violations.push({
         where,
-        rule: 'CONCURRENTLY di dalam transaksi',
-        hint: 'Tambahkan baris pertama: -- prisma-no-transaction',
+        rule: 'CONCURRENTLY di dalam migrasi Prisma',
+        hint:
+          'Prisma selalu membungkus migrasi dalam transaksi, dan CONCURRENTLY tidak dapat ' +
+          'berjalan di dalamnya. Pindahkan pernyataan ini ke ' +
+          'packages/db/prisma/migrations-online/ (jalankan: pnpm db:migrate:online).',
       });
     }
   }
