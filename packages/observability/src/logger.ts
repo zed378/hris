@@ -1,5 +1,5 @@
 /**
- * Structured logging (PLAN/12 P7 — observability).
+ * Structured logging (docs/PLAN/12 P7 — observability).
  *
  * The `{ scope: '…' }` convention was already used across the codebase before
  * this file existed. What is added here is not the convention but the four

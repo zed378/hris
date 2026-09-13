@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Langganan dan modul aktif tenant (PLAN/12 F6).
+ * Langganan dan modul aktif tenant (docs/PLAN/12 F6).
  *
  * Modulnya `core`, bukan modul yang sedang diatur. Endpoint yang mengatur
  * langganan tidak boleh ikut mati ketika modul yang diaturnya dinonaktifkan —

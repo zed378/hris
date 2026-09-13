@@ -10,7 +10,7 @@ import { createBroker, type Broker } from '../src/broker.ts';
 import type { OutboxEnvelope } from '../src/outbox-pump.ts';
 
 /**
- * The broker seam, against a real NATS (PLAN/14 stage 7).
+ * The broker seam, against a real NATS (docs/PLAN/14 stage 7).
  *
  * What has to be true is that a message published on one connection is received
  * on another, acknowledged, and not redelivered — and none of that can be shown
@@ -26,7 +26,7 @@ import type { OutboxEnvelope } from '../src/outbox-pump.ts';
  *
  * These skip and say so. NATS is opt-in and off by default (`BROKER_URL` unset),
  * so a developer without it must not be looking at a red build. Recorded in
- * PLAN/13 so the skip does not pass for coverage.
+ * docs/PLAN/13 so the skip does not pass for coverage.
  */
 
 const url = process.env['BROKER_URL'] ?? 'nats://localhost:4222';

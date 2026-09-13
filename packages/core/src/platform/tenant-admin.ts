@@ -2,7 +2,7 @@ import { platformClient } from '@hrms/db';
 import { bumpTenantGeneration } from '@hrms/cache';
 
 /**
- * Control plane operational capabilities (PLAN/07 §4.5).
+ * Control plane operational capabilities (docs/PLAN/07 §4.5).
  *
  * The rule binding this whole file: **metadata and aggregates only, never
  * personal data.** A superuser may know a tenant has 250 users; they must not
@@ -97,7 +97,7 @@ export async function listTenants(options: {
  * The anonymity threshold is not relevant here because every figure is
  * cross-tenant. It becomes relevant the moment there is a per-tenant aggregate
  * derived from employee data — and at that point the 5-subject threshold
- * (PLAN/07 §4.4) has to be fitted before the widget ships, not after.
+ * (docs/PLAN/07 §4.4) has to be fitted before the widget ships, not after.
  */
 export async function platformOverview(): Promise<{
   tenants: Record<string, number>;
@@ -189,7 +189,7 @@ export async function setTenantModule(input: {
 
   /**
    * Every cached authorization decision for this tenant becomes unreachable
-   * (PLAN/14 §5).
+   * (docs/PLAN/14 §5).
    *
    * The permission cache is keyed by the USER's access version, and this change
    * is per TENANT — it alters what everybody here may do. Worse, the control

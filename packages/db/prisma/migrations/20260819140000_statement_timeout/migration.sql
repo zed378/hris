@@ -1,4 +1,4 @@
--- Query and idle transaction timeouts (PLAN/12 P6 — hardening).
+-- Query and idle transaction timeouts (docs/PLAN/12 P6 — hardening).
 --
 -- What is protected here is not one query's performance but the availability of
 -- the system for OTHER tenants.

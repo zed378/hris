@@ -71,7 +71,7 @@
 --
 -- So this takes the lock honestly rather than performing the appearance of
 -- avoiding it. Both tables are small — one row per person, a handful of documents
--- each — and the scan is milliseconds. Recorded as debt in PLAN/13: a migration
+-- each — and the scan is milliseconds. Recorded as debt in docs/PLAN/13: a migration
 -- that genuinely must run outside a transaction, on `punch_logs` or
 -- `attendance_days`, will need a runner Prisma does not provide.
 --

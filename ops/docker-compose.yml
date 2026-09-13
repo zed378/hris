@@ -2,7 +2,7 @@
 # HRMS — the full stack
 #
 # Three containers, and no more. That is a conscious decision, not a temporary
-# stage (PLAN/12 §3.2): every additional infrastructure component is something a
+# stage (docs/PLAN/12 §3.2): every additional infrastructure component is something a
 # team with no SRE has to keep alive.
 #
 #   postgres  DATA      — one database, a schema per module, RLS on. It doubles
@@ -179,7 +179,7 @@ services:
   # read `auth.users` (P11).
   # ---------------------------------------------------------------------------
   # ---------------------------------------------------------------------------
-  # Redis — shared rate-limit counters (PLAN/14 §9.2)
+  # Redis — shared rate-limit counters (docs/PLAN/14 §9.2)
   #
   # Optional in the sense that the application starts and works without it, and
   # REQUIRED the moment `web` is scaled past one replica. In-process counters
@@ -214,11 +214,11 @@ services:
       retries: 10
 
   # ---------------------------------------------------------------------------
-  # BROKER — NATS JetStream (PLAN/14 §9.1)
+  # BROKER — NATS JetStream (docs/PLAN/14 §9.1)
   #
   # Only started with `--profile broker`, and off by default. pg-boss on the
   # application database remains the supported configuration: it is one fewer
-  # system to keep alive, and PLAN/12 N7 rates the chance of it becoming a
+  # system to keep alive, and docs/PLAN/12 N7 rates the chance of it becoming a
   # bottleneck as low.
   #
   # What would change that is fan-out rather than throughput — with more than one
@@ -226,7 +226,7 @@ services:
   # queue rather than a topic. Until that is measured, adding a broker would be a
   # permanent operational dependency bought with nothing.
   #
-  # NATS over RabbitMQ for the same reason PLAN/12 chose PostgreSQL for
+  # NATS over RabbitMQ for the same reason docs/PLAN/12 chose PostgreSQL for
   # everything: a single static binary, no separate runtime, no management plugin
   # to secure. Kafka is not a candidate — its operational weight exceeds that of
   # the whole application.
@@ -250,7 +250,7 @@ services:
       retries: 3
 
   # ---------------------------------------------------------------------------
-  # PROXY — one public origin (PLAN/14 §7)
+  # PROXY — one public origin (docs/PLAN/14 §7)
   #
   # Only started with `--profile split`. Without it the backend serves everything
   # on its own port exactly as before, which is the default deployment.
@@ -277,7 +277,7 @@ services:
   # ---------------------------------------------------------------------------
   # AUTH — identity, sessions, tokens, and the authorization decision
   #
-  # PLAN/14. Opted into rather than default: the backend authorizes in-process
+  # docs/PLAN/14. Opted into rather than default: the backend authorizes in-process
   # unless AUTH_SERVICE_URL is set, so the monolith remains a complete working
   # deployment and the split is a configuration rather than a fork. A rollback is
   # an environment variable.
@@ -361,7 +361,7 @@ services:
       # The control plane principal. Its rights are deliberately narrow: the
       # `platform` schema and tenant metadata, with no GRANT into auth/iam/audit.
       # The auth plane. Reaches auth, iam, tenant, audit, messaging and nothing
-      # in employee, attendance, leave, or payroll (PLAN/14 stage 5).
+      # in employee, attendance, leave, or payroll (docs/PLAN/14 stage 5).
       DATABASE_URL_AUTH: postgresql://hrms_auth:${AUTH_DB_PASSWORD:-hrms_auth_password}@postgres:5432/${POSTGRES_DB:-hrms}
       DATABASE_URL_PLATFORM: postgresql://hrms_platform:${PLATFORM_DB_PASSWORD:-hrms_platform_password}@postgres:5432/${POSTGRES_DB:-hrms}
       # MUST be changed in production. Two different secrets, so a tenant token
@@ -373,7 +373,7 @@ services:
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET wajib dipasang}
       # The PUBLIC key set only. The backend verifies; it must not be able to
       # mint. `JWT_PRIVATE_JWK` is deliberately absent here and its absence is
-      # the security property, not an oversight (PLAN/14 §6).
+      # the security property, not an oversight (docs/PLAN/14 §6).
       JWT_PUBLIC_JWKS: ${JWT_PUBLIC_JWKS:-}
       ADMIN_JWT_PUBLIC_JWKS: ${ADMIN_JWT_PUBLIC_JWKS:-}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}

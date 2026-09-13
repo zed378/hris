@@ -3,7 +3,7 @@ import { EventTopic } from '@hrms/contracts';
 import { bumpAccessVersion } from './resolve-access.ts';
 
 /**
- * Antarmuka administrasi peran, hak akses khusus, dan pengguna (PLAN/05 §7).
+ * Antarmuka administrasi peran, hak akses khusus, dan pengguna (docs/PLAN/05 §7).
  *
  * Satu aturan mengikat setiap fungsi yang mengubah akses di berkas ini:
  * **perubahan hak akses dan kenaikan versi akses terjadi dalam transaksi yang
@@ -12,7 +12,7 @@ import { bumpAccessVersion } from './resolve-access.ts';
  * Bila dipisah, ada jendela di mana akses sudah berubah tetapi token lama masih
  * membawa versi lama, sehingga cache menyajikan izin yang sudah dicabut. Jendela
  * itu paling mungkin terbuka justru pada saat seseorang sedang mencabut akses
- * dengan tergesa — yaitu saat ia paling tidak boleh terbuka (PLAN/05 §5.3).
+ * dengan tergesa — yaitu saat ia paling tidak boleh terbuka (docs/PLAN/05 §5.3).
  */
 
 export class IamError extends Error {

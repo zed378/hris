@@ -92,7 +92,7 @@ export interface StoredPhoto {
  * Photo storage.
  *
  * A local implementation for development and a single-VPS deployment — which is
- * the planned topology (PLAN/12 §3.2). Its interface is deliberately this narrow
+ * the planned topology (docs/PLAN/12 §3.2). Its interface is deliberately this narrow
  * so that replacing it with an S3-compatible one later touches a single file.
  *
  * The object key contains a random UUID, not an employee id or a date. A

@@ -11,7 +11,7 @@ import { signJwt, verifyJwt, JwtVerificationError, ISSUER } from '../src/auth/jw
 import { publicJwksDocument, signingMode } from '../src/auth/signing-keys.ts';
 
 /**
- * Asymmetric token signing (PLAN/14 §6, stage 1).
+ * Asymmetric token signing (docs/PLAN/14 §6, stage 1).
  *
  * The reason this has to be right before anything is split: **a symmetric secret
  * cannot distinguish "may verify a token" from "may mint one".** Under HS256 the
@@ -81,7 +81,7 @@ describe('asymmetric signing', () => {
   /**
    * RS256 works identically, which is the point of storing keys as JWKs.
    *
-   * PLAN/14 §13.2 leaves EdDSA-or-RS256 open — it depends on whether enterprise
+   * docs/PLAN/14 §13.2 leaves EdDSA-or-RS256 open — it depends on whether enterprise
    * SSO is coming — and this test is what makes that a decision about key
    * material rather than a decision about code.
    */

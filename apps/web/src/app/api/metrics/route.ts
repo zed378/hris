@@ -5,9 +5,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Prometheus metrics (PLAN/14 §9.3).
+ * Prometheus metrics (docs/PLAN/14 §9.3).
  *
- * **Disabled unless `METRICS_TOKEN` is set**, and 404 when it is not. `PLAN/13`
+ * **Disabled unless `METRICS_TOKEN` is set**, and 404 when it is not. `docs/PLAN/13`
  * recorded "no metrics yet — added when someone actually collects them", and
  * that restraint was right: an endpoint nobody scrapes is a maintenance burden
  * wearing the costume of observability. A deployment that collects nothing gets
@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
  * label publishes the customer list. A per-tenant flagged ratio publishes their
  * business.
  *
- * `PLAN/12` §11 lists ten metrics worth watching and several are exactly that
+ * `docs/PLAN/12` §11 lists ten metrics worth watching and several are exactly that
  * kind. They belong on the dashboard, behind a permission — and they are there.
  *
  * ## Why a 404 rather than a 401

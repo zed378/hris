@@ -5,7 +5,7 @@ import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Pengguna dan hak aksesnya (PLAN/05 §4).
+ * Pengguna dan hak aksesnya (docs/PLAN/05 §4).
  *
  * Menu "Pengguna" sudah ada di basis data sejak seed pertama dan tampil bagi
  * setiap pemilik tenant yang membuka sidebar — menuju halaman yang tidak pernah

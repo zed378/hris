@@ -7,7 +7,7 @@ import { useSession } from '@/lib/session.tsx';
 import { openFile } from '@/lib/download.ts';
 
 /**
- * Dokumen karyawan (PLAN/12 F2).
+ * Dokumen karyawan (docs/PLAN/12 F2).
  *
  * Yang diunggah di sini adalah pindaian KTP, kartu keluarga, ijazah, dan surat
  * kontrak. Karena itu halaman ini menyatakan dua hal yang biasanya tidak

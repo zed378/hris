@@ -2,12 +2,12 @@ import { Redis } from 'ioredis';
 import { log } from '@hrms/observability';
 
 /**
- * The Redis connection, or none (PLAN/14 §9.2, stage 3).
+ * The Redis connection, or none (docs/PLAN/14 §9.2, stage 3).
  *
  * Redis is **optional on purpose**. With no `REDIS_URL` the application behaves
  * exactly as it did before — one process, in-memory counters — and every test,
  * every local checkout, and every single-container deployment keeps working with
- * nothing extra to run. `PLAN/12` §3.2 sold "no Redis to keep alive" as a
+ * nothing extra to run. `docs/PLAN/12` §3.2 sold "no Redis to keep alive" as a
  * feature, and it still is right up until there are two web replicas.
  *
  * What changes is that the second replica is no longer a silent correctness

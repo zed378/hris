@@ -5,7 +5,7 @@ import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Struktur gaji per karyawan (PLAN/12 F5, prinsip P13).
+ * Struktur gaji per karyawan (docs/PLAN/12 F5, prinsip P13).
  *
  * Riwayat ditampilkan penuh, bukan hanya nilai yang berlaku sekarang.
  * "Sejak kapan gaji saya segini" adalah pertanyaan yang selalu muncul, dan

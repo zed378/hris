@@ -4,10 +4,10 @@ import type { Codec, NatsConnection } from 'nats';
 import type { OutboxEnvelope } from './outbox-pump.ts';
 
 /**
- * The message broker, behind one interface (PLAN/14 §9.1, stage 7).
+ * The message broker, behind one interface (docs/PLAN/14 §9.1, stage 7).
  *
  * pg-boss has been the right choice and mostly still is: one fewer system to
- * keep alive, and `PLAN/12` N7 rates the chance of it becoming a bottleneck as
+ * keep alive, and `docs/PLAN/12` N7 rates the chance of it becoming a bottleneck as
  * low. What changes it is not throughput but **fan-out**. The outbox already
  * publishes events; with more than one service, more than one consumer wants
  * them, and pg-boss models a job queue rather than a topic.
@@ -21,7 +21,7 @@ import type { OutboxEnvelope } from './outbox-pump.ts';
  *
  * It is **not** an adoption. Introducing a broker with no measured need would
  * add a permanent operational dependency for a one-person team, which is exactly
- * what `PLAN/12` §3.2 argues against — and unlike Redis, which fixed a present
+ * what `docs/PLAN/12` §3.2 argues against — and unlike Redis, which fixed a present
  * correctness bug, a broker fixes nothing that is currently broken. The
  * capability exists, is tested, and is off.
  *
@@ -115,7 +115,7 @@ class PgBossBroker implements Broker {
 /**
  * NATS JetStream, opt-in.
  *
- * Chosen over RabbitMQ for the reason `PLAN/12` chose PostgreSQL for everything:
+ * Chosen over RabbitMQ for the reason `docs/PLAN/12` chose PostgreSQL for everything:
  * operational weight. NATS is a single static binary with no separate runtime to
  * install and no management plugin to secure, and for a team of one or two that
  * difference outweighs RabbitMQ's richer routing — which this system does not

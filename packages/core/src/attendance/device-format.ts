@@ -1,5 +1,5 @@
 /**
- * Reading attendance machine export files (risk R8, PLAN/04).
+ * Reading attendance machine export files (risk R8, docs/PLAN/04).
  *
  * The strategy is not to write a per-vendor adapter. There are too many
  * fingerprint machine brands in Indonesia, and their firmware changes too often

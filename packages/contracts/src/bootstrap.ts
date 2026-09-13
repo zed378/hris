@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Bentuk balasan `/api/me/bootstrap` (PLAN/01 §5.4).
+ * Bentuk balasan `/api/me/bootstrap` (docs/PLAN/01 §5.4).
  *
  * Ini satu-satunya sumber yang dipakai frontend untuk merender sidebar dan
  * menjaga rute. Perlu ditegaskan apa yang **bukan** perannya: ia bukan otorisasi.

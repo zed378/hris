@@ -1,7 +1,7 @@
 // The public API of @hrms/cache.
 //
 // Redis-backed shared state: rate-limit counters today, and the permission cache
-// the auth split needs (PLAN/14 §5 option C, §9.2). It lives in its own package
+// the auth split needs (docs/PLAN/14 §5 option C, §9.2). It lives in its own package
 // because BOTH the backend and the auth service need it, and a copy in each
 // would be two implementations of one limit — which is the same as no limit.
 

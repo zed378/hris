@@ -329,7 +329,7 @@ describe('P9 — the server refuses what the screen hides', () => {
   });
 });
 
-describe('the access version (PLAN/14 stage 2)', () => {
+describe('the access version (docs/PLAN/14 stage 2)', () => {
   /**
    * `av` was minted into every token from the beginning, documented as the
    * mechanism that invalidates stale permissions, and **compared by nothing**.
@@ -337,7 +337,7 @@ describe('the access version (PLAN/14 stage 2)', () => {
    * It was harmless while access is read from the database on every request:
    * permissions were always current, so there was nothing for a version to
    * invalidate. It stops being harmless the moment a permission cache exists —
-   * PLAN/14 §5 option C, which is what makes the auth split affordable — because
+   * docs/PLAN/14 §5 option C, which is what makes the auth split affordable — because
    * then this comparison is the only thing making a cached permission safe to
    * trust.
    *

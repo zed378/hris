@@ -11,7 +11,7 @@ import {
 } from './balance.ts';
 
 /**
- * Leave requests and approvals (PLAN/12 P4).
+ * Leave requests and approvals (docs/PLAN/12 P4).
  *
  * The balance flow is deliberately three steps, not two:
  *

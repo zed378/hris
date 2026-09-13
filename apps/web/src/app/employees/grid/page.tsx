@@ -14,7 +14,7 @@ import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Grid karyawan ala Excel (PLAN/12 F2, risiko R6).
+ * Grid karyawan ala Excel (docs/PLAN/12 F2, risiko R6).
  *
  * Risiko R6 menyatakannya tanpa berputar: adopsi gagal bila UI terasa lebih
  * rumit daripada Excel. HR yang hari ini memperbarui lima puluh departemen

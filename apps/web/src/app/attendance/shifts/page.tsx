@@ -429,7 +429,7 @@ export default function ShiftsPage() {
                 className="mt-1 w-24 rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
               />
               {/*
-                Angka 12% berasal dari PLAN/12 §11: bila lebih dari itu masuk
+                Angka 12% berasal dari docs/PLAN/12 §11: bila lebih dari itu masuk
                 antrean, HR berhenti meninjau dan skornya menjadi teater. Itu
                 kegagalan yang tidak menghasilkan galat apa pun — ia terlihat
                 seperti sistem yang bekerja.

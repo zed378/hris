@@ -150,7 +150,7 @@ function build(
      */
     /**
      * Every request is counted and timed here, at the one point they all pass
-     * through (PLAN/14 §9.3).
+     * through (docs/PLAN/14 §9.3).
      *
      * Labelled by route and status, and **never by tenant**. A scrape endpoint is
      * read by infrastructure and stored in a time-series database that outlives
@@ -219,7 +219,7 @@ function build(
     const bearer = authorization.slice(7);
 
     /**
-     * The remote topology (PLAN/14 stage 6).
+     * The remote topology (docs/PLAN/14 stage 6).
      *
      * With `AUTH_SERVICE_URL` set, the backend does not verify tokens and does
      * not resolve permissions. It asks. That is the whole shape of the split:
@@ -409,12 +409,12 @@ function build(
     try {
       return await withTenant(claims.tid, async (tx) => {
         /**
-         * One call, one decision (PLAN/14 stage 4).
+         * One call, one decision (docs/PLAN/14 stage 4).
          *
          * The staleness check, the subscription check, and the permission check
          * used to be written out here in sequence, interleaved with rate
          * limiting and error shaping. `decideAccess` is the seam: when
-         * authorization becomes a call to the auth service (PLAN/14 §5), what
+         * authorization becomes a call to the auth service (docs/PLAN/14 §5), what
          * changes is that function's implementation, and the mapping from
          * decision to status code below does not move at all.
          *
@@ -440,7 +440,7 @@ function build(
              * nothing. A 403 would be a dead end for a valid session.
              *
              * Logged, because this is the mechanism a permission cache will
-             * depend on (PLAN/14 §5 option C) and it should be observable
+             * depend on (docs/PLAN/14 §5 option C) and it should be observable
              * before anything relies on it.
              */
             log.info({

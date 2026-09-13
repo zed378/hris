@@ -2,7 +2,7 @@
 
 The attendance dashboard streams punches over Server-Sent Events. Every claim
 about how that behaves behind nginx was, until this directory existed, reasoning
-rather than measurement — `PLAN/13` carried "the SSE stream has not been tested
+rather than measurement — `docs/PLAN/13` carried "the SSE stream has not been tested
 behind a real proxy" as an open item.
 
 This reproduces the test. It is not part of `pnpm verify`: it needs Docker, a

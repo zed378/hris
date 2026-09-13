@@ -2,7 +2,7 @@
 # AUTH — apps/auth
 #
 # Identity, sessions, tokens, and the authorization decision, in a deployable of
-# their own (PLAN/14). What justifies the separation is specific to auth rather
+# their own (docs/PLAN/14). What justifies the separation is specific to auth rather
 # than general: it is the only module everything depends on and which depends on
 # nothing; its change rate is the lowest and its blast radius the widest; argon2
 # gives it a scaling profile unlike any other module; and it is the natural home
@@ -16,7 +16,7 @@
 #     national IDs.
 #   - It is the ONLY image that gets `JWT_PRIVATE_JWK`. A service holding the
 #     signing key can mint a token for any user of any tenant; giving it to the
-#     backend would cancel the entire point of the separation (PLAN/14 §6).
+#     backend would cancel the entire point of the separation (docs/PLAN/14 §6).
 # =============================================================================
 
 FROM node:24-alpine AS deps

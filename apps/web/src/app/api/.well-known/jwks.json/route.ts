@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * The public key set for verifying access tokens (PLAN/14 §6, stage 1).
+ * The public key set for verifying access tokens (docs/PLAN/14 §6, stage 1).
  *
  * Public by definition — a JWKS is meant to be fetched by anything that has to
  * verify a token, and a public key discloses nothing. It is what lets the

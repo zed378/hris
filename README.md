@@ -3,16 +3,16 @@
 Multi-tenant HRIS for Indonesian SMEs. A modular monolith built to be split into
 services if — and only if — a measurable trigger appears.
 
-The full blueprint lives in [`PLAN/`](PLAN/). The one that decides day-to-day
-work: **[`PLAN/12-Small-Team-Execution-Plan.md`](PLAN/12-Small-Team-Execution-Plan.md)**
+The full blueprint lives in [`docs/PLAN/`](docs/PLAN/). The one that decides day-to-day
+work: **[`docs/PLAN/12-Small-Team-Execution-Plan.md`](docs/PLAN/12-Small-Team-Execution-Plan.md)**
 — phases, gates, and the reasoning behind every architectural decision.
 
 Current state is tracked honestly, bugs included, in
-**[`PLAN/13-Implementation-Status.md`](PLAN/13-Implementation-Status.md)**.
+**[`docs/PLAN/13-Implementation-Status.md`](docs/PLAN/13-Implementation-Status.md)**.
 
 The service split — extracting **auth**, plus Redis, the broker, and the
 observability that follow it — is in
-**[`PLAN/14-Service-Split-and-Platform-Evolution.md`](PLAN/14-Service-Split-and-Platform-Evolution.md)**.
+**[`docs/PLAN/14-Service-Split-and-Platform-Evolution.md`](docs/PLAN/14-Service-Split-and-Platform-Evolution.md)**.
 All eight stages are built. **Seven of them are off by default**, and the
 containers below are still what an ordinary deployment runs:
 
@@ -84,8 +84,8 @@ Three containers, and no more:
 | `worker` | **Backend** — outbox pump, payroll runs, scheduled jobs | nothing |
 
 PostgreSQL doing three jobs at once is what makes this stack operable by one
-person: there is no RabbitMQ and no Redis to keep alive (PLAN/12 §3.2). Both are
-now planned rather than ruled out — `PLAN/14` §9 sets out what has to become true
+person: there is no RabbitMQ and no Redis to keep alive (docs/PLAN/12 §3.2). Both are
+now planned rather than ruled out — `docs/PLAN/14` §9 sets out what has to become true
 first, and why the rate limiter is already wrong the moment `web` runs on more
 than one replica.
 
@@ -122,7 +122,7 @@ ops/                docker-compose, web & worker Dockerfiles, migration linter,
 
 All four are machine-enforced, not agreements. Together they are what makes
 splitting one module into a service take 4–6 weeks rather than 4–6 months
-(PLAN/12 §9).
+(docs/PLAN/12 §9).
 
 1. **Modules only talk through `index.ts`.** Enforced by
    `eslint-plugin-boundaries`. Importing into another module's internals fails
@@ -172,7 +172,7 @@ existed in the code, passed review, and did nothing.
 
 The access token lives **only in JavaScript memory**. The refresh token lives
 **only as an httpOnly cookie** — it is not returned in the login body, so page
-scripts never hold it (PLAN/11 §5.3).
+scripts never hold it (docs/PLAN/11 §5.3).
 
 The consequence: reloading the page discards the access token, and the app
 exchanges the cookie for a fresh one on load. What XSS can steal is a token that
@@ -214,7 +214,7 @@ alarm that gets ignored when it is right.
 
 No `DROP`, `RENAME`, or `TRUNCATE`. Enforced by
 `ops/scripts/lint-migrations.mjs`. The full rules and the deprecation ladder are
-in [`PLAN/09`](PLAN/09-Non-Destructive-Migration-Strategy.md).
+in [`docs/PLAN/09`](docs/PLAN/09-Non-Destructive-Migration-Strategy.md).
 
 RLS is written by hand in migrations — Prisma does not generate it. Every table
 with a `tenant_id` **must** have a policy; a CI test reads the PostgreSQL
@@ -271,7 +271,7 @@ the reverse) fails the build.
 ## What works
 
 Tracked in detail, with every bug found and how it was proven, in
-[`PLAN/13`](PLAN/13-Implementation-Status.md). In outline:
+[`docs/PLAN/13`](docs/PLAN/13-Implementation-Status.md). In outline:
 
 - **Platform** — multi-tenancy with fail-closed RLS, self-service registration,
   roles and permissions, per-user grant/deny, audit trail, transactional outbox,
@@ -301,7 +301,7 @@ Tracked in detail, with every bug found and how it was proven, in
   credentials.
 - **WhatsApp notifications** — the third tier for urgent messages, needs a
   WhatsApp Business API account.
-- **Support sessions** (PLAN/07 §6). Until they exist, the answer to "how does
+- **Support sessions** (docs/PLAN/07 §6). Until they exist, the answer to "how does
   support look at customer data?" is **they cannot** — not a temporary back door.
 
-Order and gates are in [`PLAN/12`](PLAN/12-Small-Team-Execution-Plan.md) §6.
+Order and gates are in [`docs/PLAN/12`](docs/PLAN/12-Small-Team-Execution-Plan.md) §6.

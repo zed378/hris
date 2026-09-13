@@ -1,9 +1,9 @@
 import { countInWindow, redis } from './redis.ts';
 
 /**
- * Rate limiting, backed by Redis when there is one (PLAN/14 stage 3).
+ * Rate limiting, backed by Redis when there is one (docs/PLAN/14 stage 3).
  *
- * The counters were process-local, and `PLAN/12` §3.1 justified that honestly:
+ * The counters were process-local, and `docs/PLAN/12` §3.1 justified that honestly:
  * one web process was the planned topology, and a `Map` is far cheaper than a
  * system to keep alive. What the original comment named as a future limit turned
  * out to be a present bug the moment anybody scales out — **each replica counts
@@ -99,7 +99,7 @@ export function rateLimitBackend(): 'redis' | 'in-process' {
 }
 
 /**
- * Kuota menyeluruh per tenant (PLAN/12 F6).
+ * Kuota menyeluruh per tenant (docs/PLAN/12 F6).
  *
  * Berbeda tujuan dari `rateLimit` per rute. Yang itu menjaga jalur tertentu
  * dari penyalahgunaan — coba-coba kata sandi, banjir pendaftaran. Yang ini

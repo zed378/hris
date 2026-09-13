@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ErrorCode, ApiError } from '@hrms/contracts';
 
 /**
- * The small amount of HTTP this service needs (PLAN/14 stage 6).
+ * The small amount of HTTP this service needs (docs/PLAN/14 stage 6).
  *
  * Written against `node:http` rather than a framework, and that is a decision
  * rather than an omission. This service has nine endpoints and is the one
@@ -30,7 +30,7 @@ export interface RequestContext {
  * This is what makes a request traceable across the split. A call that enters at
  * the backend and continues here carries the same id, so two log streams can be
  * joined into one story. Without it the split turns every investigation into
- * matching timestamps by eye (PLAN/14 §9.3).
+ * matching timestamps by eye (docs/PLAN/14 §9.3).
  */
 export function contextFrom(req: IncomingMessage): RequestContext {
   const header = (name: string): string | undefined => {
@@ -155,7 +155,7 @@ function cookieSecure(): boolean {
 /**
  * `path=/api/auth`, matching the backend exactly.
  *
- * The proxy routes `/api/auth/*` here (PLAN/14 §7), so the path that scopes the
+ * The proxy routes `/api/auth/*` here (docs/PLAN/14 §7), so the path that scopes the
  * cookie is also the path that reaches this service. A request to
  * `/api/employees` never carries the refresh token, and what is never sent
  * cannot leak.

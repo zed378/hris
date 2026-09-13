@@ -9,7 +9,7 @@
 # memeriksa masalah yang hanya muncul di image — pakai `docker-compose.yml`.
 #
 # PostgreSQL di sini merangkap tiga peran, dan itu yang membuat tumpukan ini
-# dapat dioperasikan satu orang (PLAN/12 §3.2):
+# dapat dioperasikan satu orang (docs/PLAN/12 §3.2):
 #   - basis data aplikasi (satu DB, schema per modul, RLS aktif)
 #   - antrean pekerjaan lewat pg-boss  → tanpa RabbitMQ
 #   - kunci terdistribusi lewat advisory lock → tanpa Redis
@@ -55,7 +55,7 @@ services:
       timeout: 5s
       retries: 20
 
-  # Redis — hanya untuk pembatas laju bersama (PLAN/14 §9.2).
+  # Redis — hanya untuk pembatas laju bersama (docs/PLAN/14 §9.2).
   #
   # Opsional. Tanpa REDIS_URL aplikasi memakai penghitung dalam proses dan
   # berjalan persis seperti sebelumnya. Ia menjadi WAJIB begitu `web` berjalan

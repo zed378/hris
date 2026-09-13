@@ -3,7 +3,7 @@ import type { NextResponse } from 'next/server';
 /**
  * Refresh token disimpan sebagai cookie httpOnly, bukan dikembalikan ke JavaScript.
  *
- * PLAN/11 §5.3 melarang token menyentuh penyimpanan persisten — bukan hanya
+ * docs/PLAN/11 §5.3 melarang token menyentuh penyimpanan persisten — bukan hanya
  * `localStorage`, melainkan juga Cache Storage dan IndexedDB. Larangan itu sulit
  * ditegakkan bila token pernah berada di tangan JavaScript sama sekali: begitu
  * ia ada di sana, menyimpannya "sementara" agar sesi bertahan setelah refresh

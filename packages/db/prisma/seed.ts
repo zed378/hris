@@ -23,7 +23,7 @@ const db = new PrismaClient({
 // -----------------------------------------------------------------------------
 // The module catalogue
 //
-// Only the four domain modules in the 18-month scope (PLAN/12 §1). The other
+// Only the four domain modules in the 18-month scope (docs/PLAN/12 §1). The other
 // modules from the reference catalogue are deliberately absent — adding a row to
 // this table is a promise to a customer, and an unbuilt promise costs more than
 // an unwritten row.

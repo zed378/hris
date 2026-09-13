@@ -17,7 +17,7 @@ import { unsubscribeFromPush } from './push.ts';
  * The client-side session.
  *
  * The access token lives **in memory only** — not in `localStorage`, not in
- * Cache Storage, not in IndexedDB (PLAN/11 §5.3). The consequence is real:
+ * Cache Storage, not in IndexedDB (docs/PLAN/11 §5.3). The consequence is real:
  * reloading the page discards it. That is not a flaw but the reason the refresh
  * token exists as an httpOnly cookie — when the app loads it exchanges that
  * cookie for a fresh access token, and JavaScript never touches a credential

@@ -79,7 +79,7 @@ export default function ReviewPage() {
     [api, note],
   );
 
-  // Ambang 12% dari PLAN/12 §11. Di atas itu, HR berhenti meninjau dan skor
+  // Ambang 12% dari docs/PLAN/12 §11. Di atas itu, HR berhenti meninjau dan skor
   // kepercayaan berubah menjadi teater — jadi angkanya ditampilkan, bukan
   // disembunyikan di dashboard yang tidak pernah dibuka.
   const ratioTooHigh = (stats?.flaggedRatio ?? 0) > 0.12;

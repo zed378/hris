@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  *
  * Metrik yang harus dipantau: bila lebih dari 12% presensi masuk antrean ini,
  * HR berhenti meninjau dan skor kepercayaan berubah menjadi teater
- * (PLAN/12 §11). Angka itu dikembalikan bersama daftarnya.
+ * (docs/PLAN/12 §11). Angka itu dikembalikan bersama daftarnya.
  */
 export const GET = defineRoute('GET /api/attendance/review', async (_req, ctx) => {
   const [flagged, total] = await Promise.all([

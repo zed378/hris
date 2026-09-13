@@ -6,7 +6,7 @@ import { useSession } from '@/lib/session.tsx';
 import { downloadFile } from '@/lib/download.ts';
 
 /**
- * Langganan dan modul (PLAN/12 F6).
+ * Langganan dan modul (docs/PLAN/12 F6).
  *
  * Layar ini adalah DoD Fase 6 dalam bentuk yang dapat dilihat: pelanggan
  * mengaktifkan dan menonaktifkan modul sendiri, tanpa menyentuh tim.

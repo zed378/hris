@@ -11,7 +11,7 @@ import {
 } from './pii.ts';
 
 /**
- * The employee module (PLAN/12 Phase 2).
+ * The employee module (docs/PLAN/12 Phase 2).
  *
  * Two things shape this whole file:
  *

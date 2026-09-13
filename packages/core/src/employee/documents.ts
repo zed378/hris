@@ -3,7 +3,7 @@ import { writeAudit, type TenantClient } from '@hrms/db';
 import { createBlobStore, BlobError } from '../storage/index.ts';
 
 /**
- * Employee documents (PLAN/12 P2).
+ * Employee documents (docs/PLAN/12 P2).
  *
  * What is stored here is not an ordinary attachment: scans of an ID card, a
  * family card, a diploma, a contract. All of it is personal data under Personal

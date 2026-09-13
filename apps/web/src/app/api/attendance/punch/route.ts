@@ -43,7 +43,7 @@ export const POST = defineRoute('POST /api/attendance/punch', async (req, ctx) =
   }
 
   // Pemetaan pengguna → karyawan lewat email. Referensi lunak, sesuai pola
-  // replika di PLAN/01 §4.2: modul presensi tidak memegang kunci asing ke
+  // replika di docs/PLAN/01 §4.2: modul presensi tidak memegang kunci asing ke
   // employee, sehingga keduanya dapat dipisah kelak tanpa membongkar tabel.
   const me = await ctx.tx.employee.findFirst({
     where: { tenantId: ctx.tenantId, email: ctx.email },

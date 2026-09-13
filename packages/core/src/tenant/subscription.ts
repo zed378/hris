@@ -2,7 +2,7 @@ import { EventTopic } from '@hrms/contracts';
 import { publishEvent, writeAudit, type TenantClient } from '@hrms/db';
 
 /**
- * Self-service module activation and deactivation (PLAN/12 P6).
+ * Self-service module activation and deactivation (docs/PLAN/12 P6).
  *
  * The property carrying the whole weight of the Phase 6 DoD:
  *

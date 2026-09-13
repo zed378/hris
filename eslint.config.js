@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint';
 import boundaries from 'eslint-plugin-boundaries';
 
 /**
- * Module boundaries as a CI gate (PLAN/12 §3.1 rule 1).
+ * Module boundaries as a CI gate (docs/PLAN/12 §3.1 rule 1).
  *
  * This is the most important file in the repository for the system's longevity,
  * and its reason is not visible from its contents.
@@ -194,7 +194,7 @@ export default tseslint.config(
   },
 
   /**
-   * The gateway authorizes through ONE function (PLAN/14 stage 4).
+   * The gateway authorizes through ONE function (docs/PLAN/14 stage 4).
    *
    * `decideAccess` is the seam that becomes a call to the auth service. A route
    * that reached for `resolveEffectiveAccess` instead would be composing the
@@ -227,7 +227,7 @@ export default tseslint.config(
               importNames: ['resolveEffectiveAccess'],
               message:
                 'Pakai decideAccess(). Ia adalah sambungan yang kelak menjadi panggilan ke service auth ' +
-                '(PLAN/14 tahap 4), dan ia yang memegang urutan pemeriksaan: basi, langganan, lalu izin.',
+                '(docs/PLAN/14 tahap 4), dan ia yang memegang urutan pemeriksaan: basi, langganan, lalu izin.',
             },
           ],
         },

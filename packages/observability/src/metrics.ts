@@ -1,7 +1,7 @@
 /**
- * Metrics, in the Prometheus text format (PLAN/14 §9.3).
+ * Metrics, in the Prometheus text format (docs/PLAN/14 §9.3).
  *
- * `PLAN/13` recorded "there are no metrics yet — added when someone actually
+ * `docs/PLAN/13` recorded "there are no metrics yet — added when someone actually
  * collects them", and that restraint was right: an endpoint nobody scrapes is a
  * maintenance burden pretending to be observability. What changed is the split.
  * With four containers, "is it slow?" and "is it erroring?" stop being questions
@@ -19,7 +19,7 @@
  * control this system has. Labelling a counter by `tenant_id` publishes the
  * customer list; exporting a flagged ratio per tenant publishes their business.
  *
- * `PLAN/12` §11 lists ten metrics worth watching and several of them are exactly
+ * `docs/PLAN/12` §11 lists ten metrics worth watching and several of them are exactly
  * that kind — the flagged ratio, payroll disputes, pilot retention. **Those
  * belong on the dashboard, behind a permission**, and they are already there.
  * What lives here is what an operator needs and no customer would recognise:
@@ -47,7 +47,7 @@ const histograms = new Map<string, Histogram>();
 /**
  * Buckets chosen around the number that matters.
  *
- * `PLAN/12` §11 sets the p95 target at 500 ms, so the boundaries cluster there:
+ * `docs/PLAN/12` §11 sets the p95 target at 500 ms, so the boundaries cluster there:
  * a histogram whose nearest edges are 250 ms and 1 s cannot tell 400 ms from
  * 900 ms, and that is the only distinction anybody would act on.
  */

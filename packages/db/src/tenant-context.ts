@@ -36,7 +36,7 @@ export class InvalidTenantIdError extends Error {
  *    query gagal — gagal-tertutup, tetapi galatnya membingungkan. Lebih baik
  *    ditolak di sini.
  *
- * Referensi: PLAN/06 §2.6, PLAN/12 §3.3, spike S3.
+ * Referensi: docs/PLAN/06 §2.6, docs/PLAN/12 §3.3, spike S3.
  */
 export async function withTenant<T>(
   tenantId: string,

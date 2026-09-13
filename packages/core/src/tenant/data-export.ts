@@ -2,7 +2,7 @@ import { writeAudit, type TenantClient } from '@hrms/db';
 import { revealPii } from '../employee/index.ts';
 
 /**
- * Exporting all of a tenant's data (PLAN/12 P6 DoD, Personal Data Protection Act No. 27/2022).
+ * Exporting all of a tenant's data (docs/PLAN/12 P6 DoD, Personal Data Protection Act No. 27/2022).
  *
  * Not a convenience feature. The Act guarantees a right to data portability: the
  * data subject — and in this context the company representing its employees — is

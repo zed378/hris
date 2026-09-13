@@ -7,7 +7,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = join(HERE, '..', 'src');
 
 /**
- * The frontend must stay reachable only through the public API (PLAN/14 §11).
+ * The frontend must stay reachable only through the public API (docs/PLAN/14 §11).
  *
  * §11 records splitting the frontend from the backend as blocked on a
  * precondition — "no page component reaches into a route handler's module, and

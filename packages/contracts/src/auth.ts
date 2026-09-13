@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Kode tenant dipakai bersama email saat login (PLAN/06 §3.3).
+ * Kode tenant dipakai bersama email saat login (docs/PLAN/06 §3.3).
  *
  * Alasan tidak memakai email saja: satu orang dapat menjadi pengguna di lebih
  * dari satu tenant (konsultan HR, grup perusahaan). Tanpa kode tenant, sistem
@@ -51,7 +51,7 @@ export type TokenPair = z.infer<typeof tokenPairSchema>;
  * `aud` memisahkan dua bidang: token tenant (`hrms-tenant`) ditolak
  * `admin-gateway`, dan token superuser (`hrms-admin`) ditolak gateway tenant.
  * Superuser bukan pengguna dengan izin lebih banyak — ia entitas di bidang
- * berbeda (P11, PLAN/07 §3).
+ * berbeda (P11, docs/PLAN/07 §3).
  */
 export const accessTokenClaimsSchema = z.object({
   sub: z.string().uuid(),

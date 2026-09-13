@@ -13,10 +13,10 @@ import { resetAccessCache, disconnectRedis } from '@hrms/cache';
 import { decideAccess } from '../src/iam/authorize.ts';
 
 /**
- * The authorization decision, against a real database (PLAN/14 stage 4).
+ * The authorization decision, against a real database (docs/PLAN/14 stage 4).
  *
  * This function is the seam. When authorization becomes a call to the auth
- * service (PLAN/14 §5), its implementation is replaced by an HTTP request and
+ * service (docs/PLAN/14 §5), its implementation is replaced by an HTTP request and
  * everything around it stays put — so what has to be pinned down is the
  * CONTRACT: which denial each situation produces, and in which order the
  * situations are judged when more than one applies.

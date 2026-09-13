@@ -76,7 +76,7 @@ describe('the exposition format', () => {
   });
 
   /**
-   * The buckets cluster around 500 ms because that is the number PLAN/12 §11
+   * The buckets cluster around 500 ms because that is the number docs/PLAN/12 §11
    * sets as the p95 target. A histogram whose nearest edges were 250 ms and 1 s
    * could not tell 400 ms from 900 ms — the only distinction anybody acts on.
    */
@@ -114,7 +114,7 @@ describe('what must never be exported', () => {
    * The rule this file exists for.
    *
    * A `tenant_id` label publishes the customer list. A per-tenant business
-   * figure publishes their business. PLAN/12 §11 lists several metrics of
+   * figure publishes their business. docs/PLAN/12 §11 lists several metrics of
    * exactly that kind — the flagged ratio, payroll disputes, pilot retention —
    * and they belong on the dashboard behind a permission, where they already
    * are.

@@ -46,7 +46,7 @@ export async function notifyLeaveDecision(
   return withTenant(
     tenantId,
     async (tx) => {
-      // Employee → user via email, the same link used by attendance (PLAN/01 §4.2).
+      // Employee → user via email, the same link used by attendance (docs/PLAN/01 §4.2).
       // An employee without an account does not receive push, and that is normal —
       // they see the decision when HR tells them, as before this system existed.
       const employee = await tx.employee.findFirst({

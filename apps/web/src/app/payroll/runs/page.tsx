@@ -6,7 +6,7 @@ import { useSession } from '@/lib/session.tsx';
 import { downloadFile, type DownloadOutcome } from '@/lib/download.ts';
 
 /**
- * Proses penggajian (PLAN/12 F5).
+ * Proses penggajian (docs/PLAN/12 F5).
  *
  * Dua hal yang dinyatakan terus terang di layar ini, karena keduanya menentukan
  * apakah HR berani memakainya:

@@ -68,7 +68,7 @@ type LoginOutcome =
   | { kind: 'locked'; retryAfterSeconds: number };
 
 /**
- * Login with tenantCode + email + password (PLAN/06 §3.2).
+ * Login with tenantCode + email + password (docs/PLAN/06 §3.2).
  *
  * One rule binds this path: **every failure returns the same
  * `INVALID_CREDENTIALS`**, whatever its cause — no such tenant, no such email,
@@ -275,7 +275,7 @@ type RefreshOutcome =
   | { kind: 'reuse'; familyId: string; userId: string };
 
 /**
- * Refresh token rotation with theft detection (PLAN/06 §3.5).
+ * Refresh token rotation with theft detection (docs/PLAN/06 §3.5).
  *
  * Every use issues a new token and marks the old one as rotated. If a token that
  * was ALREADY rotated appears again, there are only two possibilities: it was

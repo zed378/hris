@@ -1,4 +1,4 @@
--- Pemberitahuan presensi langsung (PLAN/12 §3: SSE + LISTEN/NOTIFY).
+-- Pemberitahuan presensi langsung (docs/PLAN/12 §3: SSE + LISTEN/NOTIFY).
 --
 -- Kanalnya PER TENANT, dan itu keputusan keamanan, bukan penamaan.
 --

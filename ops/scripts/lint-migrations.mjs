@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Linter migrasi — penegakan PLAN/09.
+ * Linter migrasi — penegakan docs/PLAN/09.
  *
  * Kebijakan migrasi non-destruktif hanya bertahan bila ditegakkan mesin. Sebagai
  * kesepakatan tim ia bertahan sampai deploy pertama yang terburu-buru pada Jumat
@@ -22,13 +22,13 @@ const MIGRATIONS_DIR = join(ROOT, 'packages/db/prisma/migrations');
  *
  * `DROP COLUMN` dan `RENAME` tidak dapat dibatalkan dan langsung merusak versi
  * aplikasi sebelumnya, sehingga rollback aplikasi berhenti menjadi aman (P12).
- * Penghapusan kolom hanya lewat tangga deprekasi berjenjang (PLAN/09 §5).
+ * Penghapusan kolom hanya lewat tangga deprekasi berjenjang (docs/PLAN/09 §5).
  */
 const FORBIDDEN = [
   { pattern: /\bDROP\s+TABLE\b/i, rule: 'DROP TABLE',
-    hint: 'Pakai tangga deprekasi (PLAN/09 §5), bukan penghapusan langsung.' },
+    hint: 'Pakai tangga deprekasi (docs/PLAN/09 §5), bukan penghapusan langsung.' },
   { pattern: /\bDROP\s+COLUMN\b/i, rule: 'DROP COLUMN',
-    hint: 'Tandai kolom deprecated dan hentikan pembacaannya dulu (PLAN/09 §5).' },
+    hint: 'Tandai kolom deprecated dan hentikan pembacaannya dulu (docs/PLAN/09 §5).' },
   { pattern: /\bDROP\s+SCHEMA\b/i, rule: 'DROP SCHEMA', hint: 'Tidak pernah di produksi.' },
   { pattern: /\bTRUNCATE\b/i, rule: 'TRUNCATE', hint: 'Tidak dapat di-rollback per baris.' },
   { pattern: /\bALTER\s+TABLE\s+[^\s;]+\s+RENAME\b/i, rule: 'RENAME TABLE/COLUMN',
@@ -163,7 +163,7 @@ function main() {
       console.error(`    ✗ ${v.rule}`);
       console.error(`      ${v.hint}\n`);
     }
-    console.error('Aturan lengkap: PLAN/09-Non-Destructive-Migration-Strategy.md\n');
+    console.error('Aturan lengkap: docs/PLAN/09-Non-Destructive-Migration-Strategy.md\n');
     return 1;
   }
 

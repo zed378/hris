@@ -22,7 +22,7 @@ loadEnv({
  * The background process.
  *
  * Deliberately separate from `apps/web`, even though both are one codebase. This
- * is the damper for risk N2 (PLAN/12 §10.3): heavy work — Excel import, payroll
+ * is the damper for risk N2 (docs/PLAN/12 §10.3): heavy work — Excel import, payroll
  * runs, PDF generation — must not hold up a user request. A process split is the
  * cheapest way to guarantee that without breaking the system into services.
  */
@@ -31,7 +31,7 @@ const POLL_INTERVAL_MS = 2000;
 
 async function main(): Promise<void> {
   /**
-   * The broker is chosen by configuration (PLAN/14 stage 7).
+   * The broker is chosen by configuration (docs/PLAN/14 stage 7).
    *
    * pg-boss unless `BROKER_URL` says otherwise, which means the ordinary
    * deployment gains no new container and no new failure mode. Everything below

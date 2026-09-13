@@ -5,7 +5,7 @@ import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Kalender cuti tim (PLAN/12 F4).
+ * Kalender cuti tim (docs/PLAN/12 F4).
  *
  * Gunanya satu: mencegah tiga orang dari satu tim cuti pada minggu yang sama.
  * Manajer yang menyetujui satu per satu tanpa melihat kalender tidak punya cara

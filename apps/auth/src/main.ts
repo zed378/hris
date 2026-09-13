@@ -14,7 +14,7 @@ import { disconnectRedis } from '@hrms/cache';
 import { createAuthServer } from './server.ts';
 
 /**
- * The auth service (PLAN/14 stage 6).
+ * The auth service (docs/PLAN/14 stage 6).
  *
  * Identity, sessions, tokens, and the authorization decision, in a deployable of
  * their own. What justifies the separation is not tidiness — document 12 argues

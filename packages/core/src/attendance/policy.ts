@@ -17,7 +17,7 @@ import { writeAudit, type TenantClient } from '@hrms/db';
  * presensi ujinya tanpa foto**, bukan karena ada yang mencurigakan. Tenant yang
  * memang tidak meminta foto akan mengalaminya setiap hari, dan HR yang antrean
  * tinjauannya penuh berhenti meninjau. Pada saat itu skor kepercayaan berubah
- * menjadi teater — persis yang diperingatkan PLAN/12 §11.
+ * menjadi teater — persis yang diperingatkan docs/PLAN/12 §11.
  */
 
 export type OnPermissionDenied = 'BLOCK' | 'ALLOW_FLAGGED' | 'FALLBACK_ONLY';

@@ -7,7 +7,7 @@
 #
 # Pada rancangan microservices keduanya terpisah (Next.js + api-gateway + 16
 # service). Di sini keduanya satu proses, dan pemisahan yang dipertahankan bukan
-# pemisahan proses melainkan pemisahan modul — lihat PLAN/12 §3.1.
+# pemisahan proses melainkan pemisahan modul — lihat docs/PLAN/12 §3.1.
 #
 # Yang TIDAK ada di image ini, dengan sengaja: pekerjaan berat. Impor Excel,
 # proses payroll, dan pembuatan PDF berjalan di image worker yang terpisah,

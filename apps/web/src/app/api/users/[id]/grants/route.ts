@@ -21,7 +21,7 @@ const deleteSchema = z.object({ permissionCode: z.string().min(3).max(128) });
 
 /**
  * Memberi atau mencabut satu permission untuk satu pengguna, di luar perannya
- * (PLAN/05 §4).
+ * (docs/PLAN/05 §4).
  *
  * `DENY` selalu menang atas peran maupun atas `GRANT`. Itulah yang membuat
  * pencabutan darurat dapat diandalkan: tidak perlu menelusuri seluruh peran

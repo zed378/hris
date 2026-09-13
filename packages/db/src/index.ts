@@ -1,7 +1,7 @@
 // API publik paket @hrms/db.
 //
 // Impor dari jalur dalam (mis. '@hrms/db/src/client.ts') diblokir lint boundary.
-// Batas ini yang membuat pemecahan modul menjadi service kelak murah (PLAN/12 §9).
+// Batas ini yang membuat pemecahan modul menjadi service kelak murah (docs/PLAN/12 §9).
 
 export {
   appClient,

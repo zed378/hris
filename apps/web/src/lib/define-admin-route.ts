@@ -11,7 +11,7 @@ import {
 import { consumeRateLimit } from '@hrms/cache';
 
 /**
- * Gateway control plane — counterpart to `admin-gateway` (PLAN/07 §2).
+ * Gateway control plane — counterpart to `admin-gateway` (docs/PLAN/07 §2).
  *
  * Deliberately **entirely separate** from `defineRoute`, not branched from it.
  * Two fields sharing one guard function will soon grow an `isAdmin` parameter,

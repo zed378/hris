@@ -1,4 +1,4 @@
--- Modul Cuti (PLAN/12 F4, skema dokumen 02 §8, konkurensi dokumen 03 §4.1).
+-- Modul Cuti (docs/PLAN/12 F4, skema dokumen 02 §8, konkurensi dokumen 03 §4.1).
 --
 -- Seluruh berkas ini berputar pada satu kalimat pada DoD Fase 4:
 --

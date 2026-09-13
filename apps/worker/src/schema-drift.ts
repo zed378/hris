@@ -2,7 +2,7 @@ import { log } from '@hrms/observability';
 import { workerClient } from '@hrms/db';
 
 /**
- * Pemeriksaan drift skema harian (PLAN/12 F6 — pengerasan).
+ * Pemeriksaan drift skema harian (docs/PLAN/12 F6 — pengerasan).
  *
  * Ada gerbang CI yang memeriksa hal yang sama, dan gerbang itu tidak cukup.
  * CI melihat skema yang DIBANGUN DARI MIGRASI; yang dijaga job ini adalah

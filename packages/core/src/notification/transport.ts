@@ -44,7 +44,7 @@ class ConsoleTransport implements EmailTransport {
 }
 
 /**
- * Resend (PLAN/12 §3.4 — beli, jangan bangun).
+ * Resend (docs/PLAN/12 §3.4 — beli, jangan bangun).
  *
  * Menyentuh SMTP sendiri berarti mengelola reputasi IP, SPF, DKIM, DMARC, dan
  * antrean bounce. Semuanya pekerjaan penuh waktu yang tidak ada hubungannya

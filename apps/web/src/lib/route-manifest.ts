@@ -1,5 +1,5 @@
 /**
- * The route → module → permission map (PLAN/01 §5.2).
+ * The route → module → permission map (docs/PLAN/01 §5.2).
  *
  * This is P7 enforced: **no route without an explicit authorisation decision.**
  * A handler not registered here cannot be reached — not because someone forgot
@@ -84,7 +84,7 @@ export const ROUTE_MANIFEST = {
     rateLimit: { windowSeconds: 900, max: 20 },
   },
 
-  // --- Users, roles, and special access (PLAN/05 §7) ------------------------------
+  // --- Users, roles, and special access (docs/PLAN/05 §7) ------------------------------
   // The `iam` module is CORE, so these endpoints are never closed by a
   // subscription — a tenant must always be able to manage its own users, whatever
   // its plan.

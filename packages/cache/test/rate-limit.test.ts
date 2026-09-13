@@ -16,7 +16,7 @@ import {
 import { disconnectRedis, redis, redisReady } from '../src/redis.ts';
 
 /**
- * Rate limiting against a real Redis (PLAN/14 stage 3).
+ * Rate limiting against a real Redis (docs/PLAN/14 stage 3).
  *
  * The bug being fixed is one that no in-process test could ever have caught,
  * because it only appears when there is more than one process: counters lived in
@@ -31,9 +31,9 @@ import { disconnectRedis, redis, redisReady } from '../src/redis.ts';
  * ## When Redis is not running
  *
  * The suite skips rather than fails, and says so. Redis is optional by design —
- * `PLAN/12` §3.2 sold "nothing extra to keep alive" as a feature and it still is
+ * `docs/PLAN/12` §3.2 sold "nothing extra to keep alive" as a feature and it still is
  * for a single container — so a developer without it must not be looking at a
- * red build. The skip is recorded in PLAN/13 so it does not pass for coverage.
+ * red build. The skip is recorded in docs/PLAN/13 so it does not pass for coverage.
  */
 
 const url = process.env['REDIS_URL'];

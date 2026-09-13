@@ -147,7 +147,7 @@ describe('ROUTE_RULES', () => {
     // penjagaan yang salah tempat.
     //
     // JWKS dikecualikan atas alasan yang sama, dan taruhannya lebih besar.
-    // Setelah auth dipisah (PLAN/14 tahap 6), backend dan worker mengambil kunci
+    // Setelah auth dipisah (docs/PLAN/14 tahap 6), backend dan worker mengambil kunci
     // publik dari sini untuk memverifikasi SETIAP token. Beberapa service di
     // belakang satu NAT terlihat sebagai satu alamat, sehingga batas laju di
     // sini berarti kegagalan mengambil kunci — dan kegagalan mengambil kunci

@@ -5,7 +5,7 @@ import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Komponen gaji (PLAN/12 F5).
+ * Komponen gaji (docs/PLAN/12 F5).
  *
  * Formula diperiksa SAAT DIKETIK, bukan saat run berjalan. Perbedaannya bukan
  * kenyamanan: formula yang salah ditemukan saat run berarti ditemukan pada

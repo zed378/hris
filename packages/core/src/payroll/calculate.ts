@@ -3,7 +3,7 @@ import { evaluateFormula, FormulaError } from './formula.ts';
 import { orderComponents, salaryAt, BASE_VARIABLES } from './components.ts';
 
 /**
- * The salary calculation engine (PLAN/12 P5).
+ * The salary calculation engine (docs/PLAN/12 P5).
  *
  * **What is NOT here: PPh21, PTKP, and BPJS.** All three are locked behind Gate
  * C — a payroll expert engaged, 30 real payslips as test cases, and spike S1

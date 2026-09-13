@@ -5,7 +5,7 @@ import { looksMasked } from './pii.ts';
  *
  * This is the file that decides whether Gate A is passed: "three pilots import
  * ≥100 employees from their own Excel files, in under 30 minutes, unaided"
- * (PLAN/12 Phase 2).
+ * (docs/PLAN/12 Phase 2).
  *
  * The phrase "their own Excel files" shapes this whole file. A customer's file
  * will not use our column headers, will not use our date format, and will have

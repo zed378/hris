@@ -18,7 +18,7 @@ import { useSession } from '@/lib/session.tsx';
  * accepted on nothing. The evidence layer that documents 10 and 11 spend pages
  * justifying was, for a self-service tenant, switched off and unreachable.
  *
- * This is the same class as bug #34 in PLAN/13 (a menu leading nowhere) with the
+ * This is the same class as bug #34 in docs/PLAN/13 (a menu leading nowhere) with the
  * halves swapped: an endpoint nobody could reach. The permanent guard for the
  * first half — `menu-coverage.test.ts` — could not see this one, because a menu
  * pointing at a missing page is visible from the seed while a missing screen is

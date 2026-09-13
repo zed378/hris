@@ -92,7 +92,7 @@ export interface TrustAssessment {
  *
  * Chosen so one weak signal alone does not trigger a review, while a combination
  * of two does. The metric to watch: if more than 12% of punches enter the queue,
- * HR stops reviewing and the score becomes theatre (PLAN/12 §11).
+ * HR stops reviewing and the score becomes theatre (docs/PLAN/12 §11).
  *
  * It is now configurable per tenant — precisely because of that metric. The right
  * threshold for a construction site is not the right threshold for a consultancy,

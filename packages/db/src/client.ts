@@ -47,7 +47,7 @@ export function appClient(): PrismaClient {
 }
 
 /**
- * The auth plane's client (PLAN/14 stage 5).
+ * The auth plane's client (docs/PLAN/14 stage 5).
  *
  * Connects as `hrms_auth`, which reaches `auth`, `iam`, `tenant`, `audit`, and
  * `messaging` — and **nothing** in `employee`, `attendance`, `leave`, or
@@ -90,7 +90,7 @@ export function workerClient(): PrismaClient {
  * data pribadi karyawan bahkan bila seseorang menuliskannya (P11).
  *
  * Ini padanan monolit dari `platform-service` yang tidak memiliki kredensial ke
- * basis data domain (PLAN/07 §2). Yang berbeda hanya bahwa di sini pemisahannya
+ * basis data domain (docs/PLAN/07 §2). Yang berbeda hanya bahwa di sini pemisahannya
  * ditegakkan hak akses PostgreSQL, bukan batas jaringan.
  */
 export function platformClient(): PrismaClient {

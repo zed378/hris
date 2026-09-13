@@ -5,7 +5,7 @@ import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Slip gaji saya (PLAN/12 F5).
+ * Slip gaji saya (docs/PLAN/12 F5).
  *
  * Yang membedakan layar ini dari daftar angka: **setiap baris membawa
  * penjelasannya.** Saat karyawan bertanya mengapa potongannya sekian, jawaban

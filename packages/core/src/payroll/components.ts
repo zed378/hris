@@ -2,7 +2,7 @@ import { Prisma, writeAudit, type TenantClient } from '@hrms/db';
 import { checkFormula } from './formula.ts';
 
 /**
- * Salary components and per-employee salary structures (PLAN/12 P5).
+ * Salary components and per-employee salary structures (docs/PLAN/12 P5).
  *
  * Two guards live here, and both prevent a failure that only appears on the 25th
  * when a thousand payslips are due tomorrow:

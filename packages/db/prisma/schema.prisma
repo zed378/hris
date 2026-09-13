@@ -1,6 +1,6 @@
 // HRMS — skema basis data
 //
-// Satu basis data PostgreSQL, satu schema per modul (PLAN/12 §3.1 aturan 3).
+// Satu basis data PostgreSQL, satu schema per modul (docs/PLAN/12 §3.1 aturan 3).
 // Schema adalah "jahitan" yang membuat pemecahan menjadi service kelak murah:
 // memindahkan satu modul berarti memindahkan satu schema, bukan membongkar tabel.
 //
@@ -10,7 +10,7 @@
 //     CI yang menolak tabel ber-tenantId tanpa policy — lihat packages/db/test.
 //   - Uang memakai Decimal, tidak pernah Float.
 //   - Data berdimensi waktu ditutup periodenya, tidak pernah di-UPDATE di tempat (P13).
-//   - Migrasi hanya aditif (P12, PLAN/09). Linter di ops/scripts memblokir DROP/RENAME.
+//   - Migrasi hanya aditif (P12, docs/PLAN/09). Linter di ops/scripts memblokir DROP/RENAME.
 
 generator client {
   provider = "prisma-client-js"
@@ -136,7 +136,7 @@ model Tenant {
 /// Modul yang benar-benar aktif untuk satu tenant. Sumber kebenaran entitlement.
 ///
 /// Menonaktifkan modul menulis status DISABLED — barisnya tidak pernah dihapus,
-/// sehingga data modul tetap utuh dan pulih saat diaktifkan kembali (PLAN/12 F6 DoD).
+/// sehingga data modul tetap utuh dan pulih saat diaktifkan kembali (docs/PLAN/12 F6 DoD).
 model TenantModule {
   id         String             @id @default(uuid()) @db.Uuid
   tenantId   String             @map("tenant_id") @db.Uuid
@@ -197,7 +197,7 @@ model User {
   @@schema("auth")
 }
 
-/// Refresh token dengan rotasi dan deteksi pencurian (PLAN/06 §3.5).
+/// Refresh token dengan rotasi dan deteksi pencurian (docs/PLAN/06 §3.5).
 ///
 /// Satu login membuat satu `familyId`. Setiap refresh menerbitkan token baru dalam
 /// keluarga yang sama dan menandai yang lama `replacedByTokenId`. Bila token yang
@@ -229,7 +229,7 @@ model RefreshToken {
 }
 
 // =============================================================================
-// SCHEMA: iam — peran, permission, menu, grant per pengguna (PLAN/05)
+// SCHEMA: iam — peran, permission, menu, grant per pengguna (docs/PLAN/05)
 // =============================================================================
 
 enum GrantEffect {
@@ -339,7 +339,7 @@ model UserRole {
   @@schema("iam")
 }
 
-/// Hak akses khusus per pengguna, di luar perannya (PLAN/05 §4).
+/// Hak akses khusus per pengguna, di luar perannya (docs/PLAN/05 §4).
 ///
 /// DENY selalu menang atas GRANT dan atas peran. Grant kedaluwarsa diabaikan saat
 /// resolusi, bukan dihapus — jejaknya tetap ada untuk access review.
@@ -367,7 +367,7 @@ model UserPermissionGrant {
   @@schema("iam")
 }
 
-/// Penanda versi untuk cache akses efektif (PLAN/05 §5.1).
+/// Penanda versi untuk cache akses efektif (docs/PLAN/05 §5.1).
 ///
 /// Setiap perubahan peran/grant menaikkan versi dalam transaksi yang sama.
 /// Klien cache membandingkan versi, bukan menunggu TTL — sehingga pencabutan
@@ -390,7 +390,7 @@ model AccessVersion {
 // =============================================================================
 
 /// Append-only. Tidak ada UPDATE maupun DELETE — ditegakkan trigger di migrasi,
-/// bukan kesepakatan. Retensi 7 tahun (PLAN/00 §4).
+/// bukan kesepakatan. Retensi 7 tahun (docs/PLAN/00 §4).
 model AuditLog {
   id       BigInt @id @default(autoincrement())
   tenantId String @map("tenant_id") @db.Uuid
@@ -419,14 +419,14 @@ model AuditLog {
 }
 
 // =============================================================================
-// SCHEMA: messaging — transactional outbox (PLAN/03 §1.3)
+// SCHEMA: messaging — transactional outbox (docs/PLAN/03 §1.3)
 // =============================================================================
 
 /// Event ditulis ke tabel ini DALAM transaksi bisnis yang sama, lalu dipublikasikan
 /// terpisah oleh worker. Ini yang membuat "data berubah tetapi event hilang" mustahil.
 ///
 /// Bentuknya sengaja identik dengan versi terdistribusi: saat modul dipecah menjadi
-/// service, yang berubah hanya tujuan publikasinya (PLAN/12 §9).
+/// service, yang berubah hanya tujuan publikasinya (docs/PLAN/12 §9).
 model OutboxMessage {
   id       String @id @default(uuid()) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid
@@ -448,7 +448,7 @@ model OutboxMessage {
 }
 
 // =============================================================================
-// SCHEMA: platform — control plane (PLAN/07)
+// SCHEMA: platform — control plane (docs/PLAN/07)
 // =============================================================================
 
 /// Superuser adalah entitas di bidang berbeda, bukan pengguna dengan izin lebih
@@ -479,7 +479,7 @@ model Superuser {
 /// tenant jendela ke operasi internal platform.
 ///
 /// `detail` tidak boleh berisi data pribadi karyawan tenant — hanya identifier
-/// dan metadata. Sama seperti seluruh schema ini (PLAN/07 §2).
+/// dan metadata. Sama seperti seluruh schema ini (docs/PLAN/07 §2).
 model PlatformAuditLog {
   id          BigInt   @id @default(autoincrement())
   superuserId String   @map("superuser_id") @db.Uuid
@@ -1211,7 +1211,7 @@ model PunchLog {
   @@schema("attendance")
 }
 
-/// Dokumen karyawan (PLAN/12 F2).
+/// Dokumen karyawan (docs/PLAN/12 F2).
 ///
 /// Isinya bukan lampiran biasa: pindaian KTP, kartu keluarga, ijazah, kontrak.
 /// Seluruhnya data pribadi menurut UU PDP No. 27/2022, dan sebagiannya cukup

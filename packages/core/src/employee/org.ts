@@ -233,7 +233,7 @@ export async function placeEmployee(
    * The manager is checked, now that something reads the column.
    *
    * `managerId` is a soft reference — no foreign key, because employee and
-   * attendance are meant to be separable (PLAN/01 §4.2) — and for as long as
+   * attendance are meant to be separable (docs/PLAN/01 §4.2) — and for as long as
    * nothing read it, an id pointing nowhere was merely untidy. It is now the
    * default approver for that person's leave, so a wrong id no longer sits
    * still: it silently means "this employee has no manager", and the difference

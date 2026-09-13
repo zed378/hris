@@ -17,7 +17,7 @@ import { issueAccessToken } from '@hrms/core/auth';
 import { createAuthServer } from '../src/server.ts';
 
 /**
- * The auth service, over real HTTP, against a real database (PLAN/14 stage 6).
+ * The auth service, over real HTTP, against a real database (docs/PLAN/14 stage 6).
  *
  * The server is started on an ephemeral port and driven with `fetch`. Nothing is
  * stubbed and no handler is called directly, because most of what could go wrong
@@ -48,7 +48,7 @@ let base: string;
 /**
  * Every request in this suite claims a fresh client address.
  *
- * Rate-limit counters live in Redis now (PLAN/14 stage 3), keyed by route and
+ * Rate-limit counters live in Redis now (docs/PLAN/14 stage 3), keyed by route and
  * address, and they OUTLIVE the test run — `password/forgot` allows five per
  * fifteen minutes. Running the suite twice inside that window exhausted the
  * budget and the second run failed with 429 on a test asserting 204, which reads
@@ -198,7 +198,7 @@ describe('login', () => {
      * The refresh token must NOT be in the body.
      *
      * It exists only as an httpOnly cookie, so page JavaScript never holds it
-     * and therefore cannot put it anywhere durable (PLAN/11 §5.3). Asserted
+     * and therefore cannot put it anywhere durable (docs/PLAN/11 §5.3). Asserted
      * rather than assumed, because "also return it, for convenience" is the
      * single most natural change anybody would make to this endpoint.
      */

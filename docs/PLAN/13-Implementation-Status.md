@@ -549,7 +549,7 @@ failed without an error.
     figures, because those figures come from Articles 79 and 93 of the Labour Law.
 36. **Imported employees have no accounts, and there was no bulk way to create
     them.** The user → employee mapping is a soft reference through email
-    (PLAN/01 §4.2), and that design is right. What was missing was the bridge: HR
+    (docs/PLAN/01 §4.2), and that design is right. What was missing was the bridge: HR
     imports 100 employees and **not one of them can log in**, punch in, request
     leave, or see their payslip. The only route was inviting them one at a time
     through a form asking for the email and name that were **already** in their
@@ -587,7 +587,7 @@ the employee's balance goes from 12 to 9 → payroll runs (202, the worker) → 
 ### Backups — their limits
 
 The backup and restore procedure is **tested and documented**
-([runbook §6](../ops/RUNBOOK.md)), closing a DoD item open since P0. Three limits
+([runbook §6](../../ops/RUNBOOK.md)), closing a DoD item open since P0. Three limits
 are worth knowing:
 
 - **There is no PITR yet.** Maximum data loss = the interval between backups.
@@ -624,7 +624,7 @@ are worth knowing:
   rule rather than a design preference: this is read by infrastructure and stored
   in a time-series database that outlives every access control in this system. A
   `tenant_id` label publishes the customer list; a per-tenant flagged ratio
-  publishes their business. PLAN/12 §11 lists several metrics of exactly that
+  publishes their business. docs/PLAN/12 §11 lists several metrics of exactly that
   kind, and they belong on the dashboard behind a permission — where they are.
   A test asserts the emitted output contains no tenant, no employee, no email,
   and no UUID-shaped string at all.
@@ -634,7 +634,7 @@ are worth knowing:
   Prometheus scrapes each instance separately and sums across them itself.
   Sharing these would make two replicas each report the other's traffic.
 
-  Bucket boundaries cluster around 500 ms because PLAN/12 §11 sets that as the
+  Bucket boundaries cluster around 500 ms because docs/PLAN/12 §11 sets that as the
   p95 target; edges at 250 ms and 1 s could not tell 400 ms from 900 ms, which is
   the only distinction anybody acts on.
 - **The request context is for LOGGING ONLY.** The tenant, as the basis of
@@ -651,7 +651,7 @@ are worth knowing:
 ### Technical debt
 
 - ~~**Backfilling `work_date`**~~ — **the job now exists**, and must still be run
-  before the first release. [Runbook §9](../ops/RUNBOOK.md);
+  before the first release. [Runbook §9](../../ops/RUNBOOK.md);
   `pnpm --filter @hrms/worker workdate:backfill`.
 
   Each punch is re-derived through the CURRENT `resolveWorkDate` using **its
@@ -842,7 +842,7 @@ are worth knowing:
   work.
 - ~~**The SSE stream has not been tested behind a real proxy**~~ — **tested**,
   and the result corrected a claim rather than confirming it.
-  Reproducible in [`ops/proxy-test`](../ops/proxy-test/README.md): three nginx
+  Reproducible in [`ops/proxy-test`](../../ops/proxy-test/README.md): three nginx
   configurations in front of the running application, and a probe that opens the
   stream, submits a punch from a second account, and times the arrival. It
   requests `Accept-Encoding: gzip` and decompresses incrementally, because that
@@ -1248,7 +1248,7 @@ What is not locked behind Gate C but is still unbuilt:
   Three series, each clearing the dashboard's own bar that a number earns its
   place by being actionable:
 
-  - **The flagged ratio**, which PLAN/12 §11 makes the metric deciding whether
+  - **The flagged ratio**, which docs/PLAN/12 §11 makes the metric deciding whether
     the trust score does anything. Its 12% threshold is drawn on the chart and is
     explicitly *not calibrated* — and it cannot be calibrated from one month, so
     this series is what makes calibration possible at all. Measured on the
@@ -1278,7 +1278,7 @@ What is not locked behind Gate C but is still unbuilt:
   recorded), `statement_timeout`/`lock_timeout`/
   `idle_in_transaction_session_timeout` per role, daily schema drift detection
   through `public.schema_drift_report()`, and a
-  [five-incident runbook](../ops/RUNBOOK.md).
+  [five-incident runbook](../../ops/RUNBOOK.md).
 
 ### Tests that skip rather than fail, and why
 

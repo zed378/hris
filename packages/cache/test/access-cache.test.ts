@@ -21,13 +21,13 @@ import {
 import { disconnectRedis, redis, redisReady } from '../src/redis.ts';
 
 /**
- * The permission cache and its two invalidation axes (PLAN/14 §5, §10.6).
+ * The permission cache and its two invalidation axes (docs/PLAN/14 §5, §10.6).
  *
  * Against a real Redis, because what is being tested is the interaction between
  * two keys with different lifetimes — and a fake would only confirm that the
  * fake agrees with the assertion.
  *
- * Risk S2 in PLAN/14 is "the permission cache serves stale access after a
+ * Risk S2 in docs/PLAN/14 is "the permission cache serves stale access after a
  * revocation", rated high probability and high impact. This file is the evidence
  * that it does not, and every case here is one way the cache could quietly keep
  * a permission alive after it was taken away.

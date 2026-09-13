@@ -20,7 +20,7 @@ import { buildTrends, MAX_TREND_MONTHS } from '../src/dashboard/trends.ts';
  * chart draws, that a month with no rows still appears, and that the ratio is
  * computed over the right denominator.
  *
- * The flagged ratio is the one that matters most. `PLAN/12` §11 makes it the
+ * The flagged ratio is the one that matters most. `docs/PLAN/12` §11 makes it the
  * metric that decides whether the trust score is doing anything at all, and its
  * 12% threshold is explicitly not calibrated — a series that quietly mislabels a
  * month would make the calibration wrong rather than absent, which is worse.

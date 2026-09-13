@@ -1,5 +1,5 @@
 -- =============================================================================
--- hrms_auth — the role the auth service will connect as (PLAN/14 stage 5)
+-- hrms_auth — the role the auth service will connect as (docs/PLAN/14 stage 5)
 -- =============================================================================
 --
 -- Stage 5 of the split creates the database boundary BEFORE the network one, and
@@ -12,7 +12,7 @@
 --   auth       users, refresh tokens, action tokens — credentials and sessions
 --   iam        roles, permissions, menus, grants, access versions
 --   tenant     tenants, plans, modules — because P8 is decided with the
---              permission check, not after it (PLAN/14 §4.1)
+--              permission check, not after it (docs/PLAN/14 §4.1)
 --   audit      append-only, like every other application role
 --   messaging  the outbox: an auth event has to reach the same pump
 --
@@ -35,7 +35,7 @@
 -- users to answer who holds a permission, and `notification`, `tenant`,
 -- `reporting`, and `leave` all read the same table. Those call sites move to the
 -- auth service in stage 6, together, because `iam` and `auth` are entangled by
--- design (PLAN/14 §4.1) — and revoking the grant before they move would take the
+-- design (docs/PLAN/14 §4.1) — and revoking the grant before they move would take the
 -- application down rather than tighten it.
 --
 -- Recorded here rather than left implicit, because a half-applied boundary that
@@ -98,6 +98,6 @@ GRANT EXECUTE ON FUNCTION public.resolve_action_token_owner(text) TO hrms_auth;
 REVOKE ALL ON SCHEMA platform FROM hrms_auth;
 
 COMMENT ON ROLE hrms_auth IS
-  'The auth service (PLAN/14). Reaches auth, iam, tenant, audit, messaging and '
+  'The auth service (docs/PLAN/14). Reaches auth, iam, tenant, audit, messaging and '
   'NOTHING in employee, attendance, leave, or payroll — the component holding '
   'password hashes must not also be a route to salaries and national IDs.';

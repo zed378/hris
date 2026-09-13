@@ -13,7 +13,7 @@ import type { ActorContext } from './employees.ts';
  * menjadi alat kerja yang sah: ekspor → sunting massal di Excel → impor ulang,
  * tanpa satu pun langkah penyesuaian.
  *
- * PLAN/00 §2.1 menyebut ini syarat kepercayaan, bukan fitur: pelanggan harus
+ * docs/PLAN/00 §2.1 menyebut ini syarat kepercayaan, bukan fitur: pelanggan harus
  * merasa datanya tidak tersandera. Produk yang datanya mudah dikeluarkan justru
  * lebih jarang ditinggalkan.
  *

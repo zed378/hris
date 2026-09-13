@@ -1,4 +1,4 @@
--- Dokumen karyawan (PLAN/12 F2, PLAN/04 §F2).
+-- Dokumen karyawan (docs/PLAN/12 F2, docs/PLAN/04 §F2).
 --
 -- Berkas yang disimpan di sini bukan lampiran biasa: pindaian KTP, kartu
 -- keluarga, ijazah, dan surat kontrak. Seluruhnya data pribadi menurut UU PDP

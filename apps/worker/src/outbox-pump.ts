@@ -3,7 +3,7 @@ import { withOutboxPump } from '@hrms/db';
 
 /**
  * Pompa outbox: memindahkan event dari tabel `messaging.outbox_messages` ke
- * antrean pg-boss (PLAN/03 §1.3).
+ * antrean pg-boss (docs/PLAN/03 §1.3).
  *
  * Mengapa ada dua langkah, bukan langsung mengantre saat aksi bisnis terjadi:
  * antrean berada di luar transaksi bisnis. Bila kita mengantre langsung, ada dua
@@ -50,7 +50,7 @@ export interface OutboxEnvelope<T = Record<string, unknown>> {
 }
 
 /**
- * The destination is an interface, not pg-boss (PLAN/14 stage 7).
+ * The destination is an interface, not pg-boss (docs/PLAN/14 stage 7).
  *
  * The outbox is the part that must survive a change of broker: it is what makes
  * a job impossible to lose and impossible to fire for a write that rolled back,

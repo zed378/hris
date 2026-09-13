@@ -1,7 +1,7 @@
 import { redis } from './redis.ts';
 
 /**
- * The permission cache (PLAN/14 §5, option C).
+ * The permission cache (docs/PLAN/14 §5, option C).
  *
  * This is the piece that decides whether extracting auth is a success or a
  * latency regression, and it is not the part most designs spend their time on.

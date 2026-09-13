@@ -94,7 +94,7 @@ export const DOCS: Partial<Record<RouteId, EndpointDoc>> = {
     description:
       'Refresh token TIDAK ikut di badan balasan. Ia hanya hidup sebagai cookie ' +
       'httpOnly, sehingga JavaScript halaman tidak pernah memegangnya dan karena ' +
-      'itu tidak dapat menyimpannya ke tempat yang bertahan (PLAN/11 §5.3).',
+      'itu tidak dapat menyimpannya ke tempat yang bertahan (docs/PLAN/11 §5.3).',
     request: loginRequestSchema,
     response: tokenResponse,
   },
@@ -140,7 +140,7 @@ export const DOCS: Partial<Record<RouteId, EndpointDoc>> = {
     summary: 'Kunci publik untuk memverifikasi access token',
     description:
       'Publik menurut definisinya. Kunci publik memungkinkan verifikasi tanda ' +
-      'tangan tanpa kemampuan membuatnya (PLAN/14 §6).',
+      'tangan tanpa kemampuan membuatnya (docs/PLAN/14 §6).',
   },
   'GET /api/openapi.json': {
     summary: 'Dokumen OpenAPI ini sendiri',

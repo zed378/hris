@@ -8,7 +8,7 @@ import { useSession } from '@/lib/session.tsx';
 import { downloadFile } from '@/lib/download.ts';
 
 /**
- * Wizard impor karyawan dari Excel — Gerbang A (PLAN/12 Fase 2).
+ * Wizard impor karyawan dari Excel — Gerbang A (docs/PLAN/12 Fase 2).
  *
  * Gerbangnya berbunyi: "tiga perusahaan pilot mengimpor ≥100 karyawan dari
  * berkas Excel mereka sendiri, dalam < 30 menit, **tanpa bantuan tim**."

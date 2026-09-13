@@ -24,7 +24,7 @@ export const POST = definePublicRoute('POST /api/auth/login', async (req, ctx) =
 
     // The refresh token does NOT travel in the body. It exists only as an
     // httpOnly cookie, so page JavaScript never holds it and therefore cannot
-    // persist it anywhere (PLAN/11 §5.3).
+    // persist it anywhere (docs/PLAN/11 §5.3).
     const { refreshToken, ...body } = result;
     const response = NextResponse.json(body);
     setRefreshCookie(response, refreshToken);

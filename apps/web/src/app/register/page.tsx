@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 /**
- * Pendaftaran mandiri (PLAN/12 F6).
+ * Pendaftaran mandiri (docs/PLAN/12 F6).
  *
  * Halaman ini adalah DoD Fase 6 pada titik paling awalnya: **pelanggan dapat
  * mendaftar tanpa menyentuh tim.** Sampai halaman ini ada, setiap tenant baru

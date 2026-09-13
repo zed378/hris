@@ -7,7 +7,7 @@ import { TrendChart } from '@/components/trend-chart.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Beranda — dasbor tiga cakupan (dokumen 07 §5, PLAN/12 F6).
+ * Beranda — dasbor tiga cakupan (dokumen 07 §5, docs/PLAN/12 F6).
  *
  * Aturan yang menentukan apa yang muncul di sini: **setiap angka harus punya
  * tempat untuk ditindaklanjuti.** "Presensi ditandai: 7" berguna karena ada
@@ -151,7 +151,7 @@ export default function HomePage() {
   const masuk = own?.todayPunches?.find((p) => p.type === 'IN');
   const pulang = [...(own?.todayPunches ?? [])].reverse().find((p) => p.type === 'OUT');
 
-  // Ambang 12% dari PLAN/12 §11. Di atas itu, HR berhenti meninjau dan skor
+  // Ambang 12% dari docs/PLAN/12 §11. Di atas itu, HR berhenti meninjau dan skor
   // kepercayaan berubah menjadi teater.
   const rasioTinggi = (tenant?.flaggedRatio ?? 0) > 0.12;
 
@@ -339,7 +339,7 @@ export default function HomePage() {
                   <h3 className="text-sm font-medium">Rasio presensi ditandai</h3>
                   <p className="mb-2 text-xs text-slate-500">
                     Di atas 12% HR berhenti meninjau dan skor kepercayaan menjadi
-                    teater (PLAN/12 §11). Ambangnya belum dikalibrasi — grafik
+                    teater (docs/PLAN/12 §11). Ambangnya belum dikalibrasi — grafik
                     inilah yang memungkinkan kalibrasinya.
                   </p>
                   <TrendChart

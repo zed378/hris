@@ -34,7 +34,7 @@ import {
 } from './http.ts';
 
 /**
- * Everything the auth service answers (PLAN/14 stage 6).
+ * Everything the auth service answers (docs/PLAN/14 stage 6).
  *
  * Six of these are the endpoints lifted out of `apps/web` unchanged in
  * behaviour: login, refresh, logout, the two password-reset halves, and
@@ -92,7 +92,7 @@ export const ROUTES: Record<string, RouteRule> = {
 
         // The refresh token does NOT travel in the body. It exists only as an
         // httpOnly cookie, so page JavaScript never holds it and therefore
-        // cannot put it anywhere durable (PLAN/11 §5.3).
+        // cannot put it anywhere durable (docs/PLAN/11 §5.3).
         const { refreshToken, ...body } = result;
         return { ...json(200, body), cookies: [setRefreshCookie(refreshToken)] };
       } catch (error) {

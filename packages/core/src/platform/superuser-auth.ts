@@ -6,7 +6,7 @@ import { verifyPassword, signJwt, verifyJwt } from '../auth/index.ts';
  * Autentikasi superuser — control plane.
  *
  * Superuser adalah entitas di bidang yang berbeda, bukan pengguna dengan izin
- * lebih banyak (P11, PLAN/07 §3). Konsekuensi yang mengikat seluruh berkas ini:
+ * lebih banyak (P11, docs/PLAN/07 §3). Konsekuensi yang mengikat seluruh berkas ini:
  *
  *   - Token superuser memakai audience `hrms-admin`. Gateway tenant menolaknya,
  *     dan gateway admin menolak token tenant. Diperiksa uji CI ke dua arah.
@@ -20,7 +20,7 @@ import { verifyPassword, signJwt, verifyJwt } from '../auth/index.ts';
  * Yang **tidak** ada di sini, dan itu disengaja: tidak ada cara bagi superuser
  * untuk membaca data tenant mana pun. Akses dukungan hanya lewat support session
  * yang disetujui tenant, melalui gateway yang sama dengan pengguna biasa
- * (PLAN/07 §6). Itu belum dibangun, dan sampai ia dibangun jawabannya adalah
+ * (docs/PLAN/07 §6). Itu belum dibangun, dan sampai ia dibangun jawabannya adalah
  * "tidak bisa" — bukan pintu belakang sementara.
  */
 

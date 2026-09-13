@@ -12,7 +12,7 @@
 -- the rows but cannot supply the order, so PostgreSQL sorts them. That is
 -- tolerable while the queue is small and stops being tolerable at exactly the
 -- moment it matters: the flagged ratio is supposed to stay under 12%
--- (PLAN/12 §11), and the screen an HR user opens when it does not is this one.
+-- (docs/PLAN/12 §11), and the screen an HR user opens when it does not is this one.
 --
 -- Partial, because the queue only ever reads rows awaiting review. An index over
 -- every punch would be roughly eight times larger on a healthy tenant, slower on

@@ -11,7 +11,7 @@ loadEnv({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env'
 import { withTenant, InvalidTenantIdError, appClient, disconnectAll } from '../src/index.ts';
 
 /**
- * Gerbang CI isolasi tenant (PLAN/12 F1 DoD).
+ * Gerbang CI isolasi tenant (docs/PLAN/12 F1 DoD).
  *
  * Berkas ini menguji satu hal, dan hal itu adalah yang paling mahal bila salah:
  * satu kebocoran lintas-tenant mengakhiri produk B2B. Uji-uji di sini sengaja

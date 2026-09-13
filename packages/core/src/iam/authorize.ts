@@ -9,7 +9,7 @@ import { resolveEffectiveAccess, type EffectiveAccess } from './resolve-access.t
 
 /**
  * One authorization decision, in the shape it will have over the wire
- * (PLAN/14 stage 4).
+ * (docs/PLAN/14 stage 4).
  *
  * Today the gateway composes this decision itself: it calls
  * `resolveEffectiveAccess`, compares the access version, checks the module, then
@@ -24,7 +24,7 @@ import { resolveEffectiveAccess, type EffectiveAccess } from './resolve-access.t
  * the one the service is answering.
  *
  * So the decision is made a THING rather than a sequence. This function is the
- * seam. When authorization becomes remote (PLAN/14 §5, option C), what replaces
+ * seam. When authorization becomes remote (docs/PLAN/14 §5, option C), what replaces
  * it is an HTTP call returning this same `AccessDecision`, and the gateway's
  * mapping from decision to status code does not change at all.
  *
@@ -107,7 +107,7 @@ export async function decideAccess(
 }
 
 /**
- * The same resolution, served from Redis when it can be (PLAN/14 §5 option C).
+ * The same resolution, served from Redis when it can be (docs/PLAN/14 §5 option C).
  *
  * Six queries per authenticated request is cheap in one process on one
  * connection, and is the whole problem the moment authorization crosses a

@@ -1,7 +1,7 @@
 import type { TenantClient } from '@hrms/db';
 
 /**
- * Month-over-month trends (PLAN/13, "there are no charts or trends").
+ * Month-over-month trends (docs/PLAN/13, "there are no charts or trends").
  *
  * The dashboard shows one month at a glance, and one month cannot answer the
  * only question these numbers are for: **is it getting worse?** A flagged ratio
@@ -18,7 +18,7 @@ import type { TenantClient } from '@hrms/db';
  *
  * Three series clear it:
  *
- *   - **The flagged ratio**, which `PLAN/12` §11 names as the metric that decides
+ *   - **The flagged ratio**, which `docs/PLAN/12` §11 names as the metric that decides
  *     whether the trust score is doing anything. Above 12% HR stops reviewing and
  *     the score becomes theatre. The threshold is explicitly **not calibrated**,
  *     and it cannot be calibrated from one month — this series is what makes that

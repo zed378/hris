@@ -5,7 +5,7 @@ import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Peran dan izinnya (PLAN/05 §3).
+ * Peran dan izinnya (docs/PLAN/05 §3).
  *
  * Menu "Peran" tampil sejak seed pertama, menuju halaman yang tidak pernah ada.
  * Endpoint-nya lengkap sejak Fase 1.

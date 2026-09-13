@@ -220,7 +220,7 @@ secret has the operational cost of four services and the security posture of one
 
 The refresh token is an **httpOnly cookie** and never appears in a response body
 — deliberately, so page JavaScript cannot store it somewhere durable
-(`PLAN/11` §5.3). That property is worth more than the convenience of any
+(`docs/PLAN/11` §5.3). That property is worth more than the convenience of any
 topology, and it constrains the routing.
 
 The cookie is issued by auth and must be sent to auth on refresh, while every
@@ -451,7 +451,7 @@ a mechanism nobody has ever seen work.
 
 Rate-limit counters move to Redis when `REDIS_URL` is set, and stay in the
 process `Map` when it is not. Redis is optional and remains so: a single
-container needs nothing extra, which is what `PLAN/12` §3.2 sold as a feature and
+container needs nothing extra, which is what `docs/PLAN/12` §3.2 sold as a feature and
 still is.
 
 **The bug this fixes exists today.** In-process counters mean each replica counts
@@ -643,7 +643,7 @@ with application traffic, retention pressure — and **none of it has been
 measured**. Unlike Redis, which fixed a correctness bug that already existed in
 any multi-replica deployment, a broker fixes nothing that is currently broken.
 Adopting one now would add a permanent operational dependency for a one- or
-two-person team, which is exactly what `PLAN/12` §3.2 argues against.
+two-person team, which is exactly what `docs/PLAN/12` §3.2 argues against.
 
 So the seam exists, the implementation exists, seven tests exercise it against a
 real NATS, and `BROKER_URL` is empty. When the trigger fires, the work is a
@@ -654,7 +654,7 @@ all. Its value — an event that can neither be lost nor fire for a write that
 rolled back — is something no broker provides on its own. Only the pump's
 destination moved.
 
-**NATS over RabbitMQ**, for the reason `PLAN/12` chose PostgreSQL for everything:
+**NATS over RabbitMQ**, for the reason `docs/PLAN/12` chose PostgreSQL for everything:
 operational weight. A single static binary, no separate runtime, no management
 plugin to secure. Kafka is not a candidate; §9.1 already says its weight exceeds
 the whole application's.

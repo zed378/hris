@@ -6,7 +6,7 @@ import { useSession } from '@/lib/session.tsx';
 import { subscribeToPush, type PushOutcome } from '@/lib/push.ts';
 
 /**
- * Cuti saya — saldo dan pengajuan (PLAN/12 F4).
+ * Cuti saya — saldo dan pengajuan (docs/PLAN/12 F4).
  *
  * Saldo ditampilkan dengan komponennya terpisah, bukan hanya angka tersedia.
  * "Sisa cuti Anda 4 hari" tidak dapat ditindaklanjuti ketika seseorang yakin

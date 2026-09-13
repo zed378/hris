@@ -52,7 +52,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
    * which is precisely what someone probing for it wants to learn.
    *
    * A shared secret rather than mTLS, for now. Its weaknesses are real and
-   * stated in PLAN/14 §10.6: it does not rotate on its own, and it is as strong
+   * stated in docs/PLAN/14 §10.6: it does not rotate on its own, and it is as strong
    * as the environment holding it. Enough for two containers on one network, and
    * it must be replaced before they are on different ones.
    */

@@ -11,7 +11,7 @@ export interface EffectiveAccess {
 }
 
 /**
- * Computes one user's effective access (PLAN/05 §4).
+ * Computes one user's effective access (docs/PLAN/05 §4).
  *
  * Its precedence, in order — and the order decides the result:
  *
@@ -188,7 +188,7 @@ export async function buildMenuTree(
  *
  * Separated, there would be a window where access has changed but the cache
  * still serves the old value — and that window is most likely to open precisely
- * when somebody is revoking access in a hurry (PLAN/05 §5.3).
+ * when somebody is revoking access in a hurry (docs/PLAN/05 §5.3).
  */
 export async function bumpAccessVersion(
   tx: TenantClient,
@@ -203,7 +203,7 @@ export async function bumpAccessVersion(
   });
 
   /**
-   * The cached version is DELETED, not overwritten (PLAN/14 §5).
+   * The cached version is DELETED, not overwritten (docs/PLAN/14 §5).
    *
    * Writing the new number would mean a failed write leaves the OLD one in
    * place, and a user whose access was just revoked keeps it until that entry
@@ -256,7 +256,7 @@ export interface PermissionHolder {
  * One `resolveEffectiveAccess` per user. At a few hundred users that is fine —
  * they are short, indexed reads inside one transaction — and it is bounded by
  * `MAX_CANDIDATES` so a tenant with thousands cannot turn a picker into a table
- * scan. If it ever becomes hot, the fix is caching the resolution (PLAN/14 §5),
+ * scan. If it ever becomes hot, the fix is caching the resolution (docs/PLAN/14 §5),
  * not a second copy of the precedence rules.
  */
 const MAX_CANDIDATES = 500;
@@ -306,7 +306,7 @@ export async function findPermissionHolders(
  *
  * The employee → user hop is the same soft mapping the attendance punch route
  * uses. It is soft because the attendance and employee modules hold no foreign
- * key to `auth.users` — they are meant to be separable (PLAN/01 §4.2) — so this
+ * key to `auth.users` — they are meant to be separable (docs/PLAN/01 §4.2) — so this
  * is a join by email, not by key.
  *
  * **`null` is an ordinary answer, not a failure.** A manager who has not been

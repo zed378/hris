@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  * employee's. An API specification is a complete map of the system: every path,
  * every parameter, every guard. Publishing it to whoever asks hands that map to
  * anyone scanning, and this product has no public API yet for which the trade
- * would be worth making (PLAN/14 §13.1).
+ * would be worth making (docs/PLAN/14 §13.1).
  *
  * The consequence to accept: a developer integrating against this API needs an
  * administrator account to read its documentation. That is the correct default

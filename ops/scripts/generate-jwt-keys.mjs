@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generates a JWT signing key pair as JWKs (PLAN/14 stage 1).
+ * Generates a JWT signing key pair as JWKs (docs/PLAN/14 stage 1).
  *
  *   node ops/scripts/generate-jwt-keys.mjs            # EdDSA (Ed25519)
  *   node ops/scripts/generate-jwt-keys.mjs RS256      # RSA, 2048-bit
@@ -19,7 +19,7 @@
  *
  * ## EdDSA or RS256
  *
- * PLAN/14 §13.2 leaves this open on purpose. Ed25519 is smaller and faster and
+ * docs/PLAN/14 §13.2 leaves this open on purpose. Ed25519 is smaller and faster and
  * is the better default. RS256 is what enterprise SSO counterparties tend to
  * expect, so if SAML/OIDC federation is genuinely coming, generate RS256 and
  * avoid a second migration.
@@ -69,7 +69,7 @@ const prefix = realm === 'admin' ? 'ADMIN_JWT' : 'JWT';
 console.log(`# ${alg}, realm ${realm}, kid ${kid}`);
 console.log('#');
 console.log('# The PRIVATE key belongs only to whatever issues tokens. After the auth');
-console.log('# service is split out (PLAN/14 stage 6) it must NOT be in the backend or');
+console.log('# service is split out (docs/PLAN/14 stage 6) it must NOT be in the backend or');
 console.log('# worker environment — a service holding it can mint a token for any user');
 console.log('# of any tenant, which is the property the split exists to remove.');
 console.log('');

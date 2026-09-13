@@ -2,10 +2,10 @@
 -- Row-Level Security, hak akses role, dan pengaman integritas
 --
 -- Prisma tidak membangkitkan apa pun di berkas ini. Ditulis tangan, dan itu
--- disengaja: RLS adalah batas keamanan, bukan detail skema (PLAN/06 §2.6).
+-- disengaja: RLS adalah batas keamanan, bukan detail skema (docs/PLAN/06 §2.6).
 --
 -- Seluruh berkas ini idempoten — dijalankan tiga kali berturut-turut tetap
--- berhasil (PLAN/12 F1 DoD).
+-- berhasil (docs/PLAN/12 F1 DoD).
 -- =============================================================================
 
 
@@ -70,7 +70,7 @@ GRANT EXECUTE ON FUNCTION public.app_current_tenant() TO hrms_app, hrms_worker;
 --
 -- `platform` sengaja tidak muncul di sini. Control plane tidak dapat dijangkau
 -- role aplikasi, dan itulah cara P11 ditegakkan secara teknis, bukan lewat
--- kesepakatan (PLAN/07 §2).
+-- kesepakatan (docs/PLAN/07 §2).
 -- -----------------------------------------------------------------------------
 
 GRANT USAGE ON SCHEMA tenant, auth, iam, audit, messaging TO hrms_app, hrms_worker;
@@ -241,7 +241,7 @@ CREATE TRIGGER audit_logs_append_only
 
 
 -- -----------------------------------------------------------------------------
--- 7. MFA superuser ditegakkan basis data (PLAN/07 §3.2)
+-- 7. MFA superuser ditegakkan basis data (docs/PLAN/07 §3.2)
 --
 -- "Akun superuser tanpa MFA tidak dapat diaktifkan" adalah butir DoD. Di lapisan
 -- aplikasi ia dapat dilupakan saat menambah jalur baru; sebagai constraint ia tidak bisa.

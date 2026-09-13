@@ -1,4 +1,4 @@
--- The Payroll module — structure (PLAN/12 P5, schema per document 02 §9).
+-- The Payroll module — structure (docs/PLAN/12 P5, schema per document 02 §9).
 --
 -- What is built here is the FRAMEWORK only: salary components, period-based
 -- salary structures, runs, payslips, and the calculation trace. The PPh21 and

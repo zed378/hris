@@ -3,7 +3,7 @@ import { updateEmployee, EmployeeError, type ActorContext } from './employees.ts
 import { MaskedValueError, InvalidIdentifierError } from './pii.ts';
 
 /**
- * Mass editing from an Excel-like grid (PLAN/12 F2, risk R6).
+ * Mass editing from an Excel-like grid (docs/PLAN/12 F2, risk R6).
  *
  * Risk R6 says it plainly: adoption fails if the UI feels more complex than
  * Excel. HR who now change fifty departments with one paste in a spreadsheet

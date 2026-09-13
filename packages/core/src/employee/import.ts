@@ -12,7 +12,7 @@ import {
 import type { ActorContext } from './employees.ts';
 
 /**
- * Employee import from Excel (PLAN/12 Phase 2, Gate A).
+ * Employee import from Excel (docs/PLAN/12 Phase 2, Gate A).
  *
  * Always two steps: **upload then review**, and only then save.
  *

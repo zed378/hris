@@ -6,7 +6,7 @@ import { useSession } from '@/lib/session.tsx';
 import { downloadFile, type DownloadOutcome } from '@/lib/download.ts';
 
 /**
- * Kotak masuk persetujuan cuti (PLAN/12 F4).
+ * Kotak masuk persetujuan cuti (docs/PLAN/12 F4).
  *
  * Setiap baris menampilkan **saldo pengaju**, bukan hanya permintaannya. Manajer
  * yang menyetujui tanpa melihat saldo akan menyetujui cuti yang lalu ditolak

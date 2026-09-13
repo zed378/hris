@@ -31,7 +31,7 @@ import { findManagerUserId, findPermissionHolders } from '../src/iam/resolve-acc
  *
  * The employee → user hop is a join by EMAIL, not by key: the employee module
  * holds no foreign key into `auth.users` because the two are meant to be
- * separable (PLAN/01 §4.2). That makes it the hop most likely to break quietly.
+ * separable (docs/PLAN/01 §4.2). That makes it the hop most likely to break quietly.
  */
 
 const owner = new PrismaClient({

@@ -1,7 +1,7 @@
 import { Prisma } from '@hrms/db';
 
 /**
- * The salary formula expression parser (PLAN/12 P5).
+ * The salary formula expression parser (docs/PLAN/12 P5).
  *
  * The rule that cannot be compromised: **no `eval()`, no `new Function()`.**
  *

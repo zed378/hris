@@ -7,7 +7,7 @@
 #   - Nanti: impor Excel, proses payroll, pembuatan slip gaji PDF
 #
 # Dipisah dari image web dengan sengaja, meski basis kodenya sama. Ini peredam
-# untuk risiko N2 (PLAN/12 §10.3): pada monolit, satu payroll run yang memakan
+# untuk risiko N2 (docs/PLAN/12 §10.3): pada monolit, satu payroll run yang memakan
 # CPU selama tiga menit akan menahan setiap request presensi bila keduanya satu
 # proses. Memisahkan proses adalah cara termurah menjamin itu tidak terjadi,
 # tanpa perlu memecah sistem menjadi service.

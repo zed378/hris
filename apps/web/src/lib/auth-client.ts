@@ -2,7 +2,7 @@ import { log } from '@hrms/observability';
 import type { AccessDenial } from '@hrms/core/iam';
 
 /**
- * Talking to the auth service (PLAN/14 stage 6).
+ * Talking to the auth service (docs/PLAN/14 stage 6).
  *
  * Used only when `AUTH_SERVICE_URL` is set. Unset — the default — the gateway
  * authorizes in-process exactly as before, and this file is never reached.
@@ -10,7 +10,7 @@ import type { AccessDenial } from '@hrms/core/iam';
  * That switch is what makes stage 6 reversible in practice rather than only on
  * paper. The monolith stays a complete, working deployment; the split is a
  * configuration rather than a fork, and a rollback is an environment variable
- * instead of a revert. `PLAN/14` §10 calls stage 6 the commitment point, and
+ * instead of a revert. `docs/PLAN/14` §10 calls stage 6 the commitment point, and
  * this is what keeps the commitment from being irreversible on the first day.
  */
 
@@ -123,7 +123,7 @@ export async function authorizeRemotely(
  * with auth, so it *could* resolve permissions itself when the call fails. That
  * would be a second implementation of the authorization decision, exercised only
  * during incidents — which is to say, never tested — and diverging quietly from
- * the one that normally runs. `PLAN/14` risk S3 is exactly this: a degraded mode
+ * the one that normally runs. `docs/PLAN/14` risk S3 is exactly this: a degraded mode
  * discovered during an incident rather than designed.
  *
  * So the degraded mode is refusal, and it is honest about being one. The client

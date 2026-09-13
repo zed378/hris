@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Satu-satunya sumber yang dipakai frontend untuk merender sidebar dan menjaga
- * rute (PLAN/01 §5.4).
+ * rute (docs/PLAN/01 §5.4).
  *
  * Perlu ditegaskan apa yang bukan perannya: ini bukan otorisasi. Setiap kontrol
  * UI yang digambar dari balasan ini punya pasangannya di `ROUTE_MANIFEST`, dan

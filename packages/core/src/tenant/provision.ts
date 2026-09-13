@@ -6,7 +6,7 @@ import { DEFAULT_LEAVE_TYPES, DEFAULT_PAYROLL_COMPONENTS, EventTopic } from '@hr
  * Provisioning a new tenant.
  *
  * Under a microservices architecture this is a saga across four services with
- * compensation at every step (PLAN/06 §4.1): tenant-service creates the tenant,
+ * compensation at every step (docs/PLAN/06 §4.1): tenant-service creates the tenant,
  * auth-service creates the user, iam-service creates the roles — and if the
  * third step fails, the first two have to be undone through compensation events
  * that are written, tested, and monitored.
@@ -16,7 +16,7 @@ import { DEFAULT_LEAVE_TYPES, DEFAULT_PAYROLL_COMPONENTS, EventTopic } from '@hr
  *
  * This is the most concrete and least often counted benefit of a monolith: not
  * the saga code that need not be written, but the category of failure that need
- * not be monitored for the life of the product (PLAN/12 §10.1, R12).
+ * not be monitored for the life of the product (docs/PLAN/12 §10.1, R12).
  *
  * One detail is what makes it genuinely one transaction: **the tenant id is
  * generated in the application, not by the database.** The RLS policy on

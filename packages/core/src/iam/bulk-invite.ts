@@ -7,7 +7,7 @@ import { inviteUser, IamError, type ActorContext } from './administration.ts';
  * Found by walking the pilot flow, and by not one test.
  *
  * The user → employee mapping in this system is a **soft reference through
- * email** (PLAN/01 §4.2): the attendance module looks for an `employee.email`
+ * email** (docs/PLAN/01 §4.2): the attendance module looks for an `employee.email`
  * matching the email of the user logged in. That design is right and deliberate
  * — it is what keeps the attendance module from holding a foreign key into the
  * employee table, so the two can be split later.

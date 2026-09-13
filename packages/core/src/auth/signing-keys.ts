@@ -1,7 +1,7 @@
 import { importJWK, type JWK, type KeyObject } from 'jose';
 
 /**
- * Token signing keys (PLAN/14 §6, stage 1).
+ * Token signing keys (docs/PLAN/14 §6, stage 1).
  *
  * Access tokens have been signed HS256 with a shared `JWT_SECRET`. In one
  * process that is fine — the signer and the verifier are the same code.
@@ -23,7 +23,7 @@ import { importJWK, type JWK, type KeyObject } from 'jose';
  * ## Keys are JWKs, not PEMs
  *
  * A JWK carries its own `kty`, `crv`, `alg`, and `kid`. That matters for a
- * decision `PLAN/14` §13.2 deliberately leaves open: EdDSA is smaller and
+ * decision `docs/PLAN/14` §13.2 deliberately leaves open: EdDSA is smaller and
  * faster, RS256 is what enterprise SSO counterparties tend to expect, and which
  * one is right depends on whether SSO is actually coming. With self-describing
  * key material that choice is a change of key, not a change of code — no

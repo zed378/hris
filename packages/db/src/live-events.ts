@@ -1,7 +1,7 @@
 import { Client } from 'pg';
 
 /**
- * The live event stream through `LISTEN`/`NOTIFY` (PLAN/12 §3).
+ * The live event stream through `LISTEN`/`NOTIFY` (docs/PLAN/12 §3).
  *
  * Chosen in place of the Socket.IO + Redis Streams in the microservices design.
  * The reason is not simplicity for its own sake: cross-node fan-out is only

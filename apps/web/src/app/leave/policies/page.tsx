@@ -5,7 +5,7 @@ import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Kebijakan cuti — jenis, kuota, dan penyesuaian saldo (PLAN/12 F4).
+ * Kebijakan cuti — jenis, kuota, dan penyesuaian saldo (docs/PLAN/12 F4).
  *
  * Dua hal yang perlu terlihat jelas di layar ini, karena keduanya kerap
  * disalahpahami sampai menimbulkan sengketa:

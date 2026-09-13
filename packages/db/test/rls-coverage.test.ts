@@ -8,7 +8,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 loadEnv({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env'), quiet: true });
 
 /**
- * Gerbang CI cakupan RLS (PLAN/12 F1 DoD).
+ * Gerbang CI cakupan RLS (docs/PLAN/12 F1 DoD).
  *
  * Uji isolasi di berkas sebelahnya membuktikan RLS bekerja pada tabel yang
  * diperiksa. Berkas ini membuktikan sesuatu yang berbeda dan lebih sulit: bahwa
@@ -170,7 +170,7 @@ describe('cakupan RLS', () => {
 });
 
 /**
- * Peran bidang auth (PLAN/14 tahap 5).
+ * Peran bidang auth (docs/PLAN/14 tahap 5).
  *
  * Batas basis data dibuat SEBELUM batas jaringan, dan urutannya disengaja:
  * matriks GRANT jauh lebih murah diperbaiki selagi semuanya masih satu proses,

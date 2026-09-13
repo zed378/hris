@@ -16,7 +16,7 @@ import {
  * The flow it serves: the fingerprint machine in the office exports a file, HR
  * uploads it, and its punches enter the same system as phone punches. Not a
  * side path — for a tenant with fixed work sites this is the main path, and
- * phone punching is the complement (PLAN/10 §1).
+ * phone punching is the complement (docs/PLAN/10 §1).
  *
  * Two properties carry the most weight:
  *

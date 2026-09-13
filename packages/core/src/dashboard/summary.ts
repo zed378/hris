@@ -2,7 +2,7 @@ import type { TenantClient } from '@hrms/db';
 import { resolveWorkDate, tenantTimeZone } from '../attendance/index.ts';
 
 /**
- * Ringkasan dasbor (dokumen 07 §5, PLAN/12 F6).
+ * Ringkasan dasbor (dokumen 07 §5, docs/PLAN/12 F6).
  *
  * Tiga cakupan, ditentukan izin — bukan parameter:
  *
@@ -272,7 +272,7 @@ async function buildTenant(
     presentToday,
     flaggedPunches: flagged,
     // Rasio inilah yang memberi tahu apakah ambang kepercayaan salah setel
-    // (PLAN/12 §11). Ditampilkan di dasbor supaya tidak perlu ada yang membuka
+    // (docs/PLAN/12 §11). Ditampilkan di dasbor supaya tidak perlu ada yang membuka
     // antrean tinjauan hanya untuk mengetahuinya.
     flaggedRatio:
       flagged !== null && totalPunches !== null && totalPunches > 0

@@ -5,7 +5,7 @@ import { AppShell } from '@/components/app-shell.tsx';
 import { useSession } from '@/lib/session.tsx';
 
 /**
- * Dasbor presensi langsung (PLAN/12 §3, PLAN/04 F3: dasbor diperbarui < 2 detik).
+ * Dasbor presensi langsung (docs/PLAN/12 §3, docs/PLAN/04 F3: dasbor diperbarui < 2 detik).
  *
  * Dua jalur, dan yang kedua bukan basa-basi: aliran SSE untuk pembaruan seketika,
  * dan polling berkala sebagai jaring pengaman. Proxy korporat, jaringan seluler

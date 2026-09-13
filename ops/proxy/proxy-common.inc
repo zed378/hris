@@ -13,7 +13,7 @@ proxy_set_header X-Forwarded-Proto $scheme;
 proxy_set_header Connection "";
 
 # Passed through rather than regenerated, so one request is one story across the
-# services it touches (PLAN/14 §9.3).
+# services it touches (docs/PLAN/14 §9.3).
 proxy_set_header X-Correlation-Id $http_x_correlation_id;
 
 # NEVER forwarded from a client. The auth service trusts this header to identify
