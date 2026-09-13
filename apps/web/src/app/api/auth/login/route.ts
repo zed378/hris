@@ -13,7 +13,7 @@ export const POST = definePublicRoute('POST /api/auth/login', async (req, ctx) =
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data login tidak lengkap atau tidak sah',
+      'Incomplete or invalid login data',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -22,9 +22,9 @@ export const POST = definePublicRoute('POST /api/auth/login', async (req, ctx) =
   try {
     const result = await login(parsed.data, ctx);
 
-    // Refresh token TIDAK ikut di body. Ia hanya hidup sebagai cookie httpOnly,
-    // sehingga JavaScript di halaman tidak pernah memegangnya dan karenanya
-    // tidak dapat menyimpannya ke tempat yang bertahan (PLAN/11 §5.3).
+    // The refresh token does NOT travel in the body. It exists only as an
+    // httpOnly cookie, so page JavaScript never holds it and therefore cannot
+    // persist it anywhere (PLAN/11 §5.3).
     const { refreshToken, ...body } = result;
     const response = NextResponse.json(body);
     setRefreshCookie(response, refreshToken);

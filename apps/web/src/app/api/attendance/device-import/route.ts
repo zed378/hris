@@ -6,20 +6,20 @@ import { defineRoute, apiError } from '@/lib/define-route.ts';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Sebulan ketukan untuk 500 karyawan sebagai CSV ≈ 2 MB. */
+/** One month of punches for 500 employees as CSV ≈ 2 MB. */
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 /**
- * Impor ketukan dari berkas ekspor mesin absensi.
+ * Importing punches from an attendance machine export file.
  *
- * Satu endpoint dengan dua mode, bukan dua endpoint. `commit=false` mengurai dan
- * menghitung tanpa menulis apa pun; `commit=true` menulis. Berkasnya diunggah dua
- * kali, dan itu disengaja: menyimpan hasil pratinjau di server berarti menyimpan
- * data presensi mentah dalam keadaan setengah jadi, dengan masa hidup dan hak
- * akses tersendiri yang harus ikut dipikirkan.
+ * A single endpoint with two modes, not two endpoints. `commit=false` parses
+ * and counts without writing anything; `commit=true` writes. The file is uploaded
+ * twice, deliberately: saving a preview on the server means storing raw
+ * attendance data in a half-finished state, with its own lifetime and access
+ * controls to think through.
  *
- * Penguraiannya deterministik dan penulisannya idempoten, jadi mengurai dua kali
- * menghasilkan hal yang sama dan mengirim dua kali tidak menggandakan apa pun.
+ * Parsing is deterministic and writing is idempotent, so parsing twice yields
+ * the same result and sending twice duplicates nothing.
  */
 export const POST = defineRoute('POST /api/attendance/device-import', async (req, ctx) => {
   let form: FormData;
@@ -29,27 +29,27 @@ export const POST = defineRoute('POST /api/attendance/device-import', async (req
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Permintaan harus berupa multipart/form-data berisi berkas.',
+      'Request must be multipart/form-data containing a file.',
       ctx.correlationId,
     );
   }
 
   const file = form.get('file');
   if (!(file instanceof File)) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Berkas tidak ditemukan.', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'File not found.', ctx.correlationId);
   }
   if (file.size > MAX_FILE_BYTES) {
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      `Ukuran berkas ${Math.round(file.size / 1024 / 1024)} MB melebihi batas ${MAX_FILE_BYTES / 1024 / 1024} MB.`,
+      `File size ${Math.round(file.size / 1024 / 1024)} MB exceeds the ${MAX_FILE_BYTES / 1024 / 1024} MB limit.`,
       ctx.correlationId,
     );
   }
 
-  // Default TIDAK menulis. Nilai yang hilang atau salah ketik akan menghasilkan
-  // pratinjau, bukan impor — arah kegagalan yang benar untuk operasi yang
-  // menyentuh dasar perhitungan gaji.
+  // Does NOT write by default. A missing or mistyped value produces a
+  // preview, not an import — the correct failure mode for an operation that
+  // touches the payroll calculation.
   const commit = form.get('commit') === 'true';
 
   try {

@@ -7,20 +7,20 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Aliran presensi langsung (Server-Sent Events).
+ * Live attendance stream (Server-Sent Events).
  *
- * SSE, bukan WebSocket. Yang dibutuhkan dasbor adalah satu arah — server memberi
- * tahu, klien tidak mengirim apa pun — dan SSE menyelesaikannya dengan HTTP
- * biasa: lewat proxy korporat tanpa negosiasi khusus, menyambung ulang sendiri,
- * dan tanpa satu pun pustaka di kedua sisi.
+ * SSE, not WebSocket. What the dashboard needs is one-way — server informs,
+ * client sends nothing — and SSE delivers it over plain HTTP: through corporate
+ * proxies without special negotiation, with its own reconnection, and with not
+ * a single library on either side.
  *
- * Diakses lewat `fetch`, bukan `EventSource`. `EventSource` tidak dapat mengirim
- * header `Authorization`, sehingga memakainya berarti memindahkan token ke query
- * string — tempat ia berakhir di log akses proxy dan riwayat peramban.
+ * Accessed via `fetch`, not `EventSource`. `EventSource` cannot send the
+ * `Authorization` header, so using it means moving the token into the query
+ * string — where it lands in proxy access logs and browser history.
  *
- * Denyut dikirim setiap 25 detik. Bukan hiasan: proxy dan load balancer memutus
- * koneksi yang diam, dan aliran presensi memang diam sepanjang hari kerja
- * kecuali pada jam datang dan pulang.
+ * Heartbeats are sent every 25 seconds. Not decoration: proxies and load
+ * balancers drop idle connections, and the attendance stream is idle all day
+ * except at clock-in and clock-out.
  */
 
 const HEARTBEAT_MS = 25_000;
@@ -39,8 +39,8 @@ export const GET = defineRoute('GET /api/attendance/live', async (req, ctx) => {
               encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
             );
           } catch {
-            // Klien sudah pergi di antara dua peristiwa. Pembersihannya
-            // dilakukan oleh `abort` di bawah; di sini cukup tidak menulis lagi.
+            // The client has left between two events. Cleanup is done by the
+            // `abort` handler below; here it is enough to stop writing.
           }
         };
 
@@ -49,16 +49,16 @@ export const GET = defineRoute('GET /api/attendance/live', async (req, ctx) => {
           (payload) => send('punch', payload),
           (error) => {
             log.error({ scope: 'attendance-live', tenantId: ctx.tenantId, error });
-            send('error', { message: 'Koneksi peristiwa terputus' });
+            send('error', { message: 'Event stream disconnected' });
           },
         );
 
         send('ready', { tenantId: ctx.tenantId });
         heartbeat = setInterval(() => send('ping', { at: new Date().toISOString() }), HEARTBEAT_MS);
 
-        // Penutupan digantung pada sinyal abort request, bukan pada `cancel`
-        // saja. Peramban yang tabnya ditutup tidak selalu memicu `cancel`, dan
-        // koneksi PostgreSQL yang tidak dilepas akan menumpuk sampai habis.
+    // The close is tied to the request's abort signal, not just to `cancel`.
+    // A browser closing the tab does not always trigger `cancel`, and a
+    // PostgreSQL connection that is never closed will pile up until exhausted.
         req.signal.addEventListener('abort', () => {
           clearInterval(heartbeat);
           void stream?.close();
@@ -105,12 +105,12 @@ export const GET = defineRoute('GET /api/attendance/live', async (req, ctx) => {
     await stream?.close();
 
     if (error instanceof TooManyStreamsError) {
-      // 503, bukan 500: keadaannya sementara dan klien boleh mencoba lagi.
-      // Dasbor akan jatuh ke polling, yang memang jaring pengamannya.
+      // 503, not 500: the situation is temporary and the client is allowed to retry.
+      // The dashboard falls back to polling, which is its own safety net.
       return apiError(
         503,
         ErrorCode.INTERNAL,
-        'Terlalu banyak dasbor langsung terbuka. Data tetap dapat dimuat berkala.',
+         'Too many live dashboards open. Data can still be loaded on a timer.',
         ctx.correlationId,
       );
     }

@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export const GET = defineRoute('GET /api/employees/[id]/documents', async (req, ctx) => {
   const employeeId = ctx.params['id'];
   if (!employeeId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id karyawan tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Employee ID is required', ctx.correlationId);
   }
 
   const includeArchived = new URL(req.url).searchParams.get('archived') === 'true';
@@ -27,29 +27,24 @@ export const GET = defineRoute('GET /api/employees/[id]/documents', async (req, 
 });
 
 /**
- * Mengunggah dokumen karyawan.
+ * Uploads an employee document.
  *
- * Jenis berkas ditentukan dari ISI berkasnya, bukan dari `content-type` maupun
- * ekstensi namanya — keduanya dikirim klien dan keduanya dapat berbohong.
- * Pemeriksaannya ada di `sniffType` pada lapisan core; di sini hanya bentuk
- * permintaannya yang divalidasi.
+ * The file type is determined from the file CONTENTS, not from its `content-type`
+ * nor the extension of its name — both are sent by the client and both can lie.
+ * The check lives in `sniffType` in the core layer; here only the request shape is
+ * validated.
  */
 export const POST = defineRoute('POST /api/employees/[id]/documents', async (req, ctx) => {
   const employeeId = ctx.params['id'];
   if (!employeeId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id karyawan tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Employee ID is required', ctx.correlationId);
   }
 
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
-    return apiError(
-      400,
-      ErrorCode.VALIDATION_FAILED,
-      'Permintaan harus berupa multipart/form-data.',
-      ctx.correlationId,
-    );
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Request must be multipart/form-data.', ctx.correlationId);
   }
 
   const file = form.get('file');
@@ -58,13 +53,13 @@ export const POST = defineRoute('POST /api/employees/[id]/documents', async (req
   const expiresRaw = String(form.get('expiresAt') ?? '').trim();
 
   if (!(file instanceof File)) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Berkas tidak ditemukan.', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'File not found.', ctx.correlationId);
   }
   if (!(DOCUMENT_KINDS as readonly string[]).includes(kind)) {
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      `Jenis dokumen tidak dikenali. Pilih salah satu: ${DOCUMENT_KINDS.join(', ')}.`,
+      `Unrecognized document type. Choose one: ${DOCUMENT_KINDS.join(', ')}.`,
       ctx.correlationId,
     );
   }
@@ -72,7 +67,7 @@ export const POST = defineRoute('POST /api/employees/[id]/documents', async (req
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Judul dokumen wajib diisi, minimal 2 karakter.',
+      'Document title is required, at least 2 characters.',
       ctx.correlationId,
     );
   }
@@ -80,7 +75,7 @@ export const POST = defineRoute('POST /api/employees/[id]/documents', async (req
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      `Ukuran berkas melebihi batas ${MAX_DOCUMENT_BYTES / 1024 / 1024} MB.`,
+      `File size exceeds the ${MAX_DOCUMENT_BYTES / 1024 / 1024} MB limit.`,
       ctx.correlationId,
     );
   }

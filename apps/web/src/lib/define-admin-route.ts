@@ -11,21 +11,20 @@ import {
 import { consumeRateLimit } from '@hrms/cache';
 
 /**
- * Gateway control plane — padanan `admin-gateway` (PLAN/07 §2).
+ * Gateway control plane — counterpart to `admin-gateway` (PLAN/07 §2).
  *
- * Sengaja **terpisah total** dari `defineRoute`, bukan bercabang di dalamnya.
- * Dua bidang yang berbagi satu fungsi guard akan cepat menumbuhkan parameter
- * `isAdmin`, dan sejak saat itu satu kekeliruan boolean memisahkan data seluruh
- * pelanggan dari orang yang tidak berhak (P11).
+ * Deliberately **entirely separate** from `defineRoute`, not branched from it.
+ * Two fields sharing one guard function will soon grow an `isAdmin` parameter,
+ * and from that point a single boolean slip separates every customer's data
+ * from the unauthorised (P11).
  *
- * Perbedaan yang menanggung beban:
- *   - Audience token `hrms-admin`, ditandatangani dengan rahasia berbeda. Token
- *     tenant tidak akan pernah lolos di sini, dan sebaliknya.
- *   - Handler menerima `SuperuserClaims`, bukan konteks tenant. Tidak ada `tx`
- *     ber-konteks yang tersedia — kode admin secara harfiah tidak punya cara
- *     memanggil `withTenant()` dari sini.
- *   - Koneksi basis datanya `hrms_platform`, yang tidak memiliki GRANT ke
- *     `auth.users`, `iam.*`, maupun `audit.*`.
+ * The heavier differences:
+ *   - Token audience `hrms-admin`, signed with a separate key. Tenant tokens
+ *     will never pass here, and vice-versa.
+ *   - The handler receives `SuperuserClaims`, not a tenant context. No `tx` is
+ *     available — admin code literally has no way to call `withTenant()` from here.
+ *   - Its database connection is `hrms_platform`, which has no GRANT on
+ *     `auth.users`, `iam.*`, or `audit.*`.
  */
 
 export interface AdminContext {
@@ -61,9 +60,9 @@ function build(
   declaredPublic: boolean,
 ): (req: Request) => Promise<Response> {
   const rule: AdminRouteRule | undefined = ADMIN_ROUTE_MANIFEST[routeId];
-  if (!rule) throw new Error(`Route admin "${routeId}" tidak terdaftar.`);
+  if (!rule) throw new Error(`Admin route "${routeId}" is not registered.`);
   if ((rule.public === true) !== declaredPublic) {
-    throw new Error(`Route admin "${routeId}": sifat publik tidak cocok dengan manifest.`);
+    throw new Error(`Admin route "${routeId}": public flag does not match the manifest.`);
   }
 
   return async function route(req: Request): Promise<Response> {
@@ -76,7 +75,7 @@ function build(
         rule.rateLimit.windowSeconds,
       );
       if (!ok) {
-        return fail(429, ErrorCode.RATE_LIMITED, 'Terlalu banyak permintaan', base.correlationId);
+        return fail(429, ErrorCode.RATE_LIMITED, 'Too many requests', base.correlationId);
       }
     }
 
@@ -87,18 +86,18 @@ function build(
 
       const authorization = req.headers.get('authorization');
       if (!authorization?.startsWith('Bearer ')) {
-        return fail(401, ErrorCode.TOKEN_INVALID, 'Token admin tidak ada', base.correlationId);
+        return fail(401, ErrorCode.TOKEN_INVALID, 'Admin token not found', base.correlationId);
       }
 
       const superuser = await verifySuperuserToken(authorization.slice(7)).catch(() => null);
       if (!superuser) {
-        return fail(401, ErrorCode.TOKEN_INVALID, 'Token admin tidak sah', base.correlationId);
+        return fail(401, ErrorCode.TOKEN_INVALID, 'Invalid admin token', base.correlationId);
       }
 
       return await (handler as AdminHandler)(req, { ...base, superuser });
     } catch (error) {
       log.error({ scope: 'admin-route', correlationId: base.correlationId, routeId, error });
-      return fail(500, ErrorCode.INTERNAL, 'Terjadi kesalahan pada sistem', base.correlationId);
+      return fail(500, ErrorCode.INTERNAL, 'A system error occurred', base.correlationId);
     }
   };
 }

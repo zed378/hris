@@ -65,7 +65,7 @@ export async function subscribeToPush(
     return {
       ok: false,
       reason: 'UNSUPPORTED',
-      message: 'Peramban ini tidak mendukung notifikasi.',
+      message: 'This browser does not support notifications.',
     };
   }
 
@@ -74,7 +74,7 @@ export async function subscribeToPush(
   // not consume the one chance to ask.
   const info = await api('/api/notifications/subscriptions');
   if (!info.ok) {
-    return { ok: false, reason: 'FAILED', message: 'Tidak dapat menghubungi server.' };
+    return { ok: false, reason: 'FAILED', message: 'Could not reach the server.' };
   }
   const { configured, publicKey } = (await info.json()) as {
     configured: boolean;
@@ -84,7 +84,7 @@ export async function subscribeToPush(
     return {
       ok: false,
       reason: 'NOT_CONFIGURED',
-      message: 'Notifikasi belum diaktifkan pada sistem ini.',
+      message: 'Notifications have not been enabled on this system.',
     };
   }
 
@@ -93,8 +93,8 @@ export async function subscribeToPush(
       ok: false,
       reason: 'IOS_REQUIRES_INSTALL',
       message:
-        'Di iPhone dan iPad, notifikasi hanya berfungsi setelah aplikasi ini ' +
-        'dipasang ke Layar Utama. Buka menu Bagikan, lalu "Tambah ke Layar Utama".',
+        'On iPhone and iPad, notifications only work after this app is installed ' +
+        'to the Home Screen. Open the Share menu, then "Add to Home Screen".',
     };
   }
 
@@ -104,7 +104,7 @@ export async function subscribeToPush(
       ok: false,
       reason: 'DENIED',
       message:
-        'Izin notifikasi ditolak. Mengaktifkannya kembali harus lewat setelan situs di peramban.',
+        'Notification permission was denied. Re-enable it through the site settings in your browser.',
     };
   }
 
@@ -132,12 +132,12 @@ export async function subscribeToPush(
     });
 
     if (!response.ok) {
-      return { ok: false, reason: 'FAILED', message: 'Langganan gagal disimpan.' };
+      return { ok: false, reason: 'FAILED', message: 'Subscription failed to save.' };
     }
 
     return { ok: true, endpoint: subscription.endpoint };
   } catch {
-    return { ok: false, reason: 'FAILED', message: 'Berlangganan notifikasi gagal.' };
+    return { ok: false, reason: 'FAILED', message: 'Notification subscription failed.' };
   }
 }
 

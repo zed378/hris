@@ -67,7 +67,7 @@ async function readError(response: Response): Promise<ApiError> {
   return new ApiError(
     response.status,
     body?.error?.code ?? 'UNKNOWN',
-    body?.error?.message ?? 'Terjadi kesalahan',
+    body?.error?.message ?? 'An error occurred',
   );
 }
 
@@ -228,6 +228,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
 export function useSession(): SessionState {
   const context = useContext(SessionContext);
-  if (!context) throw new Error('useSession harus dipakai di dalam <SessionProvider>');
+  if (!context) throw new Error('useSession must be used inside <SessionProvider>');
   return context;
 }

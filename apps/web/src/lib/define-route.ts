@@ -207,7 +207,7 @@ function build(
         return await (handler as PublicHandler)(req, { ...ctx, params });
       } catch (error) {
         log.error({ scope: 'route', correlationId: ctx.correlationId, routeId, error });
-        return fail(500, ErrorCode.INTERNAL, 'Terjadi kesalahan pada sistem', ctx.correlationId);
+        return fail(500, ErrorCode.INTERNAL, 'A system error occurred', ctx.correlationId);
       }
     }
 
@@ -260,7 +260,7 @@ function build(
          * only during incidents, is a second implementation nobody has tested,
          * diverging quietly from the one that normally runs. Risk S3.
          */
-        const response = fail(
+      const response = fail(
           AUTH_UNAVAILABLE_STATUS,
           ErrorCode.INTERNAL,
           'Auth service is not reachable. Try again shortly.',
@@ -292,7 +292,7 @@ function build(
           429,
           ErrorCode.RATE_LIMITED,
           `Your organization's requests have exceeded ${TENANT_QUOTA_MAX} per minute. ` +
-            'Coba lagi sebentar lagi.',
+            'Try again shortly.',
           ctx.correlationId,
         );
         response.headers.set('retry-after', String(remoteQuota.resetSeconds));
@@ -455,7 +455,7 @@ function build(
             return fail(
               401,
               ErrorCode.TOKEN_STALE,
-              'Hak akses Anda berubah. Token disegarkan otomatis — coba lagi.',
+              'Your access rights have changed. Token refreshed automatically — try again.',
               ctx.correlationId,
             );
           }
@@ -464,7 +464,7 @@ function build(
             return fail(
               402,
               ErrorCode.MODULE_NOT_SUBSCRIBED,
-              `Paket langganan Anda belum mencakup modul "${routeRule.module}"`,
+              `Your subscription plan does not yet include the module "${routeRule.module}"`,
               ctx.correlationId,
             );
           }
@@ -472,7 +472,7 @@ function build(
           return fail(
             403,
             ErrorCode.PERMISSION_DENIED,
-            'Anda tidak memiliki hak akses untuk tindakan ini',
+            'You do not have permission for this action',
             ctx.correlationId,
           );
         }
@@ -518,7 +518,7 @@ function build(
         const response = fail(
           503,
           ErrorCode.RATE_LIMITED,
-          'Sistem sedang menerima terlalu banyak permintaan sekaligus. Coba lagi sebentar lagi.',
+           'System is currently receiving too many simultaneous requests. Try again shortly.',
           ctx.correlationId,
         );
         response.headers.set('retry-after', '2');
