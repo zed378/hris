@@ -41,6 +41,9 @@ Assessed 2026-09-13.
 | S6 | Logs shipped abroad carry PII | Medium | **Critical** | Redaction tested; logs not shipped | Decide the vendor with legal first | `14` §9.3 |
 | R17 | A noisy tenant degrades others | Medium | High | Per-tenant quota, statement timeouts | Not load-tested | `18` |
 | R26 | Breadth before depth | High | High | Five-module shortlist | Four modules built with no design-partner usage recorded in this repository | `12` §4 |
+| **N11** | **Viewing unmasked PII in the employee list or detail is not audited** — only exports are | Medium | High | Permission required; export audited | Audit row per unmasked read; `12` Phase 2 DoD | `SECURITY/02` §8 |
+| **N12** | **No permission ceiling: role and grant administrators can confer any permission, including on themselves** | Medium | High | Audited; access version bumps | "Cannot grant what you do not hold" | `SECURITY/02` §5 |
+| **N13** | **Superuser TOTP secrets stored in plaintext; superuser logins not audited** | Low | High | `hrms_platform` has no tenant-data grant | Encrypt with the key ring; audit logins | `SECURITY/02` §9 |
 | **N10** | **The language of API error messages is contested** | Medium | Low | — | `TASKS/BACKLOG.md` `OQ-01` | `15` §11 |
 | R2 | Tax and BPJS regulations change | High | Medium | `statutory_configs` versioned by date range | Tables exist; components do not | `07` |
 | R6 | The UI feels harder than Excel | High | High | AG Grid, `.xlsx` export, import pipeline | No usability testing | `UI-UX/` |

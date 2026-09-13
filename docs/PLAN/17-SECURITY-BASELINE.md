@@ -26,7 +26,7 @@ Written 2026-09-13 against the code. A control listed here was verified to exist
 |---|---|
 | Argon2id password hashing | `packages/core/src/auth/password.ts` |
 | An unknown tenant costs the same time as a wrong password | `burnTimingBudget` in `login.ts` |
-| Account lockout with `retry-after` | `ACCOUNT_LOCKED`, `login.ts` |
+| Account lockout after 8 failures for 15 minutes, with `retry-after` | `ACCOUNT_LOCKED`, `login.ts` — no automated test |
 | Refresh tokens: random, stored hashed, rotated on use, reuse treated as theft | `tokens.ts`, `TOKEN_REUSE_DETECTED` |
 | Refresh token only in an `HttpOnly`, `SameSite=Strict`, `Path=/api/auth` cookie | `session-cookie.ts`, `apps/auth/src/http.ts` |
 | Access token in memory only, 15-minute TTL | `apps/web/src/lib/session.tsx` |
@@ -45,7 +45,7 @@ Written 2026-09-13 against the code. A control listed here was verified to exist
 | Subscription beats role (P8) | `decideAccess`, `402` before `403` |
 | DENY grants beat roles | `resolveEffectiveAccess` |
 | Expired grants ignored, not deleted | `resolveEffectiveAccess` |
-| A requester cannot approve their own leave, without exception | `packages/core/src/leave/requests.ts` |
+| A requester cannot approve their own leave, without exception | `packages/core/src/leave/requests.ts` — no automated test |
 | A leave approver must actually hold the approval permission | `createRequest` |
 | The gateway authorizes through one function only | `decideAccess`; a lint rule forbids `resolveEffectiveAccess` in `apps/web` |
 | Permission cache cannot outlive a revocation | Version in the cache key; tenant generation bumped on entitlement change |
@@ -57,7 +57,7 @@ Written 2026-09-13 against the code. A control listed here was verified to exist
 | Separate audience (`hrms-admin`), separate key realm, 8-hour sessions | `superuser-auth.ts` |
 | TOTP mandatory for superusers, enforced by a database constraint | `platform.superusers` |
 | `hrms_platform` has no grant on `auth.users`, `iam.*`, or `audit.*` | `rls-coverage.test.ts` |
-| Superuser actions go to a separate platform audit trail | `platform.platform_audit_logs` |
+| Superuser tenant status and plan changes go to a separate platform audit trail (logins are not recorded) | `platform.platform_audit_logs` |
 
 ## 5. Personal Data
 
@@ -66,7 +66,8 @@ Written 2026-09-13 against the code. A control listed here was verified to exist
 | National ID, tax ID, and bank account encrypted with AES-256-GCM, versioned ciphertext (`v1.`) | `packages/core/src/employee/pii.ts` |
 | A key ring: one key encrypts, several may decrypt; rotation procedure rehearsed | `ops/RUNBOOK.md` §8; `pii-rotation.test.ts` |
 | Equality lookup through a blind index, never through plaintext | `nationalIdIndex` |
-| Masked by default; unmasking requires `employee.pii.unmask` and is audited | Employee endpoints |
+| Masked by default; unmasking requires `employee.pii.unmask` | Employee list, detail, and export endpoints |
+| An export records whether it was unmasked | `employee.exported` audit row, `packages/core/src/employee/export.ts` |
 | Plaintext PII never stored in the import staging table | Import pipeline (`13` §4) |
 | Logs redact national IDs, bank accounts, passwords, and bearer tokens | `packages/observability/src/logger.ts`; `logger.test.ts` |
 | The portability export omits ciphertext and password hashes | `packages/core/src/tenant/data-export.ts` |
@@ -115,6 +116,9 @@ Controls a reader might reasonably assume exist, and which do not. Each is track
 | No `Content-Security-Policy`, `Strict-Transport-Security`, or frame-ancestors headers | XSS impact is not contained by the browser | High |
 | No MFA for tenant users — only superusers have TOTP | One leaked password opens a tenant's HR data (R18); `12` Phase 5 DoD item unmet | High |
 | `JWT_SECRET` still configured, so HS256 tokens still verify | Anything holding the secret can still mint tokens | Medium |
+| **Viewing unmasked PII in the employee list or detail is not audited** — only exports are | An HR insider can read every national ID with no trace; `12` Phase 2 DoD requires unmasking to be audited | High |
+| Superuser TOTP secrets stored in plaintext | A database read defeats the control plane's second factor | Medium |
+| No permission ceiling for role and grant administrators | A holder of `iam.role.manage` or `iam.grant.manage` can confer any permission, including on themselves | Medium |
 | `hrms_app` can still read `auth.users` | The backend can read credential rows it no longer needs (`14` §10.5) | Medium |
 | Service-to-service authentication is a shared secret, not mTLS | As strong as the environment holding it | Medium |
 | No CI pipeline, so no dependency or secret scanning runs automatically | A vulnerable dependency or committed secret is not caught | Medium |

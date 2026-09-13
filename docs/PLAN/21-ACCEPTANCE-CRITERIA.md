@@ -62,7 +62,7 @@ The checklists are `12` §6. This section records, for each item, how it is veri
 | Three pilots import ≥ 100 employees unaided in < 30 min | Pilot sessions | **Not verified** (Gate A) |
 | Export opens in Excel and matches row for row | Manual comparison | `.xlsx` export built; row-for-row comparison not recorded |
 | Import errors per row, correctable and re-uploadable | Import pipeline | Built |
-| PII masked by permission; unmasking audited | Employee endpoints | Built |
+| PII masked by permission; unmasking audited | Employee endpoints; audit rows | Masking built; **unmasking audited on export only** — list and detail views write no audit row |
 
 ### Phase 3 — Attendance & PWA
 

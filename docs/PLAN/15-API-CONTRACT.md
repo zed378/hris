@@ -121,7 +121,7 @@ Defined once in `packages/contracts/src/errors.ts`:
 | `TENANT_MISMATCH` | 403 | `X-Tenant-ID` disagrees with the token |
 | `TENANT_SUSPENDED` | 403 | Tenant is `SUSPENDED` or `CHURNED` |
 | `ACCOUNT_SUSPENDED` | 403 | User account suspended |
-| `NOT_FOUND` | 404 | Also returned for a known path with the wrong method, and for internal routes without their secret — a `405` or `403` would confirm the path exists |
+| `NOT_FOUND` | 404 | On the auth service, also returned for a known path with the wrong method and for `/internal/*` without its secret — a `405` or `403` would confirm the path exists. (Next.js route handlers in `web` answer an unexported method with its default `405`.) |
 | `CONFLICT` | 409 | Concurrency or state conflicts: a second approval, a closed period, a duplicate tenant code |
 | `ACCOUNT_LOCKED` | 423 | Too many failed logins, with `retry-after` |
 | `RATE_LIMITED` | 429 | Per-address or per-tenant limits, with `retry-after` |

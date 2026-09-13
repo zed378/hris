@@ -70,7 +70,7 @@ Audit logs are for accountability, not for operating the system — but they are
 | Trail | Holds | Integrity |
 |---|---|---|
 | `audit.audit_logs` | Every sensitive tenant-plane change, with actor, before/after, IP | Append-only: `UPDATE`/`DELETE` revoked and blocked by trigger |
-| `platform.platform_audit_logs` | Superuser actions | Separate from the tenant audit, so a tenant never sees actors it cannot recognise |
+| `platform.platform_audit_logs` | Superuser tenant status and plan changes — not logins | Separate from the tenant audit, so a tenant never sees actors it cannot recognise |
 | `attendance.photo_access_logs` | HR opening a photo or document | The owner opening their own evidence is not logged; HR is |
 
 Note the IP recorded in audit rows comes from the same client-controlled header as §9 of `15-API-CONTRACT.md` describes.
