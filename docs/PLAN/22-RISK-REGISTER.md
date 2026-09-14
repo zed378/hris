@@ -1,6 +1,6 @@
 # 22 — Risk Register
 
-The live risk register. `04-Development-Phases-Team-Risk.md` §11 holds the original register (R1–R52), written for a sixteen-service architecture; `12-Small-Team-Execution-Plan.md` §10.3 holds the modular monolith's risks (N1–N7); `14-Service-Split-and-Platform-Evolution.md` §12 holds the split's risks (S1–S8). This document **re-assesses those against the system as built** and adds the risks found since. It is the one to update.
+The live risk register. `04-Development-Phases.md` §11 holds the original register (R1–R52), written for a sixteen-service architecture; `12-Small-Team-Execution-Plan.md` §10.3 holds the modular monolith's risks (N1–N7); `14-Service-Split-and-Platform-Evolution.md` §12 holds the split's risks (S1–S8). This document **re-assesses those against the system as built** and adds the risks found since. It is the one to update.
 
 Risk ids are stable: `R`, `N`, and `S` keep their original numbers; risks found while writing these documents on 2026-09-13 are `F`. A retired risk keeps its row with the reason.
 
@@ -45,7 +45,7 @@ Assessed 2026-09-13.
 | **F12** | **No permission ceiling: role and grant administrators can confer any permission, including on themselves** | Low | High | Audited; access version bumps | "Cannot grant what you do not hold" | `SECURITY/02` §5 |
 | **F13** | **Superuser TOTP secrets stored in plaintext; superuser logins not audited** | Low | High | `hrms_platform` has no tenant-data grant | Encrypt with the key ring; audit logins | `SECURITY/02` §9 |
 | **F10** | **The language of API error messages is contested** | Medium | Low | — | `TASKS/BACKLOG.md` `OQ-01` | `15` §11 |
-| R2 | Tax and BPJS regulations change | High | Medium | `statutory_configs` versioned by date range | Tables exist; components do not | `07` |
+| R2 | Tax and BPJS regulations change | High | Medium | `statutory_configs` versioned by date range | Tables exist; components do not | `02`, `12` Phase 5 |
 | R6 | The UI feels harder than Excel | High | High | AG Grid, `.xlsx` export, import pipeline | No usability testing | `UI-UX/` |
 | R52 | Web Push does not arrive on iOS | High | Medium | Push → email tiering | WhatsApp not built | `11` |
 
