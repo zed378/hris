@@ -23,7 +23,7 @@ So when one of the later documents and the code disagree, **that is a finding, n
 ## Recommended Reading Order
 
 ```
-1.  PLAN/00-Reference-System-Analysis.md       → the product, and principles P1–P16 (§3)
+1.  PLAN/00-Reference-System-Analysis.md       → the product, and principles P1–P16 (§3.2)
 2.  PLAN/12-Small-Team-Execution-Plan.md        → the architecture actually built, and the phases
 3.  PLAN/13-Implementation-Status.md            → what is proven, what diverged, what is open
 4.  PLAN/02-Database-Modelling.md               → the data model (read with PLAN/12 §3 for the schema-per-module reality)
@@ -80,7 +80,7 @@ The mapping, for anyone arriving from `zed-auth`:
 
 ## Core Principles Binding All Documents
 
-Sixteen principles are defined in [`PLAN/00`](./PLAN/00-Reference-System-Analysis.md) §3. These are the ones enforced in code, where an agent is most likely to break them without noticing:
+Sixteen principles are defined in [`PLAN/00`](./PLAN/00-Reference-System-Analysis.md) §3.2. These are the ones enforced in code, where an agent is most likely to break them without noticing:
 
 | # | Principle | Enforced by |
 |---|---|---|

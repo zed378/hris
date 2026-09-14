@@ -65,6 +65,7 @@ All configuration is environment variables. The complete list with explanations 
 | Personal data | `PII_ENCRYPTION_KEY`, `PII_INDEX_KEY`, `*_KEYS_OLD` | **Losing `PII_ENCRYPTION_KEY` loses every encrypted national ID, tax ID, and bank account.** It is not in the database backup |
 | Platform | `REDIS_URL`, `BROKER_URL`, `AUTH_SERVICE_URL`, `AUTH_INTERNAL_SECRET` | Each unset means the in-process fallback; readiness reports which |
 | Storage | `PHOTO_STORAGE_DIR`, `DOCUMENT_STORAGE_DIR`, `LEAVE_ATTACHMENT_STORAGE_DIR` | Files are on a volume, not in PostgreSQL — see §6 |
+| Email | `RESEND_API_KEY`, `EMAIL_FROM` | Unset → emails are **printed to the log, not sent** (`packages/core/src/notification/transport.ts`). Invitations and password resets never arrive, with no error to the user. Commented out in `.env.example` |
 | Other | `METRICS_TOKEN`, `VAPID_*`, `APP_BASE_URL`, `COOKIE_SECURE` | — |
 
 `ops/.env.compose.example` configures HS256 (`JWT_SECRET`) and not the EdDSA keys. A deployment copied from it runs on the legacy signing path — tracked in `TASKS/`.

@@ -89,7 +89,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Mitigation | (b) self-approval refused without exception, including for HR administrators. (c) the approver must actually hold the permission. (d) DENY beats roles in `resolveEffectiveAccess`. Every role and grant change bumps the access version |
 | Detection | Audit rows on role, grant, and approval changes. No alert on them |
 | Response | Revoke; review the audit trail for everything the escalated access touched |
-| Status | (c)(d) **Mitigated** (`leave-approver.test.ts`, `gateway.test.ts` DENY precedence). (b) **Mitigated** in code — no automated test of self-approval refusal. (a) **Partial** — audited (`iam.role.permissions_changed`) and the access version bumps, but there is no ceiling: a role or grant administrator can confer any permission, including on themselves; no "cannot grant what you do not hold" rule exists |
+| Status | (c)(d) **Mitigated** (`leave-approver.test.ts`, `gateway.test.ts` DENY precedence). (b) **Mitigated** in code — no automated test of self-approval refusal. (a) **Partial** — audited (`iam.role.permissions_changed`) and the access version bumps, but there is no ceiling: a role or grant administrator can confer any permission, including on themselves; no "cannot grant what you do not hold" rule exists. By default only `TENANT_OWNER` (who already holds every permission) has `iam.role.manage` and `iam.grant.manage`, so the gap opens when a tenant delegates role management to a custom role |
 
 ## 6. Subscription Bypass
 

@@ -32,7 +32,7 @@ Assessed 2026-09-13.
 | S1 | HS256 secret still able to mint tokens after the split | Medium | High | EdDSA default; readiness reports `hybrid` | Remove `JWT_SECRET` from every environment; compose example still uses it | `14` §6 |
 | R43 | Indoor GPS produces many false flags | High | Medium | Per-tenant accuracy threshold, office network | Office network bypassable (N1); unmeasured on devices | `10` |
 | R48 | Offline queue lost on iOS eviction | Medium | High | `storage.persist()`, warning | Not tested on a real iPhone | `11` |
-| **N6** | **No mobile navigation: the sidebar is hidden below `md` and nothing replaces it** | **High** | Medium | Home-screen shortcuts to punch | A mobile navigation pattern | `UI-UX/09` |
+| **N6** | **No mobile navigation: the sidebar is hidden below `md` and nothing replaces it** | **High** | Medium | PWA shortcuts to punch and my attendance; home dashboard cards link onward | A mobile navigation pattern; a way back home from every page | `UI-UX/09` |
 | **N7** | **Concurrent AI agents editing the same working tree** | Medium | Medium | Explicit file lists on commit | A worktree-per-agent rule | `MEMORY/records/2026-09-13-concurrent-agent-commits.md` |
 | **N8** | **API documentation drifts: 14 of 100 routes documented, and a comment claims a coverage test that does not exist** | High | Medium | Generator derives paths from the manifest | The coverage test | `15` §9 |
 | S3 | Auth service as a single point of failure | Medium | High | Opt-in; `503` never a fallback; permission cache | Degraded mode not load-tested | `14` §10.6 |
@@ -42,7 +42,7 @@ Assessed 2026-09-13.
 | R17 | A noisy tenant degrades others | Medium | High | Per-tenant quota, statement timeouts | Not load-tested | `18` |
 | R26 | Breadth before depth | High | High | Five-module shortlist | Four modules built with no design-partner usage recorded in this repository | `12` §4 |
 | **N11** | **Viewing unmasked PII in the employee list or detail is not audited** — only exports are | Medium | High | Permission required; export audited | Audit row per unmasked read; `12` Phase 2 DoD | `SECURITY/02` §8 |
-| **N12** | **No permission ceiling: role and grant administrators can confer any permission, including on themselves** | Medium | High | Audited; access version bumps | "Cannot grant what you do not hold" | `SECURITY/02` §5 |
+| **N12** | **No permission ceiling: role and grant administrators can confer any permission, including on themselves** | Low | High | Audited; access version bumps | "Cannot grant what you do not hold" | `SECURITY/02` §5 |
 | **N13** | **Superuser TOTP secrets stored in plaintext; superuser logins not audited** | Low | High | `hrms_platform` has no tenant-data grant | Encrypt with the key ring; audit logins | `SECURITY/02` §9 |
 | **N10** | **The language of API error messages is contested** | Medium | Low | — | `TASKS/BACKLOG.md` `OQ-01` | `15` §11 |
 | R2 | Tax and BPJS regulations change | High | Medium | `statutory_configs` versioned by date range | Tables exist; components do not | `07` |
