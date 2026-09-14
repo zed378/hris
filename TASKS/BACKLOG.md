@@ -51,19 +51,20 @@ Recorded as ADR-032. Consequences, per `docs/PLAN/14` §12 S8 ("if SSO and a pub
 
 Only relevant if auth runs as a separate service. It does not (`OQ-03`). One database.
 
-### OQ-05 — Capacity assumptions
+### ~~OQ-05 — Capacity assumptions~~ — ANSWERED 2026-09-14
 
-**Blocks**: `P6-21` (load test), choosing a server size. **Source**: `docs/PLAN/18` §5.
+**Answer (the user)**: *about 3 companies in the first year, with fewer than 200 monitored employees.*
 
-**Asked again in plainer terms on 2026-09-14** — the first wording was not clear. The question is simply: *how busy will the system be in its first year?* Without a rough number there is nothing to size the server against, and no way to know whether the morning rush (everyone clocking in between 07:30 and 08:30) will be slow.
+Recorded as ADR-033. **Interpretation**: "fewer than 200" most likely means in total; the envelope is sized for the looser reading — up to 200 per company, **600 employees** — so it holds either way.
 
-Three numbers answer it; rough guesses are fine:
+| First-year envelope | Value |
+|---|---|
+| Tenants | 3 |
+| Monitored employees | ≤ 600 (≤ 200 per tenant) |
+| Morning peak | ≤ 600 punches, with photos, assumed bunched into **15 minutes** |
+| Load test target (3×) | 1,800 punches with photo uploads in 15 minutes (≈ 2 punches/s, ≈ 4 requests/s including uploads), plus a burst of 100 offline replays arriving at once, with the live dashboard open for each tenant |
 
-1. How many client companies in the first year?
-2. Roughly how many employees per company on average?
-3. Do most of them clock in within the same hour in the morning? (Usually yes.)
-
-**Recommendation if no number is available**: assume 50 companies × 100 employees = 5,000 employees, most clocking in within one hour — about 5,000 punches in 60 minutes — and test at three times that.
+Consequences: `P6-21` is no longer blocked by this question, and drops to **P3** — the volume is far below every limit measured in `docs/PLAN/18` §2; `P0-11` (5,000-row import spike) drops to **P3**, since no tenant has more than 200 employees; one small host is enough (`docs/PLAN/20`); risks F9, R17, and N7 are re-rated. The envelope is revisited at the first tenant beyond it.
 
 ### OQ-06 — Who receives alerts, and who owns security?
 

@@ -133,7 +133,7 @@ Retrospective IDs (`00-TASK-CONVENTIONS.md` §1).
 | | |
 |---|---|
 | **Status** | TODO |
-| **Priority** | P2 |
+| **Priority** | P3 — no first-year tenant exceeds 200 employees (ADR-033); a 200-row import is covered by the Gate A pilots |
 | **Plan refs** | `docs/PLAN/12` §6 spikes, `docs/PLAN/18` §3 |
 | **Spec required** | No |
 | **Surface** | backend |

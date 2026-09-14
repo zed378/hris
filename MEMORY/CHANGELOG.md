@@ -17,9 +17,11 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 - API documentation behind a platform superuser session and an Argon2id-hashed docs key; the tenant OpenAPI route to be removed (ADR-031). `P6-18.3` unblocked.
 - Authorization stays in-process; SSO maybe later; no public API. The service split stops; the auth service and broker stay built and off (ADR-032).
 
+- First-year capacity envelope: 3 tenants, up to 600 employees (ADR-033). The morning-peak load test drops to P3 and loses its question blocker; so does the 5,000-row import spike.
+
 **Asked**
 - `OQ-15`: language of emails and push notifications.
-- `OQ-05` rewritten in plainer terms.
+- `OQ-05` rewritten in plainer terms, then answered the same day.
 
 ### 2026-09-13 — Documentation set
 

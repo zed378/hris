@@ -268,14 +268,14 @@
 | | |
 |---|---|
 | **Status** | BLOCKED |
-| **Priority** | P2 |
-| **Blocked by** | `OQ-05` (capacity assumptions), `P0-10` (staging) |
+| **Priority** | P3 — first-year volume is small (ADR-033) |
+| **Blocked by** | `P0-10` (staging) |
 | **Plan refs** | `docs/PLAN/18` §6, `docs/PLAN/12` §11, risk R17 |
 | **Spec required** | No |
 | **Surface** | ops |
 | **Size** | L |
 
-**Goal** — measured p95 latency and error rate for the 07:30–08:30 WIB shape: punch bursts with photos, offline queue replays arriving together, the live dashboard open, at 3× the stated envelope, in both the in-process and split topologies.
+**Goal** — measured p95 latency and error rate for the morning shape at 3× the first-year envelope (ADR-033): 1,800 punches with photo uploads within 15 minutes across 3 tenants, a burst of 100 offline replays at once, and a live dashboard open per tenant — in the in-process topology (the split is not enabled, ADR-032).
 
 **Definition of Done** — results against the p95 < 500 ms target recorded with host size and data volume; `docs/PLAN/18` §2–3 updated; any failure becomes a task.
 

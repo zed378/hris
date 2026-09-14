@@ -2,7 +2,7 @@
 
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
-**Last updated**: 2026-09-14 — `OQ-01`, `OQ-03`, `OQ-11` answered; `P6-24` and `PF-20` added
+**Last updated**: 2026-09-14 — `OQ-01`, `OQ-03`, `OQ-05`, `OQ-11` answered; `P6-24` and `PF-20` added
 **Overall**: 77 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 0 since
 **Gates**: A untested · B untested · C not met · D not reached
 
@@ -68,7 +68,7 @@ In order. Each is unblocked today.
 | P0-08 | Collect real artefacts | M | P1 | TODO | P0-07 |
 | P0-09 | CI pipeline | M | **P0** | TODO | — |
 | P0-10 | Staging environment | L | P1 | TODO | P0-09; a host |
-| P0-11 | Spike S2: import at 5,000 rows | S | P2 | TODO | — |
+| P0-11 | Spike S2: import at 5,000 rows | S | P3 | TODO | — |
 | P0-12 | Spike S3: 100,000 concurrent transactions | M | P2 | TODO | — |
 | P0-13 | Spike S1: PPh 21 TER, 30/30 | L | — | BLOCKED | Gate C |
 | P0-14 | Spike S4: real devices, 24 h | M | — | BLOCKED | devices |
@@ -202,7 +202,7 @@ In order. Each is unblocked today.
 | P6-18 | API documentation (18.1 coverage · 18.2 routes · 18.3 page and secret) | L | P1 | TODO | 18.3: P6-12 |
 | P6-19 | Ownership structural test | M | P1 | TODO | — |
 | P6-20 | Lockout and timing tests | S | P1 | TODO | — |
-| P6-21 | Morning-peak load test | L | P2 | BLOCKED | `OQ-05`, P0-10 |
+| P6-21 | Morning-peak load test | L | P3 | BLOCKED | P0-10 |
 | P6-22 | Metrics endpoint | — | — | DONE (retro) | — |
 | P6-23 | Generated OpenAPI document | — | — | DONE (retro) | coverage: P6-18 |
 | P6-24 | English backend messages with reasons | L | P1 | TODO | emails/push: `OQ-15` |

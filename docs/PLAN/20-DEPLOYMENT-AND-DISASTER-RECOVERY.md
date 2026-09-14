@@ -115,6 +115,6 @@ The last two rows are the reason this section exists. Tracked in `TASKS/BACKLOG.
 | A CI pipeline that builds and pushes images | Images are built on the deploying host; `Dockerfile.web` and `Dockerfile.worker` have no recorded build in automation |
 | Off-host backup copies | A backup on the same host as the database does not survive the host |
 | Secret management | Secrets are environment files on the host |
-| High availability | One PostgreSQL, one host. The 99.5% target in `12` §11 is achievable with fast manual recovery, not with failover |
+| High availability | One PostgreSQL, one host. The 99.5% target in `12` §11 is achievable with fast manual recovery, not with failover. At the first-year envelope — 3 tenants, ≤ 600 employees (ADR-033) — one small host is adequate; recovery, not capacity, is the concern |
 | TLS termination | Expected in front of `proxy`/`web`; not configured in this repository |
 | A production deployment record | Nothing in this repository shows the system running in production |

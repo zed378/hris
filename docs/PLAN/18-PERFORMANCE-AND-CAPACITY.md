@@ -62,14 +62,25 @@ Collected from where they were set, not invented here.
 
 ## 5. Capacity Assumptions
 
-**None have been stated.** `12` §7 sizes the *team*, not the system. There is no expected number of tenants, concurrent users, punches per minute at 08:00, or payroll runs per month written down anywhere — so there is nothing to size a host against or to design a load test around.
+**Stated by the user on 2026-09-14** (`MEMORY/DECISIONS.md` ADR-033): about **3 companies** in the first year, with **fewer than 200 monitored employees**. The envelope is sized for the looser reading — 200 per company:
 
-What the architecture assumes implicitly, from `12` §10.3 N2: *"acceptable at 5–50 tenants; reviewed above that."* That is the only stated bound, and it is a review trigger rather than a capacity figure.
+| First year | Envelope | Load test at 3× |
+|---|---|---|
+| Tenants | 3 | 3 |
+| Monitored employees | ≤ 600 | 1,800 |
+| Morning punches, assumed within 15 minutes | ≤ 600 (≈ 0.7 punches/s) | 1,800 (≈ 2 punches/s, ≈ 4 requests/s with photo uploads) |
+| Offline replays arriving at once | — | 100 |
+| Live dashboard streams | ≤ 3 | 3 (the cap is 32 per process) |
+| Payroll run size | ≤ 200 employees | — (1,003 already measured in 8.5 s, framework only) |
 
-Recorded as `TASKS/BACKLOG.md` `OQ-05`.
+Every figure is far below what §2 already measured on a development machine: a 700-request flood handled without a `500`, 50 concurrent approvals, a 1,003-employee payroll run. **One small host is enough for the first year**, and no capacity work should displace the security and usability tasks.
+
+`12` §10.3 N2's review trigger — *"acceptable at 5–50 tenants; reviewed above that"* — still applies. Revisit this envelope at the first tenant beyond it.
 
 ## 6. The Morning Peak
 
 The load shape that matters for an Indonesian HR product is not average traffic. It is **the whole company clocking in between 07:30 and 08:30 WIB**, from phones on mobile networks, often after a night offline with a queue to flush.
 
 Any load test worth running models that: a burst of punch writes with photo uploads, offline queue replays arriving together when a train reaches a station, and the live dashboard open on HR's screen throughout. A flat request rate would pass and prove nothing about the hour that decides whether attendance works.
+
+At the first-year envelope (§5) the burst is small — the test's value is less in finding a throughput limit than in catching a regression that makes one punch slow: a missing index, a lock held across a photo upload, a query that scans every punch. `TASKS` `P6-21`.

@@ -637,16 +637,35 @@ Numbers are sequential and permanent. A superseded ADR stays, with its status up
 
 **Plan impact** — `docs/PLAN/14` §13 annotated with the decision; `docs/PLAN/15` §8, `docs/PLAN/17` §9, `docs/PLAN/22`, `docs/SECURITY/02` §10 amended 2026-09-14.
 
+## ADR-033 — First-year capacity envelope: 3 tenants, up to 600 employees
+
+| | |
+|---|---|
+| **Date** | 2026-09-14 |
+| **Status** | Accepted — revisit at the first tenant beyond it |
+| **Task** | P6-21, P0-11 |
+| **Deciders** | The user |
+| **Reconstructed** | No |
+
+**Context** — `docs/PLAN/18` §5 recorded that no capacity assumption existed anywhere, so no host could be sized and no load test designed (`OQ-05`). The question was first asked in terms the user did not follow, then again as three plain questions.
+
+**Decision** — the user: *about 3 companies in the first year, with fewer than 200 monitored employees.* The envelope is sized for the looser reading of "fewer than 200" — per company rather than in total: **3 tenants, ≤ 600 employees, ≤ 600 morning punches assumed within 15 minutes.** Load tests run at 3×: 1,800 punches with photos in 15 minutes plus 100 simultaneous offline replays.
+
+**Alternatives considered** — size for the plan's implicit 5–50 tenants (`12` §10.3 N2): rejected — an order of magnitude beyond what the business expects, and it would pull capacity work ahead of security and usability. Size for exactly 200 in total: rejected — if the reading is wrong, the envelope is three times too small; the looser reading costs nothing at this scale.
+
+**Consequences** — one small host is enough; high availability and horizontal scaling are not first-year concerns. `P6-21` loses its question blocker and drops to P3; `P0-11` (a 5,000-row import spike) drops to P3. Risks F9 (controlled), R17 and N7 re-rated. Three tenants is also the pilot count of Gate A — the first year and the gate describe the same customers, so Gate A's pilots are the load.
+
+**Plan impact** — `docs/PLAN/18` §5 and §6, `docs/PLAN/20` §8, `docs/PLAN/22`, `docs/SECURITY/02` §14 amended 2026-09-14.
+
 ---
 
 ## Decisions Pending
 
-Each moves into the log when decided. The open question holds the detail and a recommendation. Answered on 2026-09-14: `OQ-01` → ADR-030, `OQ-11` → ADR-031, `OQ-03` → ADR-032 (making `OQ-04` and `OQ-10` unnecessary).
+Each moves into the log when decided. The open question holds the detail and a recommendation. Answered on 2026-09-14: `OQ-01` → ADR-030, `OQ-11` → ADR-031, `OQ-03` → ADR-032 (making `OQ-04` and `OQ-10` unnecessary), `OQ-05` → ADR-033.
 
 | Question | Decision needed | Blocks |
 |---|---|---|
 | `OQ-02` | Off-host backup destination; PII key holders | `P6-17` |
-| `OQ-05` | Capacity envelope — asked again in plainer terms 2026-09-14 | `P6-21` |
 | `OQ-06` | Alert recipient and security owner | `P6-16` |
 | `OQ-07` | Employee document retention period | `P2-10` |
 | `OQ-08` | Payroll expert and Gate C timing | Phase 5 statutory work |

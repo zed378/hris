@@ -233,7 +233,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Mitigation | Per-tenant quota of 600 requests/minute, checked before a connection is taken; per-role `statement_timeout`; 32 live streams per process, then polling; overload answers `503` + `retry-after`, never `500` |
 | Detection | `429` / `503` counts in metrics; quota refusals logged at `warn` |
 | Response | Adjust the tenant's quota |
-| Status | **Partial** — never load-tested (`../PLAN/18-PERFORMANCE-AND-CAPACITY.md`) |
+| Status | **Partial** — never load-tested (`../PLAN/18-PERFORMANCE-AND-CAPACITY.md`); low exposure in year one — 3 tenants, ≤ 600 employees (ADR-033) |
 
 ## 15. Location Surveillance Beyond Purpose
 
