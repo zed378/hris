@@ -286,24 +286,25 @@
 | **Status** | TODO |
 | **Priority** | P1 — decided 2026-09-14 (`OQ-01`, ADR-030) |
 | **Depends on** | — |
-| **Blocked by** | `OQ-15` for email and push templates only |
-| **Plan refs** | `docs/PLAN/15` §6 and §11, `packages/contracts/src/errors.ts`, `docs/UI-UX/13` §1 |
+| **Blocked by** | — |
+| **Plan refs** | `docs/PLAN/15` §6 and §11, `packages/contracts/src/errors.ts`, `docs/UI-UX/13` §1, ADR-030, ADR-034 |
 | **Spec required** | Yes — changes the error contract every endpoint returns |
 | **Surface** | backend, auth, worker, contracts |
 | **Size** | L — split per module |
 
-**Goal** — everything the backend produces — API error messages, validation messages, logs, debug output — is English, and every refusal a user can meet carries a stable machine-readable reason the frontend can turn into Indonesian text.
+**Goal** — everything the backend produces — API error messages, validation messages, logs, debug output — is English, every refusal a user can meet carries a stable machine-readable reason the frontend can turn into Indonesian text, and the emails and push notifications people read are Indonesian (ADR-034).
 
 **Steps**
 1. Spec: the reason field. Recommended: an optional `error.reason` (`SCREAMING_SNAKE`, e.g. `PUNCH_EVIDENCE_REQUIRED_OFF_NETWORK`, `LEAVE_INSUFFICIENT_BALANCE`, `LEAVE_SELF_APPROVAL`), with parameters in `error.details` (e.g. `{ "missing": ["location", "photo"] }`). `code` stays the coarse contract; `reason` refines it. Validation errors: `details` keyed by field, carrying Zod issue codes and bounds (`too_small`, `minimum: 12`) rather than sentences.
 2. Define reasons once in `packages/contracts` so the frontend can import the list.
 3. Module by module (`auth`, `iam`, `employee`, `attendance`, `leave`, `payroll`, `tenant`, `platform`, `notification`, worker): translate remaining Indonesian string literals to English and attach reasons to user-facing refusals. A rough search on 2026-09-14 found about 237 such literals in about 77 files — measure precisely in the spec.
 4. Replace the Indonesian messages in `packages/contracts` schemas (e.g. `passwordSchema`) with English.
-5. Email and push templates: follow `OQ-15`.
+5. Email and push templates back to **Indonesian** (ADR-034): `packages/core/src/notification/templates.ts` (invitation, password reset, contract and document expiry) and the push text in `apps/worker/src/leave-notify.ts`. Keep the push deliberately thin — no reason or comment on a lock screen. Use `docs/UI-UX/13` §4 vocabulary.
 6. Tests assert on `code` and `reason`, never on message text.
 
 **Definition of Done**
-- No Indonesian string literal remains in backend source except seeded display data (menu labels, leave-type and holiday names — frontend content per ADR-030) — enforced by a test that searches backend source for a list of common Indonesian words, with an explicit allowlist for seed files. Seen to fail by adding one.
+- No Indonesian string literal remains in backend source except seeded display data (menu labels, leave-type and holiday names — ADR-030) and notification templates (ADR-034) — enforced by a test that searches backend source for a list of common Indonesian words, with an explicit allowlist for seed files and the template files. Seen to fail by adding one.
+- A test renders each email template and the leave push and asserts Indonesian text (for example the subject of the password reset email) — so a future translation pass cannot silently switch them back.
 - Every refusal in `docs/UI-UX/04` flows returns a documented `reason`.
 - `docs/PLAN/15` §6 lists the reasons; `openapi.ts` documents `reason` on error responses.
 - `pnpm verify` passes.

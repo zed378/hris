@@ -102,7 +102,7 @@ Two more rules are not numbered in `PLAN/00` but bind as firmly, because the bui
 
 ## Language
 
-Documentation, code, comments, and **everything the backend produces** — API responses, error messages, logs — are in **English**. The **frontend is fully Indonesian**, because its users are Indonesian HR staff and employees, and it never shows a backend message directly (decided 2026-09-14, `MEMORY/DECISIONS.md` ADR-030). Emails and push notifications are still open — [`../TASKS/BACKLOG.md`](../TASKS/BACKLOG.md) `OQ-15`.
+Documentation, code, comments, and **everything the backend produces** — API responses, error messages, logs — are in **English**. The **frontend is fully Indonesian**, because its users are Indonesian HR staff and employees, and it never shows a backend message directly (decided 2026-09-14, `MEMORY/DECISIONS.md` ADR-030). Emails and push notifications, which the backend composes for people to read, are **Indonesian** (ADR-034).
 
 ## How to Use This With an AI Agent
 

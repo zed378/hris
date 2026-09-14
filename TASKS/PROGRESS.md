@@ -2,7 +2,7 @@
 
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
-**Last updated**: 2026-09-14 — `OQ-01`, `OQ-03`, `OQ-05`, `OQ-11` answered; `P6-24` and `PF-20` added
+**Last updated**: 2026-09-14 — `OQ-01`, `OQ-03`, `OQ-05`, `OQ-11`, `OQ-15` answered; `P6-24` and `PF-20` added
 **Overall**: 77 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 0 since
 **Gates**: A untested · B untested · C not met · D not reached
 
@@ -205,7 +205,7 @@ In order. Each is unblocked today.
 | P6-21 | Morning-peak load test | L | P3 | BLOCKED | P0-10 |
 | P6-22 | Metrics endpoint | — | — | DONE (retro) | — |
 | P6-23 | Generated OpenAPI document | — | — | DONE (retro) | coverage: P6-18 |
-| P6-24 | English backend messages with reasons | L | P1 | TODO | emails/push: `OQ-15` |
+| P6-24 | English backend messages with reasons; Indonesian emails and push | L | P1 | TODO | — |
 
 ## Phase S — Service Split
 

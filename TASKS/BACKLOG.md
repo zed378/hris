@@ -24,7 +24,7 @@ Recorded as ADR-030, superseding ADR-023. Consequences:
 - The API `message` field is **for developers and logs**, not for end users. `a13cfca` and `5d99226` translated part of it; the rest — about 237 Indonesian string literals in about 77 backend files by a rough search — follows (`P6-24`).
 - **The frontend never renders a server `message`.** It maps the error `code` — and a finer-grained reason where one code covers several refusals — to Indonesian text of its own (`PF-20`). About 30 places render the server message today.
 - The frontend's own English strings (in `apps/web/src/lib/push.ts` and the fallback in `session.tsx`, from `5d99226`) go back to Indonesian (`PF-20`).
-- **Interpretation, stated so it can be corrected**: data the frontend displays — seeded menu labels, leave-type names, holiday names — counts as frontend content and stays Indonesian. Emails and push notifications reach users outside the frontend and are currently English; that one is asked separately as `OQ-15`.
+- **Interpretation, stated so it can be corrected**: data the frontend displays — seeded menu labels, leave-type names, holiday names — counts as frontend content and stays Indonesian. Emails and push notifications reach users outside the frontend and are currently English; that one was asked separately as `OQ-15` and decided Indonesian (ADR-034).
 
 ### OQ-02 — Where do off-host backups go, and who holds the PII keys?
 
@@ -130,13 +130,11 @@ Recorded as ADR-031; spec `MEMORY/specs/P6-18-api-documentation-access.md` updat
 
 **Recommendation**: remove `JWT_SECRET` from every environment as soon as the EdDSA keys are deployed everywhere; the hybrid window has no remaining purpose once no HS256 token can still be unexpired (15 minutes).
 
-### OQ-15 — Language of emails and push notifications
+### ~~OQ-15 — Language of emails and push notifications~~ — ANSWERED 2026-09-14
 
-**Affects**: `P6-24`, `PF-20`. **Raised**: 2026-09-14, from the answer to `OQ-01`.
+**Answer (the user)**: *emails and notifications in Indonesian.*
 
-Emails (invitations, password reset, contract and document reminders) and push notifications (leave decisions) are read by employees and HR, but outside the frontend. `a13cfca` translated them to English. The answer to `OQ-01` covers "the system" (English) and "the frontend" (Indonesian); these sit between the two.
-
-**Recommendation**: Indonesian — the reader is the same Indonesian HR officer or employee who sees the frontend, and an English password-reset email looks like phishing to them. Until decided, they stay as they are.
+Recorded as ADR-034 — the one exception to ADR-030's "the backend is English": content the backend composes **for a person to read outside the frontend** is Indonesian. Covered today: invitation, password reset, contract and document expiry emails (`packages/core/src/notification/templates.ts`), and the leave decision push (`apps/worker/src/leave-notify.ts`). `a13cfca` translated these to English; they go back to Indonesian in `P6-24`. Any future email, push, or WhatsApp message (`P6-10`) follows the same rule. Logs about sending them stay English.
 
 ---
 

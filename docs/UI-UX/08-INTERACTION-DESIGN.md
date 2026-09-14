@@ -77,7 +77,7 @@ A page that fails offline should say "Tidak ada koneksi" rather than a generic e
 | Channel | Used for | Limits |
 |---|---|---|
 | Web Push | Leave decisions — title and one line, no reason or comment, because it shows on a lock screen (`apps/worker/src/leave-notify.ts`) | iOS only when installed to the home screen, and unreliable (R52) |
-| Email | Invitations, password reset, contract and document expiry reminders. Sent through Resend when `RESEND_API_KEY` is set; printed to the log otherwise | Not used for leave decisions |
+| Email | Invitations, password reset, contract and document expiry reminders. Sent through Resend when `RESEND_API_KEY` is set; printed to the log otherwise. In Indonesian (ADR-034) | Not used for leave decisions |
 | In-app | Dashboard cards (pending approvals, flagged ratio) | Seen only when the dashboard is opened |
 | WhatsApp | — | Not built |
 

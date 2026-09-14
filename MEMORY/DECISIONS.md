@@ -589,7 +589,7 @@ Numbers are sequential and permanent. A superseded ADR stays, with its status up
 - API responses, error `message` values, validation messages, logs, and debug output are English.
 - The frontend never displays a server `message`. It maps the error `code`, and a finer `reason` where one code covers several user-facing refusals, to Indonesian text in its own catalogue.
 - Data the frontend displays from the database — seeded menu labels, leave-type names, holiday names — is frontend content and stays Indonesian. *(Interpretation of the decision, recorded so it can be corrected.)*
-- Emails and push notifications, read by users outside the frontend, are asked separately (`OQ-15`).
+- Emails and push notifications, read by users outside the frontend, were asked separately (`OQ-15`) and decided Indonesian — ADR-034.
 
 **Alternatives considered** — (a) Indonesian messages shown as they are: rejected by the user; couples user-facing copy to backend code and mixes languages in logs. (c) English messages shown as they are: rejected — users are Indonesian.
 
@@ -657,11 +657,31 @@ Numbers are sequential and permanent. A superseded ADR stays, with its status up
 
 **Plan impact** — `docs/PLAN/18` §5 and §6, `docs/PLAN/20` §8, `docs/PLAN/22`, `docs/SECURITY/02` §14 amended 2026-09-14.
 
+## ADR-034 — Emails and push notifications in Indonesian
+
+| | |
+|---|---|
+| **Date** | 2026-09-14 |
+| **Status** | Accepted — a scoped exception to ADR-030 |
+| **Task** | P6-24 |
+| **Deciders** | The user |
+| **Reconstructed** | No |
+
+**Context** — ADR-030 made the backend English and the frontend Indonesian. Emails (invitation, password reset, contract and document expiry) and push notifications (leave decisions) are composed by the backend but read by employees and HR outside the frontend. `a13cfca` had translated them to English. `OQ-15` asked.
+
+**Decision** — the user: *emails and notifications in Indonesian.* Any content the backend composes for a person to read outside the frontend — email, Web Push, and WhatsApp when it exists — is Indonesian. Logs and metadata about sending them stay English.
+
+**Alternatives considered** — English, consistent with the rest of the backend: rejected — the reader is the same Indonesian user the frontend serves, and an English password-reset email reads like phishing.
+
+**Consequences** — the templates in `packages/core/src/notification/templates.ts` and the push text in `apps/worker/src/leave-notify.ts` return to Indonesian in `P6-24`, which also adds a test pinning them so a future translation pass cannot switch them silently. The backend "no Indonesian literals" test allowlists these files.
+
+**Plan impact** — `docs/PLAN/15` §11, `docs/UI-UX/08` §8 and `13` §1, `docs/README.md`, `README.md`, `CLAUDE.md` and `AGENTS.md` rule 12 amended 2026-09-14.
+
 ---
 
 ## Decisions Pending
 
-Each moves into the log when decided. The open question holds the detail and a recommendation. Answered on 2026-09-14: `OQ-01` → ADR-030, `OQ-11` → ADR-031, `OQ-03` → ADR-032 (making `OQ-04` and `OQ-10` unnecessary), `OQ-05` → ADR-033.
+Each moves into the log when decided. The open question holds the detail and a recommendation. Answered on 2026-09-14: `OQ-01` → ADR-030, `OQ-11` → ADR-031, `OQ-03` → ADR-032 (making `OQ-04` and `OQ-10` unnecessary), `OQ-05` → ADR-033, `OQ-15` → ADR-034.
 
 | Question | Decision needed | Blocks |
 |---|---|---|
@@ -673,7 +693,6 @@ Each moves into the log when decided. The open question holds the detail and a r
 | `OQ-12` | RPO and RTO | `P6-17` |
 | `OQ-13` | Reference-licence subscription credit | `P6-11` |
 | `OQ-14` | HS256 retirement date | `PS-08` |
-| `OQ-15` | Language of emails and push notifications | `P6-24` templates |
 | `P6-24` spec | The shape of `reason` and of validation `details` | `P6-24`, `PF-20` |
 | `P3-12` spec | Trusted-hop count versus `X-Real-IP`; what to do with punches already marked `OFFICE_IP_VERIFIED` | `P3-12` |
 | `P2-08` spec | Whether unmasking becomes opt-in per request | `P2-08` |

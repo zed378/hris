@@ -173,4 +173,4 @@ Found while writing this document. Each has a `TASKS/BACKLOG.md` entry; none is 
 
 **Decided 2026-09-14 by the user** (ADR-030): everything the backend produces — API responses, error `message` values, validation messages, logs, debug output — is **English**. The frontend is **fully Indonesian** and supplies its own text for every error it shows.
 
-Today the backend is mixed: commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13) translated part of it, and about 237 Indonesian string literals remain by a rough search. Completing the backend is `TASKS` `P6-24`; the frontend catalogue is `PF-20`. The language of emails and push notifications is asked separately (`TASKS/BACKLOG.md` `OQ-15`).
+Today the backend is mixed: commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13) translated part of it, and about 237 Indonesian string literals remain by a rough search. Completing the backend is `TASKS` `P6-24`; the frontend catalogue is `PF-20`. **Emails and push notifications are Indonesian** (ADR-034): they are composed by the backend but read by people outside the frontend. They too are restored in `P6-24`.

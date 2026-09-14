@@ -30,7 +30,8 @@ stages were sequenced to preserve.
 > English — API responses, error messages, logs, code, comments, documentation.
 > The frontend is fully Indonesian, because its users are Indonesian HR staff,
 > and it never displays a backend message directly. Seeded display data (menu
-> labels, leave types, holidays) stays Indonesian.
+> labels, leave types, holidays) and emails and push notifications (ADR-034) are
+> Indonesian.
 >
 > **Auth split** (ADR-032): authorization stays in-process. The auth service and
 > the broker below remain built and off; SSO may come later, and there is no

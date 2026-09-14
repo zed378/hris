@@ -102,7 +102,7 @@ Do not use `pnpm ci` — that is pnpm's clean-install command. There is **no CI 
 9. **Never log** PII, passwords, tokens, or coordinates; never label metrics by tenant, user, or email.
 10. **No statutory payroll work before Gate C; no Phase 7+ module before Gate D.**
 11. **No hand-written API reference** — manifest plus `openapi.ts` `DOCS`.
-12. **Backend English, frontend Indonesian** (ADR-030). API responses, error and validation messages, logs, and debug output are English. The frontend shows only its own Indonesian text — never a server `message`. Seeded display data stays Indonesian. Emails and push: `OQ-15`, undecided.
+12. **Backend English, frontend Indonesian** (ADR-030). API responses, error and validation messages, logs, and debug output are English. The frontend shows only its own Indonesian text — never a server `message`. Seeded display data stays Indonesian. Emails and push notifications are Indonesian (ADR-034).
 13. **No security-sensitive task is done without an abuse-case test seen to fail.**
 14. **Never loosen a guard to pass a build.**
 15. **`docs/` changes deliberately** — through the deviation protocol, or to correct a current-state statement your change makes false.

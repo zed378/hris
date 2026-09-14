@@ -14,7 +14,7 @@ How the product speaks. The interface is **Indonesian**; this document is in Eng
 | Log messages | English | Settled |
 | API responses, error `message`, validation messages, logs, debug output | **English** — never shown to users | **Decided 2026-09-14** (ADR-030); backend completion is `P6-24` |
 | Error text users see | Indonesian, from the frontend's catalogue keyed by error `code` and `reason` | Decided; `PF-20` |
-| Emails and push notifications | Currently English | **Open: `OQ-15`** |
+| Emails and push notifications | **Indonesian** — composed by the backend, read by people (currently English after `a13cfca`; restored in `P6-24`) | **Decided 2026-09-14** (ADR-034) |
 
 **The frontend never renders the server's `message`.** It maps `code` (and `reason`, once `P6-24` adds it) to Indonesian text in one catalogue (`PF-20`). Until that lands, some pages still show the server message — which may now be English. Data the frontend displays from the database — seeded menu labels, leave-type and holiday names — is frontend content and stays Indonesian.
 

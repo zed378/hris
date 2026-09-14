@@ -19,8 +19,10 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 - First-year capacity envelope: 3 tenants, up to 600 employees (ADR-033). The morning-peak load test drops to P3 and loses its question blocker; so does the 5,000-row import spike.
 
+- Emails and push notifications in Indonesian — the one exception to an English backend (ADR-034); restored in `P6-24`.
+
 **Asked**
-- `OQ-15`: language of emails and push notifications.
+- `OQ-15`: language of emails and push notifications — answered the same day.
 - `OQ-05` rewritten in plainer terms, then answered the same day.
 
 ### 2026-09-13 — Documentation set
