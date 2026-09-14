@@ -1,0 +1,24 @@
+# Memory Index
+
+Every record, newest first. One line each: date, task, record, and the hook that tells you whether it is the one you need.
+
+Add a line here when writing a record — an unindexed record is a record nobody finds. *(reconstructed)* marks records written after the work (`README.md` § Reconstructed Versus Contemporaneous).
+
+---
+
+## Records
+
+| Date | Task | Record | Hook |
+|---|---|---|---|
+| 2026-09-13 | — | [Documentation set](./records/2026-09-13-documentation-set.md) | `docs/PLAN/15–23`, `SECURITY/`, `UI-UX/`, `TASKS/`, `MEMORY/`, `CLAUDE.md`, `AGENTS.md`. Seventeen findings recorded and not fixed — the worst a client-controlled address that defeats office-network verification. Also a table of sixteen claims I wrote and the code contradicted |
+| 2026-09-13 | — | [Two AI tools in one working tree](./records/2026-09-13-concurrent-agent-commits.md) | A build broken by nobody's intended edit, a test failing on translated prose, a product decision (the language users read) made by a translation pass, and a comment claiming a test that did not exist. Why commits stage explicit paths |
+| 2026-09-13 | — | [Move `PLAN/` under `docs/PLAN/`](./records/2026-09-13-docs-plan-move.md) | 145 files rewritten, verified by reversing the substitution: 0 real differences. Why the numbers were kept rather than matched to `zed-auth` |
+| 2026-09-13 | PS-01–PS-14 | [Service split, stages 1–7](./records/2026-09-13-service-split-stages-1-7-summary.md) *(reconstructed)* | An index to `docs/PLAN/14` §10. The access version that was never compared, rate limits multiplied by replicas, a bad token reported as an outage. What is on and what is opt-in |
+| 2026-09-13 | P0–P6 | [Phases 0–6 build summary](./records/2026-09-13-phases-0-6-build-summary.md) *(reconstructed)* | What 89 commits between 2026-08-18 and 2026-09-01 delivered, per phase DoD with evidence; Gates A–C not met; eight silent bugs from `docs/PLAN/13` §4 and what fixed them |
+
+## Specifications
+
+| Task | Spec | Status |
+|---|---|---|
+| P6-18 | [API documentation: coverage, interactive page, secret-header access](./specs/P6-18-api-documentation-access.md) | Draft — `OQ-11` |
+| P3-12 | [Take the client address from the trusted proxy](./specs/P3-12-trusted-client-address.md) | Draft — decisions in §6, §10, §21 |

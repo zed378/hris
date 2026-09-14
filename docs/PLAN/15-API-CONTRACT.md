@@ -151,7 +151,7 @@ There is **no API versioning**. Nothing has needed a breaking change, and no ext
 
 Found while writing this document. Each has a `TASKS/BACKLOG.md` entry; none is fixed here.
 
-- **The client address is taken from the first `X-Forwarded-For` entry**, which the client controls. Behind the reference nginx (`ops/proxy/proxy-common.inc`, `$proxy_add_x_forwarded_for`) the real address is appended *after* whatever the client sent. Per-address rate limits and office-network verification both read that first entry. See `SECURITY/02-ATTACK-SURFACE-AND-SCENARIOS.md` §4.
+- **The client address is taken from the first `X-Forwarded-For` entry**, which the client controls. Behind the reference nginx (`ops/proxy/proxy-common.inc`, `$proxy_add_x_forwarded_for`) the real address is appended *after* whatever the client sent. Per-address rate limits and office-network verification both read that first entry; the correct `X-Real-IP` the proxy sets is only a fallback. In the default Compose topology `web` is published without any proxy, so both headers are client-supplied. See `SECURITY/02-ATTACK-SURFACE-AND-SCENARIOS.md` §4.
 - **The OpenAPI document covers 14 of 100 tenant routes** in prose, and the comment in `openapi.ts` describes a CI test refusing an undocumented route that **does not exist**.
 
 ## 10. API Documentation Is Generated, Never Hand-Written
@@ -169,4 +169,4 @@ Found while writing this document. Each has a `TASKS/BACKLOG.md` entry; none is 
 
 ## 11. Message Language
 
-User-facing text in the product is Indonesian. The `message` field of API errors was Indonesian throughout the build, and was translated to English in 50 places by commits `a13cfca` and `5d99226`. Which one is intended is **open** — `TASKS/BACKLOG.md` `OQ-01`. Until it is decided, do not translate further in either direction.
+User-facing text in the product is Indonesian. The `message` field of API errors was Indonesian throughout the build, and was translated to English across `apps/auth`, `apps/web`, and `packages/core` by commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13), made by another tool's translation pass. Which one is intended is **open** — `TASKS/BACKLOG.md` `OQ-01`. Until it is decided, do not translate further in either direction.

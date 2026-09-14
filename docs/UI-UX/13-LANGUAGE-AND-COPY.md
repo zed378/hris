@@ -13,7 +13,7 @@ How the product speaks. The interface is **Indonesian**; this document is in Eng
 | Emails and push notifications | Indonesian | Settled |
 | Documentation, code, comments, commit messages | English | Settled |
 | Log messages | English | Settled |
-| **API error `message` field** | **Contested** — Indonesian throughout the build; 50 messages translated to English in commits `a13cfca` and `5d99226` | **Open: `TASKS/BACKLOG.md` `OQ-01`** |
+| **API error `message` field** | **Contested** — Indonesian throughout the build; translated to English in commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13) | **Open: `TASKS/BACKLOG.md` `OQ-01`** |
 
 The API `message` is shown to users (`11-EMPTY-LOADING-ERROR-STATES.md` §4). While `OQ-01` is open, a user can see an English error line inside an Indonesian page. **Do not translate further in either direction until it is decided.** Whichever way it goes, the `code` field — never the message — is what code and tests depend on.
 

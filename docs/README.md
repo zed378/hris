@@ -98,7 +98,7 @@ Sixteen principles are defined in [`PLAN/00`](./PLAN/00-Reference-System-Analysi
 Two more rules are not numbered in `PLAN/00` but bind as firmly, because the build kept proving them:
 
 - **`null` is not zero.** A figure a user may not see, or a module a tenant does not subscribe to, is `null` — never `0`. A zero reads as a fact.
-- **A guard that cannot fail is not a guard.** Every new CI check is shown to fail against a deliberate violation before it is trusted. The frontend boundary test was inert when first written and was caught only this way (`PLAN/14` §10.8); a tenant foreign key that looked correct was shown the same way to accept a cross-tenant insert (commit `61f2291`).
+- **A guard that cannot fail is not a guard.** Every new CI check is shown to fail against a deliberate violation before it is trusted. Two guards turned out to see less than they appeared to: the frontend boundary test matched nothing when first written (`PLAN/14` §10.8), and the route manifest check was blind to handlers written as `export function GET()` (`PLAN/13` §4, bug 18).
 
 ## Language
 

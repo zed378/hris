@@ -19,7 +19,7 @@ Created 2026-09-13. None of the open questions below has been discussed with the
 
 **Blocks**: nothing hard; **affects** every error line users see, `docs/UI-UX/13` §1, task `PF-04`.
 
-The product interface is Indonesian. API error `message` values were Indonesian throughout the build; commits `a13cfca` and `5d99226` (2026-09-13, by another tool) translated about 50 of them to English, alongside documentation and comments. The standing instruction was "documentation, comments, and README in English" — which does not obviously cover strings shown to users.
+The product interface is Indonesian. API error `message` values were Indonesian throughout the build; commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13), from another tool's translation pass, translated many of them to English across `apps/auth`, `apps/web`, and `packages/core`, alongside documentation and comments. The standing instruction was "documentation, comments, and README in English" — which does not obviously cover strings shown to users.
 
 **Today a user can see an English error inside an Indonesian page.**
 
@@ -165,8 +165,10 @@ Both describe a 16-service Kubernetes architecture. `docs/PLAN/12` §3 replaced 
 | DV-08 | No tenant time zone in any plan | Tenant and site time zones | ADR-012 | Accepted — an addition (`13` §2.1) |
 | DV-09 | CI, staging, managed PostgreSQL, Sentry, uptime check (`12` Phases 0–1) | None | — | Open — `P0-09`, `P0-10`, `P1-13`, `P1-14` |
 | DV-10 | Split services only when `12` §9 triggers fire | Auth split built ahead of the triggers | ADR-017 | Accepted, with `12` §9.1 amended |
-| DV-11 | Photos uploaded by presigned URL to object storage (`10` §4.1) | Uploaded through the server to a volume | — | Accepted — reason in `apps/web/src/app/api/attendance/photo/route.ts` |
-| DV-12 | Workbox service worker (`12` Phase 3) | Hand-written `public/sw.js` | — | Accepted — verified by `service-worker.test.ts` |
+| DV-11 | Photos uploaded by presigned URL to object storage (`10` §4.1) | Uploaded through the server to a volume | ADR-025 | Accepted — EXIF can only be guaranteed stripped on the server |
+| DV-12 | Workbox service worker (`12` Phase 3) | Hand-written `public/sw.js` | ADR-026 | Accepted — verified by `service-worker.test.ts` |
+| DV-13 | Next.js 15 (`12` §3.2) | Next.js 16 | ADR-008 | Accepted |
+| DV-14 | Managed S3-compatible object storage (`12` §3.2) | Local disk behind a `BlobStore` interface | ADR-027 | Accepted — files on the host volume (risk F4) |
 
 ---
 

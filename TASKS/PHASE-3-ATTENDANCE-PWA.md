@@ -59,9 +59,9 @@
 **Steps**
 1. Spec at `MEMORY/specs/P3-12-trusted-client-address.md` (a draft exists).
 2. One helper, e.g. `clientAddress(req, { trustedProxies })`, in a shared package, replacing the three call sites: `apps/web/src/lib/define-route.ts`, `define-admin-route.ts`, `apps/auth/src/http.ts`.
-3. Trust model: a configured number of trusted hops (`TRUSTED_PROXY_HOPS`, default `1` behind the reference nginx) — take the entry that many positions from the **right** of `X-Forwarded-For`. With `0`, ignore forwarding headers entirely and use the socket address. Alternatively, have nginx **set** `X-Real-IP $remote_addr` and read only that; choose one in the spec and apply it to both the proxy config and the helper.
+3. Trust model — the draft spec recommends reading **only** `X-Real-IP` (which the reference nginx already sets from `$remote_addr`) and only when `TRUST_PROXY=true`; otherwise the address is unknown. The alternative is a trusted-hop count over `X-Forwarded-For`. Note the default Compose topology publishes `web` with no proxy, so nothing there is trustworthy until a proxy is placed in front.
 4. Fail safe: a malformed or missing header yields "unknown" for office verification (no match) and a shared bucket for rate limiting — never the client's claim.
-5. Update `ops/proxy/proxy-common.inc` if the spec chooses `X-Real-IP`, and `.env.example`.
+5. Add `TRUST_PROXY` to `.env.example` and to `web` and `auth` in the `split` profile; report `clientAddress` in `/api/ready`.
 6. Re-examine punches recorded with `OFFICE_IP_VERIFIED` since migration `20260901090000`: they cannot be re-verified. Decide in the spec whether to return them to review (`docs/SECURITY/04` Playbook 6) — on real tenant data this is a per-tenant decision, not a silent re-score.
 
 **Definition of Done**
