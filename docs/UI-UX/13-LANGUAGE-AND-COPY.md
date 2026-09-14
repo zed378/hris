@@ -10,12 +10,13 @@ How the product speaks. The interface is **Indonesian**; this document is in Eng
 |---|---|---|
 | Every UI string: labels, buttons, headings, empty states, confirmations | Indonesian | Settled |
 | Menu labels (seeded) | Indonesian | Settled |
-| Emails and push notifications | Indonesian | Settled |
 | Documentation, code, comments, commit messages | English | Settled |
 | Log messages | English | Settled |
-| **API error `message` field** | **Contested** — Indonesian throughout the build; translated to English in commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13) | **Open: `TASKS/BACKLOG.md` `OQ-01`** |
+| API responses, error `message`, validation messages, logs, debug output | **English** — never shown to users | **Decided 2026-09-14** (ADR-030); backend completion is `P6-24` |
+| Error text users see | Indonesian, from the frontend's catalogue keyed by error `code` and `reason` | Decided; `PF-20` |
+| Emails and push notifications | Currently English | **Open: `OQ-15`** |
 
-The API `message` is shown to users (`11-EMPTY-LOADING-ERROR-STATES.md` §4). While `OQ-01` is open, a user can see an English error line inside an Indonesian page. **Do not translate further in either direction until it is decided.** Whichever way it goes, the `code` field — never the message — is what code and tests depend on.
+**The frontend never renders the server's `message`.** It maps `code` (and `reason`, once `P6-24` adds it) to Indonesian text in one catalogue (`PF-20`). Until that lands, some pages still show the server message — which may now be English. Data the frontend displays from the database — seeded menu labels, leave-type and holiday names — is frontend content and stays Indonesian.
 
 ## 2. Voice
 
@@ -67,7 +68,7 @@ Use one word for one thing, everywhere.
 
 Say what happened and what to do, in that order. No blame.
 
-- ✅ "Presensi tanpa lokasi hanya dapat dilakukan dari jaringan kantor. Sambungkan perangkat ke jaringan kantor, aktifkan izinnya di setelan peramban, gunakan mesin absensi, atau minta HR memasukkan koreksi manual." (the real punch refusal)
+- ✅ "Presensi tanpa lokasi hanya dapat dilakukan dari jaringan kantor. Sambungkan perangkat ke jaringan kantor, aktifkan izinnya di setelan peramban, gunakan mesin absensi, atau minta HR memasukkan koreksi manual." (the punch refusal — sent by the server today; after `P6-24` and `PF-20` this text lives in the frontend catalogue, keyed by the refusal's reason)
 - ❌ "Error: location required"
 
 ### Empty states
@@ -110,4 +111,4 @@ Before asking for a permission, say what is collected, when, who sees it, how lo
 - [ ] Confirmations name the object and consequence; buttons are verbs
 - [ ] Flags describe observations, not people
 - [ ] Money, numbers, dates, times use `id-ID` formatting
-- [ ] No API error messages translated while `OQ-01` is open
+- [ ] No server `message` rendered; error text comes from the frontend catalogue

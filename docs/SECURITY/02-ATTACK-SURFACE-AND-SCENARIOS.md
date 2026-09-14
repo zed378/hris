@@ -169,7 +169,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Mitigation | (a) `x-internal-secret` required; a wrong or missing secret returns `404`, not `403`, so the route is not confirmed. The proxy does not route `/internal/*`. (c) unreachable auth is `503`, never a local fallback |
 | Detection | Auth service logs |
 | Response | Rotate `AUTH_INTERNAL_SECRET` |
-| Status | (a)(c) **Mitigated**. (b) **Partial** — compared with `!==`, not `timingSafeEqual`; low practical risk on a private network, trivial to fix. Shared secret rather than mTLS (`14` §10.6) |
+| Status | (a)(c) **Mitigated**. (b) **Partial** — compared with `!==`, not `timingSafeEqual`; low practical risk on a private network, trivial to fix. Shared secret rather than mTLS (`14` §10.6). **This boundary exists only when the auth service is enabled, which is not planned** (ADR-032) |
 
 ## 11. File Upload Abuse
 

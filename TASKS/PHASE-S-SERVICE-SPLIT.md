@@ -4,7 +4,7 @@
 
 **State**: stages 1–7 built on 2026-08-31 (`docs/PLAN/14` §10.1–10.7); the auth service and the broker are **opt-in and off by default**. Stage 8's precondition is met and enforced (§10.8). The split was built ahead of `docs/PLAN/12` §9's triggers (`DV-10`, ADR-017).
 
-**Before any further split work**, `OQ-03` must be answered: if SSO and a public API are not on the roadmap, `docs/PLAN/14` §12 S8 says stop after stage 5.
+**Decided 2026-09-14** (`OQ-03`, ADR-032): authorization stays in backend logic, in-process; SSO may come later; there is no public API. Following `docs/PLAN/14` §12 S8, the split **stops here**: stages 1–5 stay in use, the auth service and broker stay built, tested, and off. Work that only matters once auth runs separately (`PS-10`, `PS-11`, `PS-12`) waits for a decision to adopt SSO (`DF-11`). `PS-08` and `PS-09` remain worthwhile in the monolith.
 
 ---
 
@@ -64,7 +64,7 @@
 | **Surface** | backend, db |
 | **Size** | L |
 
-**Goal** — the six modules reading `auth.users` read what they need through `iam` or a view without credential columns, and the grant is revoked.
+**Goal** — the six modules reading `auth.users` read what they need through `iam` or a view without credential columns, and the grant is revoked. Still worthwhile with auth in-process (ADR-032): the web runtime should not be able to read password hashes it never needs.
 
 **Steps** — list the six reads; move each; add the revocation migration; extend the grant matrix test to assert `hrms_app` cannot select `auth.users`.
 
@@ -76,7 +76,7 @@
 |---|---|
 | **Status** | BLOCKED |
 | **Priority** | P3 |
-| **Blocked by** | `web` and `auth` running on different hosts or networks (`docs/PLAN/14` §10.6) |
+| **Blocked by** | `DF-11` — auth running as a separate service, which is not planned (ADR-032) |
 | **Plan refs** | `docs/PLAN/14` §10.6, `docs/SECURITY/02` §10 |
 | **Spec required** | Yes |
 | **Surface** | auth, ops |
@@ -88,7 +88,7 @@
 |---|---|
 | **Status** | BLOCKED |
 | **Priority** | P3 |
-| **Blocked by** | `OQ-03`; the CORS and cookie decision of `docs/PLAN/14` §7 and §10.8 |
+| **Blocked by** | `DF-11` (SSO adopted) or a separately deployed client; then the CORS and cookie decision of `docs/PLAN/14` §7 and §10.8 |
 | **Plan refs** | `docs/PLAN/14` §10.8, §11 |
 | **Spec required** | Yes — cookies and origins |
 | **Surface** | web, ops |
@@ -99,8 +99,8 @@
 | | |
 |---|---|
 | **Status** | BLOCKED |
-| **Priority** | P2 |
-| **Blocked by** | `P6-21` (load test harness) |
+| **Priority** | P3 |
+| **Blocked by** | `DF-11` — only relevant if `AUTH_SERVICE_URL` is ever enabled; then `P6-21` |
 | **Plan refs** | `docs/PLAN/14` §5 and §10.6, `docs/PLAN/18` §3, risk S3 |
 | **Spec required** | No |
 | **Surface** | ops |

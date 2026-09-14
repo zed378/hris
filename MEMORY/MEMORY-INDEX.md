@@ -10,6 +10,7 @@ Add a line here when writing a record — an unindexed record is a record nobody
 
 | Date | Task | Record | Hook |
 |---|---|---|---|
+| 2026-09-14 | — | [Answers to OQ-01, OQ-03, OQ-11](./records/2026-09-14-open-question-answers.md) | Backend English, frontend Indonesian and never showing server messages; API docs behind a superuser and a hashed key; the auth split stops. Two new tasks, one new question (emails and push), and the capacity question rewritten because it was unclear |
 | 2026-09-13 | — | [Documentation set](./records/2026-09-13-documentation-set.md) | `docs/PLAN/15–23`, `SECURITY/`, `UI-UX/`, `TASKS/`, `MEMORY/`, `CLAUDE.md`, `AGENTS.md`. Seventeen findings recorded and not fixed — the worst a client-controlled address that defeats office-network verification. Also a table of sixteen claims I wrote and the code contradicted |
 | 2026-09-13 | — | [Two AI tools in one working tree](./records/2026-09-13-concurrent-agent-commits.md) | A build broken by nobody's intended edit, a test failing on translated prose, a product decision (the language users read) made by a translation pass, and a comment claiming a test that did not exist. Why commits stage explicit paths |
 | 2026-09-13 | — | [Move `PLAN/` under `docs/PLAN/`](./records/2026-09-13-docs-plan-move.md) | 145 files rewritten, verified by reversing the substitution: 0 real differences. Why the numbers were kept rather than matched to `zed-auth` |
@@ -20,5 +21,5 @@ Add a line here when writing a record — an unindexed record is a record nobody
 
 | Task | Spec | Status |
 |---|---|---|
-| P6-18 | [API documentation: coverage, interactive page, secret-header access](./specs/P6-18-api-documentation-access.md) | Draft — `OQ-11` |
+| P6-18 | [API documentation: coverage, interactive page, secret-header access](./specs/P6-18-api-documentation-access.md) | Reviewed 2026-09-14 (ADR-031) |
 | P3-12 | [Take the client address from the trusted proxy](./specs/P3-12-trusted-client-address.md) | Draft — decisions in §6, §10, §21 |

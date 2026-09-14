@@ -4,7 +4,7 @@ Instructions for any AI coding agent (Claude Code, Codex, Cursor, Kilo Code, or 
 
 ## Project Summary
 
-**HRMS** is a multi-tenant HR management suite for Indonesian SMEs — employees, attendance with location and photo evidence, leave, and a payroll framework — delivered as a PWA. It is a modular monolith (pnpm + Turborepo): `apps/web` (Next.js 16: pages and every API route), `apps/worker` (background jobs), `apps/auth` (opt-in auth service), domain logic in `packages/core`, one PostgreSQL 18 database with forced row-level security.
+**HRMS** is a multi-tenant HR management suite for Indonesian SMEs — employees, attendance with location and photo evidence, leave, and a payroll framework — delivered as a PWA. It is a modular monolith (pnpm + Turborepo): `apps/web` (Next.js 16: pages and every API route), `apps/worker` (background jobs), `apps/auth` (auth service, built but not enabled — authorization stays in-process, ADR-032), domain logic in `packages/core`, one PostgreSQL 18 database with forced row-level security.
 
 The engineering, security, and design reference lives in **`docs/`** ([`docs/README.md`](docs/README.md)). What remains to be done is in **`TASKS/`**; what was done and why is in **`MEMORY/`**. Look things up there rather than re-deriving them.
 
@@ -52,7 +52,7 @@ Do not use `pnpm ci` — that is pnpm's clean-install command. There is **no CI 
 | Principles P1–P16 | `docs/PLAN/00` §3.2 |
 | Architecture as built, phases, gates | `docs/PLAN/12` |
 | Implementation status, silent bugs found | `docs/PLAN/13` |
-| Auth service, tokens, Redis, broker | `docs/PLAN/14` |
+| Auth service, tokens, Redis, broker | `docs/PLAN/14` (the split stops at stage 5 in use — ADR-032) |
 | Data model | `docs/PLAN/02`; `packages/db/prisma/schema.prisma` |
 | Permissions and menus | `docs/PLAN/05` |
 | Multitenancy and authentication | `docs/PLAN/06` |
@@ -102,7 +102,7 @@ Do not use `pnpm ci` — that is pnpm's clean-install command. There is **no CI 
 9. **Never log** PII, passwords, tokens, or coordinates; never label metrics by tenant, user, or email.
 10. **No statutory payroll work before Gate C; no Phase 7+ module before Gate D.**
 11. **No hand-written API reference** — manifest plus `openapi.ts` `DOCS`.
-12. **Do not translate** user-facing strings, error messages, seed data, or leave-type names. API message language is open (`OQ-01`).
+12. **Backend English, frontend Indonesian** (ADR-030). API responses, error and validation messages, logs, and debug output are English. The frontend shows only its own Indonesian text — never a server `message`. Seeded display data stays Indonesian. Emails and push: `OQ-15`, undecided.
 13. **No security-sensitive task is done without an abuse-case test seen to fail.**
 14. **Never loosen a guard to pass a build.**
 15. **`docs/` changes deliberately** — through the deviation protocol, or to correct a current-state statement your change makes false.

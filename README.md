@@ -26,9 +26,15 @@ containers below are still what an ordinary deployment runs:
 A rollback is an environment variable, not a revert. That is the property the
 stages were sequenced to preserve.
 
-> The product interface is in Indonesian, because its users are Indonesian HR
-> staff. Code, comments, and documentation are in English. Do not translate
-> user-facing strings, error messages, seed data, or leave-type names.
+> **Language** (decided 2026-09-14, `MEMORY/DECISIONS.md` ADR-030): the backend is
+> English — API responses, error messages, logs, code, comments, documentation.
+> The frontend is fully Indonesian, because its users are Indonesian HR staff,
+> and it never displays a backend message directly. Seeded display data (menu
+> labels, leave types, holidays) stays Indonesian.
+>
+> **Auth split** (ADR-032): authorization stays in-process. The auth service and
+> the broker below remain built and off; SSO may come later, and there is no
+> public API.
 
 ## Documentation
 

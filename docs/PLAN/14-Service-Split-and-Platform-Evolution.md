@@ -765,7 +765,9 @@ no longer a refactor.
 
 ## 13. Open Decisions
 
-These are not yet decided and each changes the work materially:
+> **Decided 2026-09-14** (`MEMORY/DECISIONS.md` ADR-032): SSO is not on the roadmap now and may come later; there is no public API. Following §12 S8, the split stops: authorization stays in-process, stages 1–5 remain in use, the auth service (stage 6) and broker (stage 7) stay built and off, stage 8 is not pursued. That settles 1 (not now), 2 (Ed25519 stays until SSO is adopted), 3 (one database), and 6 (the control plane stays in `apps/web`). Items 4 and 5 remain open for the broker and log shipping.
+
+These were the open decisions, each changing the work materially:
 
 1. **Is SSO/SAML actually coming, and roughly when?** §3 turns on this.
 2. **Ed25519 or RS256?** Ed25519 is smaller and faster; RS256 is what enterprise

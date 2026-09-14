@@ -18,7 +18,7 @@ A change that touches only a backend endpoint still owns the refused and error s
 | U6 | Async outcomes announced (`role="status"` / `role="alert"`) | Screen reader or DOM inspection | `10` A-5 |
 | U7 | Unique document title and one `<h1>` | DOM inspection | `10` A-3 |
 | U8 | Every input labelled; server field errors shown beside fields | Submit invalid data | `12` |
-| U9 | Copy is Indonesian, uses the vocabulary table, no system words | Review | `13` |
+| U9 | Copy is Indonesian, uses the vocabulary table, no system words; no server `message` rendered | Review; the `PF-20` test | `13` |
 | U10 | Money, dates, and times use `id-ID` formatting | Review | `13` §6 |
 | U11 | Every visible control has a backend refusal when the user lacks permission (P9) | Call the endpoint without the permission | `00` principle 2 |
 | U12 | A new page has a menu entry in the seed with a permission no weaker than its API's, or a documented other entry point | `menu-coverage.test.ts`; review | `03` §4 |
@@ -61,7 +61,7 @@ Checked before Gate A pilots (`../PLAN/21-ACCEPTANCE-CRITERIA.md` §2).
 | R5 | First-run setup guidance on the empty home dashboard (`11` §3) | **Not met** |
 | R6 | A pilot HR administrator imports ≥ 100 employees from their own file unaided in < 30 minutes | **Not run** — this *is* Gate A |
 | R7 | Five employees complete a punch on their own phones without help | **Not run** |
-| R8 | `OQ-01` (API message language) decided and applied consistently | **Open** |
+| R8 | No English reaches the screen: backend English, frontend Indonesian (ADR-030) | **Decided 2026-09-14; not yet applied** (`P6-24`, `PF-20`) |
 
 ## 5. Recording
 

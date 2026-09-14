@@ -41,7 +41,7 @@ Two kinds, and they need different words.
 | Cause | Message pattern | Action offered |
 |---|---|---|
 | Network failure (fetch throws) | "Tidak dapat terhubung. Periksa koneksi Anda." | "Coba lagi" |
-| `400 VALIDATION_FAILED` | Field-level messages from `details` beside each field; a summary at the top of the form | Fix and resubmit |
+| `400 VALIDATION_FAILED` | Field-level Indonesian messages built from the issue codes and bounds in `details`, beside each field; a summary at the top of the form | Fix and resubmit |
 | `404 NOT_FOUND` | "Data tidak ditemukan" — it may have been deleted | Link to the list |
 | `409 CONFLICT` | What conflicted, in words ("Sudah diputuskan sebelumnya") | Refresh the data |
 | `410 Gone` | "Berkas sudah diarsipkan" | — |
@@ -52,7 +52,7 @@ Two kinds, and they need different words.
 
 Rules:
 
-- **Show the server's `message` for 4xx** — it is written for the user. For 5xx, show a fixed message and the **correlation id**; never raw error text.
+- **Never show the server's `message`** — it is English, for developers (ADR-030). Show the Indonesian text the frontend catalogue holds for the error's `code` and `reason` (`PF-20`); for anything unmapped and for 5xx, a fixed message and the **correlation id**. The message patterns in the table above are that catalogue's content.
 - **Errors appear where the action was taken**, not only at the top of the page.
 - **Errors are announced** (`role="alert"`).
 - **A failed mutation never loses the user's input.** The form stays filled.
@@ -87,7 +87,7 @@ The home dashboard assembles several sections, some of which may be `null` becau
 - [ ] Loading state in the region being loaded, in `role="status"`
 - [ ] Empty state distinguishes "act" from "nothing to do" from "filtered out"
 - [ ] Network error with retry
-- [ ] 4xx shows the server message; 5xx shows a reference id
+- [ ] 4xx and 5xx show catalogue text, never the server message; 5xx includes a reference id
 - [ ] `402` and `403` render the refused state, not the error line
 - [ ] Offline (pocket pages) says so and recovers
 - [ ] A failed submit keeps the input

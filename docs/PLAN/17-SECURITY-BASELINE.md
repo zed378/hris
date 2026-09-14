@@ -103,7 +103,7 @@ Written 2026-09-13 against the code. A control listed here was verified to exist
 | `statement_timeout` per role: app 15 s, worker 5 min, platform 30 s | Migration `statement_timeout` |
 | The service worker never caches API, admin, credential pages, or `Authorization`-bearing requests | `apps/web/public/sw.js`; `service-worker.test.ts` |
 | Metrics exposed only with a token, never labelled by tenant | `packages/observability/src/metrics.ts` |
-| OpenAPI document behind an administrator's permission | `GET /api/openapi.json` |
+| OpenAPI document behind an administrator's permission — moving behind a superuser session and a hashed docs key (ADR-031, `P6-18.3`) | `GET /api/openapi.json` |
 | Append-only audit logs: `UPDATE`/`DELETE` revoked and blocked by trigger | `audit.audit_logs` |
 
 ## 9. Gaps
@@ -120,6 +120,6 @@ Controls a reader might reasonably assume exist, and which do not. Each is track
 | Superuser TOTP secrets stored in plaintext | A database read defeats the control plane's second factor | Medium |
 | No permission ceiling for role and grant administrators | A holder of `iam.role.manage` or `iam.grant.manage` can confer any permission, including on themselves | Medium |
 | `hrms_app` can still read `auth.users` | The backend can read credential rows it no longer needs (`14` §10.5) | Medium |
-| Service-to-service authentication is a shared secret, not mTLS | As strong as the environment holding it | Medium |
+| Service-to-service authentication is a shared secret, not mTLS | As strong as the environment holding it — **only relevant if the auth service is enabled, which is not planned** (ADR-032) | Low |
 | No CI pipeline, so no dependency or secret scanning runs automatically | A vulnerable dependency or committed secret is not caught | Medium |
 | No error tracking (the Sentry named in `12` was never added) and no alerting | Security-relevant errors are visible only in logs someone reads | Medium |

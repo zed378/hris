@@ -35,7 +35,6 @@ Assessed 2026-09-13.
 | **F6** | **No mobile navigation: the sidebar is hidden below `md` and nothing replaces it** | **High** | Medium | PWA shortcuts to punch and my attendance; home dashboard cards link onward | A mobile navigation pattern; a way back home from every page | `UI-UX/09` |
 | **F7** | **Concurrent AI agents editing the same working tree** | Medium | Medium | Explicit file lists on commit | A worktree-per-agent rule | `MEMORY/records/2026-09-13-concurrent-agent-commits.md` |
 | **F8** | **API documentation drifts: 14 of 100 routes documented, and a comment claims a coverage test that does not exist** | High | Medium | Generator derives paths from the manifest | The coverage test | `15` §9 |
-| S3 | Auth service as a single point of failure | Medium | High | Opt-in; `503` never a fallback; permission cache | Degraded mode not load-tested | `14` §10.6 |
 | R41 | Employees refuse permissions because they feel surveilled | Medium | High | Consent screen, no background location, no coordinates on the dashboard | No usability testing with real employees | `10` |
 | **F9** | **No capacity assumptions exist, so nothing can be sized or load-tested** | Medium | Medium | — | `TASKS/BACKLOG.md` `OQ-05` | `18` §5 |
 | S6 | Logs shipped abroad carry PII | Medium | **Critical** | Redaction tested; logs not shipped | Decide the vendor with legal first | `14` §9.3 |
@@ -44,7 +43,7 @@ Assessed 2026-09-13.
 | **F11** | **Viewing unmasked PII in the employee list or detail is not audited** — only exports are | Medium | High | Permission required; export audited | Audit row per unmasked read; `12` Phase 2 DoD | `SECURITY/02` §8 |
 | **F12** | **No permission ceiling: role and grant administrators can confer any permission, including on themselves** | Low | High | Audited; access version bumps | "Cannot grant what you do not hold" | `SECURITY/02` §5 |
 | **F13** | **Superuser TOTP secrets stored in plaintext; superuser logins not audited** | Low | High | `hrms_platform` has no tenant-data grant | Encrypt with the key ring; audit logins | `SECURITY/02` §9 |
-| **F10** | **The language of API error messages is contested** | Medium | Low | — | `TASKS/BACKLOG.md` `OQ-01` | `15` §11 |
+| **F10** | **Users see English server messages** — backend English by decision, frontend not yet mapping codes | High | Low | — | `P6-24`, `PF-20` (ADR-030) | `15` §11 |
 | R2 | Tax and BPJS regulations change | High | Medium | `statutory_configs` versioned by date range | Tables exist; components do not | `02`, `12` Phase 5 |
 | R6 | The UI feels harder than Excel | High | High | AG Grid, `.xlsx` export, import pipeline | No usability testing | `UI-UX/` |
 | R52 | Web Push does not arrive on iOS | High | Medium | Push → email tiering | WhatsApp not built | `11` |
@@ -84,6 +83,8 @@ Assessed 2026-09-13.
 | R29 | Service count exceeds capacity | Same |
 | R22 | PII in `platform_db` | One database with `hrms_platform` grants tested instead |
 | S5 | Stalling half-migrated | Stages 1–8 are each independently valuable and complete through stage 7 |
+| S3 | Auth service as a single point of failure | The auth service is not enabled; authorization stays in-process (ADR-032). Reopens if SSO is adopted (`DF-11`) |
+| S8 | The split is premature | Decided 2026-09-14: SSO not now, no public API — the split stops, per `14` §12 S8's own recommendation (ADR-032) |
 
 ## 5. How to Use This Register
 

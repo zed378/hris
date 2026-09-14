@@ -10,6 +10,17 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-09-14 — Open questions answered
+
+**Decided** — ([record](./records/2026-09-14-open-question-answers.md))
+- Backend English; frontend fully Indonesian and never showing a server message (ADR-030). New tasks `P6-24` (English backend messages with machine-readable reasons) and `PF-20` (Indonesian message catalogue).
+- API documentation behind a platform superuser session and an Argon2id-hashed docs key; the tenant OpenAPI route to be removed (ADR-031). `P6-18.3` unblocked.
+- Authorization stays in-process; SSO maybe later; no public API. The service split stops; the auth service and broker stay built and off (ADR-032).
+
+**Asked**
+- `OQ-15`: language of emails and push notifications.
+- `OQ-05` rewritten in plainer terms.
+
 ### 2026-09-13 — Documentation set
 
 **Added** — ([record](./records/2026-09-13-documentation-set.md))

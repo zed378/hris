@@ -102,7 +102,9 @@ Every error from every plane has one shape:
 }
 ```
 
-`code` is the contract; `message` is prose and may change. `details` appears only on validation failures, keyed by field, from `zod`'s `flatten().fieldErrors`.
+`code` is the contract; `message` is **English prose for developers and logs** and may change (ADR-030). **The frontend never shows `message` to a user** — it maps `code` to Indonesian text of its own (`TASKS` `PF-20`). `details` appears only on validation failures, keyed by field, from `zod`'s `flatten().fieldErrors`.
+
+**Planned** (`TASKS` `P6-24`): an optional `reason` — a stable `SCREAMING_SNAKE` identifier refining `code` where one code covers several user-facing refusals (for example `LEAVE_SELF_APPROVAL` under `CONFLICT`) — with its parameters in `details`, and validation `details` carrying issue codes and bounds rather than sentences. Login failures stay a single `INVALID_CREDENTIALS` with no reason (`SECURITY/02` §12).
 
 ### Error codes
 
@@ -145,7 +147,7 @@ There is no generic `Idempotency-Key` header. Idempotency is designed per operat
 
 There is **no uniform pagination convention**. List endpoints cap their result size individually (the review queue returns at most 100 rows). This has been adequate at pilot scale and is recorded as a gap, not a decision — see `TASKS/BACKLOG.md`.
 
-There is **no API versioning**. Nothing has needed a breaking change, and no external consumer exists. A public API (`14` §2.4) would need a versioning policy before it ships.
+There is **no API versioning**, and **no public API is planned** (ADR-032, 2026-09-14). The only consumer is this repository's frontend, deployed with the backend. A versioning policy becomes necessary only if a separately deployed client or an SSO integration appears.
 
 ## 9. Known Contract Defects
 
@@ -160,13 +162,15 @@ Found while writing this document. Each has a `TASKS/BACKLOG.md` entry; none is 
 
 | Endpoint | Guard | State |
 |---|---|---|
-| `GET /api/openapi.json` | `core.settings.manage` | Built |
-| Interactive documentation page | — | Not built |
-| Additional secret header, stored encrypted in the database | — | Requested, not built — `TASKS/` |
-| Control-plane document | — | Not served. Deliberately separate from the tenant document (P11) |
+| `GET /api/openapi.json` | `core.settings.manage` | Built — **to be removed** in favour of the control-plane route below |
+| `GET /admin/api/docs/openapi.json` | Superuser session **and** `X-Docs-Key` | Designed (ADR-031), not built — `TASKS` `P6-18.3` |
+| Interactive documentation page under `/admin` | Same; key entered in the page and held in memory | Designed, not built |
+| The docs key | One platform-wide secret, set by `ops/scripts/set-docs-key.mjs`, stored as an Argon2id hash in `platform.api_docs_keys`, two valid during rotation | Designed, not built |
 
 **If you change an endpoint, change its manifest entry and its `DOCS` entry.** Never write API reference prose anywhere else.
 
 ## 11. Message Language
 
-User-facing text in the product is Indonesian. The `message` field of API errors was Indonesian throughout the build, and was translated to English across `apps/auth`, `apps/web`, and `packages/core` by commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13), made by another tool's translation pass. Which one is intended is **open** — `TASKS/BACKLOG.md` `OQ-01`. Until it is decided, do not translate further in either direction.
+**Decided 2026-09-14 by the user** (ADR-030): everything the backend produces — API responses, error `message` values, validation messages, logs, debug output — is **English**. The frontend is **fully Indonesian** and supplies its own text for every error it shows.
+
+Today the backend is mixed: commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13) translated part of it, and about 237 Indonesian string literals remain by a rough search. Completing the backend is `TASKS` `P6-24`; the frontend catalogue is `PF-20`. The language of emails and push notifications is asked separately (`TASKS/BACKLOG.md` `OQ-15`).

@@ -4,7 +4,7 @@
 
 **Plan refs for the whole track**: `docs/UI-UX/00`–`14`. Every task inherits `docs/UI-UX/14-UX-ACCEPTANCE-CRITERIA.md` §1 as part of its DoD.
 
-**Order**: `PF-01` first (it makes every later change a one-place change), then `PF-02` and `PF-04` (the two release-level UX gates R1 and R2 in `docs/UI-UX/14` §4), then the accessibility set.
+**Order**: `PF-01` first (it makes every later change a one-place change), then `PF-20` (users currently read English server messages), then `PF-02` and `PF-04` (the two release-level UX gates R1 and R2 in `docs/UI-UX/14` §4), then the accessibility set.
 
 ---
 
@@ -78,8 +78,8 @@ The pages and components are listed in `docs/UI-UX/07-PAGE-INVENTORY.md` and `06
 |---|---|
 | **Status** | TODO |
 | **Priority** | **P0** — release gate R2 |
-| **Depends on** | PF-01 |
-| **Blocked by** | — (message text follows `OQ-01` when decided) |
+| **Depends on** | PF-01; uses the message catalogue from PF-20 |
+| **Blocked by** | — |
 | **Plan refs** | `docs/UI-UX/11` §5, `docs/UI-UX/00` principle 2 |
 | **Spec required** | No |
 | **Surface** | web |
@@ -293,3 +293,33 @@ The pages and components are listed in `docs/UI-UX/07-PAGE-INVENTORY.md` and `06
 | **Size** | S |
 
 **Definition of Done** — choosing `ANNIVERSARY` shows that `maxCarryOverDays` must equal the quota until anniversary-based periods exist.
+
+### PF-20 — Indonesian message catalogue; never render server messages
+
+| | |
+|---|---|
+| **Status** | TODO |
+| **Priority** | P1 — decided 2026-09-14 (`OQ-01`, ADR-030) |
+| **Depends on** | PF-01 (`ErrorLine`, `Field`); `P6-24` step 2 for the full reason list |
+| **Blocked by** | — (start with `code`; add reasons as `P6-24` lands) |
+| **Plan refs** | `docs/UI-UX/13` §1 and §5, `docs/UI-UX/11` §4, `docs/PLAN/15` §6 |
+| **Spec required** | No — no API change on this side |
+| **Surface** | web |
+| **Size** | M |
+
+**Goal** — every word a user sees in the frontend is Indonesian and comes from the frontend, whatever language the backend answers in.
+
+**Steps**
+1. `apps/web/src/lib/messages.ts`: Indonesian text keyed by error `code`, then by `reason` where present, with interpolation from `details` (e.g. which evidence is missing). A generic fallback per status: "Terjadi kesalahan. Kode referensi: {correlationId}".
+2. `ApiError` exposes `code`, `reason`, `details`, `correlationId`; pages render `messageFor(error)` — never `error.message`. About 30 places render the server message today.
+3. Field-level validation text generated from Zod issue codes and bounds (`too_small`, `minimum: 12` → "Minimal 12 karakter"), shared with `PF-09`.
+4. Translate the frontend's own English strings back to Indonesian: `apps/web/src/lib/push.ts` results, the `session.tsx` fallback, and any other found by the test in the DoD.
+5. Keep `error.message` available to developers: logged to the browser console in development builds only.
+
+**Definition of Done**
+- A test fails if any page or component renders `.message` from an `ApiError` or a response body; seen to fail against the current code.
+- A test compares the catalogue with `ErrorCode` in `packages/contracts` (and the reason list once `P6-24` defines it): every code and reason has Indonesian text.
+- A test searches `apps/web/src/app` and `apps/web/src/components` and the user-facing strings in `apps/web/src/lib` for common English words in string literals, with an allowlist for identifiers; seen to fail by adding one.
+- Checked by hand on the flows in `docs/UI-UX/04` with the backend returning English: no English reaches the screen.
+- `docs/UI-UX/11` §4, `docs/UI-UX/13` §1, `docs/UI-UX/14` U9 verified.
+

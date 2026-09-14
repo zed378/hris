@@ -2,8 +2,8 @@
 
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
-**Last updated**: 2026-09-13
-**Overall**: 77 / 150 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 0 since
+**Last updated**: 2026-09-14 — `OQ-01`, `OQ-03`, `OQ-11` answered; `P6-24` and `PF-20` added
+**Overall**: 77 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 0 since
 **Gates**: A untested · B untested · C not met · D not reached
 
 > **Read this first.** Phases 0–6 and service-split stages 1–7 were built between 2026-08-18 and 2026-09-01, before
@@ -26,12 +26,14 @@ In order. Each is unblocked today.
 | 2 | `P0-09` | CI pipeline | Every "CI gate" is currently local; no dependency or secret scanning (F2) |
 | 3 | `P2-08` | Audit unmasked PII reads | Phase 2 DoD item unmet; HR can reveal every NIK without trace (F11) |
 | 4 | `P6-12` | Browser security headers | No CSP or HSTS (F5) |
-| 5 | `P6-18.1` | OpenAPI coverage test | A comment claims a test that does not exist; 86 routes undocumented |
+| 5 | `P6-18.1` | OpenAPI coverage test | A comment claims a test that does not exist; 86 routes undocumented. `P6-18.3` design is now decided |
 | 6 | `PF-01` | Extract UI components | Precondition for the frontend track |
 | 7 | `PF-02` | Mobile navigation | Employees on phones are stranded (F6); release gate R1 |
-| 8 | `PF-04` | Refused state for 402/403 | Release gate R2 |
-| 9 | `P4-08` | Tests for leave approval controls | Two fixed control failures have no regression test |
-| 10 | `P6-20` | Tests for lockout and login timing | Authentication controls without tests |
+| 8 | `PF-20` | Indonesian message catalogue in the frontend | Decided 2026-09-14: users must not read the backend's English messages |
+| 9 | `PF-04` | Refused state for 402/403 | Release gate R2 |
+| 10 | `P6-24` | English backend messages with reasons | Decided 2026-09-14; `PF-20` needs the reason list |
+| 11 | `P4-08` | Tests for leave approval controls | Two fixed control failures have no regression test |
+| 12 | `P6-20` | Tests for lockout and login timing | Authentication controls without tests |
 
 ---
 
@@ -45,9 +47,9 @@ In order. Each is unblocked today.
 | [3 — Attendance and PWA](./PHASE-3-ATTENDANCE-PWA.md) | 19 | 12 | Delivered; **XFF defect**; devices and Lighthouse unverified; **Gate B untested** |
 | [4 — Leave](./PHASE-4-LEAVE.md) | 13 | 10 | Delivered; control tests missing |
 | [5 — Payroll](./PHASE-5-PAYROLL.md) | 20 | 8 | Framework delivered; **statutory work blocked by Gate C** |
-| [6 — Commercialisation and Hardening](./PHASE-6-COMMERCIALISATION-HARDENING.md) | 23 | 10 | Delivered except billing and WhatsApp; security findings open |
-| [S — Service Split](./PHASE-S-SERVICE-SPLIT.md) | 14 | 9 | Stages 1–7 delivered, opt-in; `OQ-03` before more |
-| [F — Frontend Track](./PHASE-F-FRONTEND.md) | 19 | 0 | **Track** — runs alongside |
+| [6 — Commercialisation and Hardening](./PHASE-6-COMMERCIALISATION-HARDENING.md) | 24 | 10 | Delivered except billing and WhatsApp; security findings and language work open |
+| [S — Service Split](./PHASE-S-SERVICE-SPLIT.md) | 14 | 9 | **Stopped by decision** (ADR-032): auth stays in-process; stages 6–8 wait for SSO |
+| [F — Frontend Track](./PHASE-F-FRONTEND.md) | 20 | 0 | **Track** — runs alongside |
 | 7+ — Expansion | — | — | Not scheduled; Gate D (`DF-07`) |
 
 ---
@@ -197,12 +199,13 @@ In order. Each is unblocked today.
 | P6-15 | Constant-time internal secret | S | P2 | TODO | — |
 | P6-16 | First four alerts | M | P1 | BLOCKED | `OQ-06`, `OQ-09` |
 | P6-17 | Off-host backups and key escrow | M | P1 | BLOCKED | `OQ-02`, `OQ-12` |
-| P6-18 | API documentation (18.1 coverage · 18.2 routes · 18.3 page and secret) | L | P1 | SPEC | 18.3: `OQ-11` |
+| P6-18 | API documentation (18.1 coverage · 18.2 routes · 18.3 page and secret) | L | P1 | TODO | 18.3: P6-12 |
 | P6-19 | Ownership structural test | M | P1 | TODO | — |
 | P6-20 | Lockout and timing tests | S | P1 | TODO | — |
 | P6-21 | Morning-peak load test | L | P2 | BLOCKED | `OQ-05`, P0-10 |
 | P6-22 | Metrics endpoint | — | — | DONE (retro) | — |
 | P6-23 | Generated OpenAPI document | — | — | DONE (retro) | coverage: P6-18 |
+| P6-24 | English backend messages with reasons | L | P1 | TODO | emails/push: `OQ-15` |
 
 ## Phase S — Service Split
 
@@ -217,9 +220,9 @@ In order. Each is unblocked today.
 | PS-07 | Stage 7: broker seam | — | — | DONE (retro) | opt-in |
 | PS-08 | End the HS256 window | S | P1 | BLOCKED | `OQ-14` |
 | PS-09 | Revoke `hrms_app` on `auth.users` | L | P2 | TODO | — |
-| PS-10 | Service identity beyond a shared secret | L | P3 | BLOCKED | separate hosts |
-| PS-11 | Stage 8: split builds | L | P3 | BLOCKED | `OQ-03` |
-| PS-12 | Remote authorization cost | M | P2 | BLOCKED | P6-21 |
+| PS-10 | Service identity beyond a shared secret | L | P3 | BLOCKED | `DF-11` (SSO) |
+| PS-11 | Stage 8: split builds | L | P3 | BLOCKED | `DF-11` (SSO) |
+| PS-12 | Remote authorization cost | M | P3 | BLOCKED | `DF-11` (SSO) |
 | PS-13 | Stage 8 precondition enforced | — | — | DONE (retro) | — |
 | PS-14 | Versioned permission cache | — | — | DONE (retro) | — |
 
@@ -246,3 +249,4 @@ In order. Each is unblocked today.
 | PF-17 | Attendance policy page | S | P3 | TODO | — |
 | PF-18 | Mobile-friendly pocket pages | M | P1 | TODO | PF-01, PF-02 |
 | PF-19 | `ANNIVERSARY` warning | S | P3 | TODO | — |
+| PF-20 | Indonesian message catalogue | M | P1 | TODO | PF-01 |

@@ -9,23 +9,22 @@ Four kinds of entry:
 
 Every entry names what it blocks or affects.
 
-Created 2026-09-13. None of the open questions below has been discussed with the user yet; the user asked for them to be recorded and discussed later.
+Created 2026-09-13. On 2026-09-14 the user answered `OQ-01`, `OQ-03`, and `OQ-11`; `OQ-04` and `OQ-10` fell away as a consequence of `OQ-03`. The rest have not been discussed yet.
 
 ---
 
 ## Open Questions
 
-### OQ-01 — Language of API error messages
+### ~~OQ-01 — Language of API error messages~~ — ANSWERED 2026-09-14
 
-**Blocks**: nothing hard; **affects** every error line users see, `docs/UI-UX/13` §1, task `PF-04`.
+**Answer (the user)**: *English for the system — API responses, error messages, logs, debugging output, and everything else the backend produces. The frontend is fully Indonesian.*
 
-The product interface is Indonesian. API error `message` values were Indonesian throughout the build; commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13), from another tool's translation pass, translated many of them to English across `apps/auth`, `apps/web`, and `packages/core`, alongside documentation and comments. The standing instruction was "documentation, comments, and README in English" — and the root `README.md` already states the boundary explicitly: *"Do not translate user-facing strings, error messages, seed data, or leave-type names."* The translation commits contradicted the project's own written rule.
+Recorded as ADR-030, superseding ADR-023. Consequences:
 
-**Today a user can see an English error inside an Indonesian page.**
-
-**Options**: (a) messages are Indonesian — revert the translated messages; (b) messages are English and the frontend maps `code` to Indonesian text; (c) messages are English and shown as-is.
-
-**Recommendation**: (a). The `message` field is written for the user (`docs/PLAN/15` §6) and the users are Indonesian. Option (b) is sound but is a larger change with no user benefit over (a). Until decided: **translate nothing further in either direction.**
+- The API `message` field is **for developers and logs**, not for end users. `a13cfca` and `5d99226` translated part of it; the rest — about 237 Indonesian string literals in about 77 backend files by a rough search — follows (`P6-24`).
+- **The frontend never renders a server `message`.** It maps the error `code` — and a finer-grained reason where one code covers several refusals — to Indonesian text of its own (`PF-20`). About 30 places render the server message today.
+- The frontend's own English strings (in `apps/web/src/lib/push.ts` and the fallback in `session.tsx`, from `5d99226`) go back to Indonesian (`PF-20`).
+- **Interpretation, stated so it can be corrected**: data the frontend displays — seeded menu labels, leave-type names, holiday names — counts as frontend content and stays Indonesian. Emails and push notifications reach users outside the frontend and are currently English; that one is asked separately as `OQ-15`.
 
 ### OQ-02 — Where do off-host backups go, and who holds the PII keys?
 
@@ -35,27 +34,36 @@ Every backup — dump, storage archive, WAL — is on the database host. `PII_EN
 
 **Recommendation**: an S3-compatible bucket in an Indonesian region for backups, encrypted client-side; the PII keys held in a password manager by two named people, separately from the backups.
 
-### OQ-03 — Is SSO/SAML (or a public API) actually on the roadmap?
+### ~~OQ-03 — Is SSO/SAML (or a public API) actually on the roadmap?~~ — ANSWERED 2026-09-14
 
-**Blocks**: `PS-11` (stage 8), the RS256-vs-Ed25519 choice. **Source**: `docs/PLAN/14` §13.1–2.
+**Answer (the user)**: *For now, gating stays in backend logic for multi-tenant access. SSO may be implemented in the future. There is no public API.*
 
-`docs/PLAN/14` §3 argues the auth split on the grounds that SSO and a public API are coming. Stages 1–7 are built. If neither is coming, §12 S8 says to stop after stage 5 — the split container can stay opt-in and unused.
+Recorded as ADR-032. Consequences, per `docs/PLAN/14` §12 S8 ("if SSO and a public API are not on the roadmap, stop after stage 5"):
 
-**Recommendation**: decide before any further split work. If no: keep Ed25519, leave `AUTH_SERVICE_URL` unset in production, drop stage 8.
+- Authorization stays **in-process** in the backend (`decideAccess`). The auth service (`apps/auth`, stage 6) and the broker (stage 7) stay built, tested, and **off**; `AUTH_SERVICE_URL` and `BROKER_URL` stay unset in production.
+- Stages 1–5 stay: they fixed real defects and do not depend on the split.
+- `PS-10` (mTLS), `PS-11` (stage 8), and `PS-12` (remote authorization cost) are `BLOCKED` by `DF-11` (a decision to adopt SSO).
+- **Ed25519 stays**; RS256 is revisited only if SSO is adopted.
+- `OQ-04` and `OQ-10` are no longer needed.
+- `PG-02` (API versioning) is only needed for the internal API between this frontend and backend.
 
-### OQ-04 — One database instance or two for auth?
+### ~~OQ-04 — One database instance or two for auth?~~ — NOT NEEDED (2026-09-14)
 
-**Source**: `docs/PLAN/14` §13.3. **Affects**: `PS-09`, `PS-11`.
-
-**Recommendation**: one (§4.2's own recommendation). Two turns tenant registration into a saga.
+Only relevant if auth runs as a separate service. It does not (`OQ-03`). One database.
 
 ### OQ-05 — Capacity assumptions
 
-**Blocks**: `P6-21` (load test), host sizing. **Source**: `docs/PLAN/18` §5.
+**Blocks**: `P6-21` (load test), choosing a server size. **Source**: `docs/PLAN/18` §5.
 
-No expected tenant count, concurrent users, punches per minute at 08:00, or payroll runs per month is written anywhere.
+**Asked again in plainer terms on 2026-09-14** — the first wording was not clear. The question is simply: *how busy will the system be in its first year?* Without a rough number there is nothing to size the server against, and no way to know whether the morning rush (everyone clocking in between 07:30 and 08:30) will be slow.
 
-**Recommendation**: state a first-year envelope — e.g. 50 tenants, 5,000 employees, 3,000 punches in the 07:30–08:30 WIB window — and load-test at 3× it.
+Three numbers answer it; rough guesses are fine:
+
+1. How many client companies in the first year?
+2. Roughly how many employees per company on average?
+3. Do most of them clock in within the same hour in the morning? (Usually yes.)
+
+**Recommendation if no number is available**: assume 50 companies × 100 employees = 5,000 employees, most clocking in within one hour — about 5,000 punches in 60 minutes — and test at three times that.
 
 ### OQ-06 — Who receives alerts, and who owns security?
 
@@ -87,23 +95,23 @@ Logs are redacted but PII-adjacent; shipping them abroad is a PDP Act question.
 
 **Recommendation**: self-hosted (Loki or similar) on the same provider as the database until a legal review says otherwise.
 
-### OQ-10 — Does the control plane deploy with auth or separately?
+### ~~OQ-10 — Does the control plane deploy with auth or separately?~~ — NOT NEEDED (2026-09-14)
 
-**Source**: `docs/PLAN/14` §13.6. **Affects**: `PS-11`. **Recommendation**: separately — different audience, different risk; it already has its own database role.
+Auth is not deployed separately (`OQ-03`); the control plane stays inside `apps/web`.
 
-### OQ-11 — API documentation access: the secret header
+### ~~OQ-11 — API documentation access: the secret header~~ — ANSWERED 2026-09-14
 
-**Blocks**: `P6-18.3`. **Source**: user request, 2026-09-13 session.
+**Answer (the user)**: follow the recommendation.
 
-The user asked for API documentation (Swagger UI) available only to a logged-in administrator **and** requiring an additional header carrying a secret the user sets, stored encrypted in the database. Undecided details:
+Recorded as ADR-031; spec `MEMORY/specs/P6-18-api-documentation-access.md` updated to *Reviewed*. Decided:
 
-1. Per tenant, or one platform-wide secret? (An administrator of a tenant vs. the platform operator.)
-2. Set through a screen, or through a CLI/`ops` script?
-3. Rotation: can two secrets be valid during rotation?
-4. Encryption: reuse the PII key ring (`packages/core/src/employee/pii.ts`), or hash it (Argon2id) since it only needs verifying? **Hashing is stronger for a verify-only secret** — encryption means the application can recover it.
-5. Does the header also guard `GET /api/openapi.json`, or only the UI page?
-
-**Recommendation**: one platform-wide secret, set by an `ops` script, stored as an Argon2id hash with a creation date, two active at once during rotation, guarding both the JSON and the UI. Draft spec: `MEMORY/specs/P6-18-api-documentation-access.md`.
+1. **One platform-wide secret**, known to the platform operator.
+2. **Set by an `ops` script** that generates it, prints it once, and stores it — no screen.
+3. **Rotation**: two secrets valid at once, the older with an expiry.
+4. **Stored as an Argon2id hash**, not reversible encryption — the secret is only ever verified, so a database dump plus the application's keys still cannot reveal it. (The original request said "encrypt"; hashing was recommended as the stronger form and accepted.)
+5. **Guards both** the interactive page and the OpenAPI JSON.
+6. **Access requires a platform superuser session and the header** — the documentation moves to the control plane; the tenant route `GET /api/openapi.json` is removed.
+7. **The key is entered in the page and held in memory only**, sent as a header on the JSON request.
 
 ### OQ-12 — Recovery objectives (RPO / RTO)
 
@@ -121,6 +129,14 @@ The user asked for API documentation (Swagger UI) available only to a logged-in 
 
 **Recommendation**: remove `JWT_SECRET` from every environment as soon as the EdDSA keys are deployed everywhere; the hybrid window has no remaining purpose once no HS256 token can still be unexpired (15 minutes).
 
+### OQ-15 — Language of emails and push notifications
+
+**Affects**: `P6-24`, `PF-20`. **Raised**: 2026-09-14, from the answer to `OQ-01`.
+
+Emails (invitations, password reset, contract and document reminders) and push notifications (leave decisions) are read by employees and HR, but outside the frontend. `a13cfca` translated them to English. The answer to `OQ-01` covers "the system" (English) and "the frontend" (Indonesian); these sit between the two.
+
+**Recommendation**: Indonesian — the reader is the same Indonesian HR officer or employee who sees the frontend, and an English password-reset email looks like phishing to them. Until decided, they stay as they are.
+
 ---
 
 ## Plan Gaps
@@ -131,7 +147,7 @@ The user asked for API documentation (Swagger UI) available only to a logged-in 
 
 ### PG-02 — No API versioning policy
 
-`docs/PLAN/15` §8. Needed before any external API consumer (`docs/PLAN/14` §2.4).
+`docs/PLAN/15` §8. There is no public API (`OQ-03`, 2026-09-14), so the only consumer is this repository's own frontend, deployed together with the backend. Needed only if a separately deployed client (a native app, stage 8) or SSO integration appears.
 
 ### PG-03 — `docs/PLAN/13` is stale in places
 
@@ -186,6 +202,8 @@ Both describe a 16-service Kubernetes architecture. `docs/PLAN/12` §3 replaced 
 | DF-08 | Native mobile app | A PWA limit a tenant cannot accept | `11` §2.4 |
 | DF-09 | Malware scanning of uploads | A paying tenant or a compliance requirement | `SECURITY/02` §11 |
 | DF-10 | Unsaved-changes warnings on long forms | — | `UI-UX/12` §6 |
+| DF-11 | SSO (OIDC/SAML) and enabling the separate auth service (`PLAN/14` stages 6–8) | A decision to adopt SSO | `OQ-03`, ADR-032 |
+| DF-12 | A public API for third parties | Not planned (the user, 2026-09-14) | `OQ-03`, ADR-032 |
 
 ---
 

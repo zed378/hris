@@ -4,7 +4,7 @@ Guidance for Claude Code working in this repository. [`AGENTS.md`](AGENTS.md) ca
 
 ## What This Repository Is
 
-**HRMS** — a multi-tenant HR management suite for Indonesian SMEs: employees, attendance with location and photo evidence, leave, and a payroll framework, delivered as a PWA. A pnpm + Turborepo modular monolith (`apps/web` Next.js, `apps/worker`, opt-in `apps/auth`; domain logic in `packages/core`) on one PostgreSQL 18 database with forced row-level security.
+**HRMS** — a multi-tenant HR management suite for Indonesian SMEs: employees, attendance with location and photo evidence, leave, and a payroll framework, delivered as a PWA. A pnpm + Turborepo modular monolith (`apps/web` Next.js, `apps/worker`, `apps/auth` built but not enabled; domain logic in `packages/core`) on one PostgreSQL 18 database with forced row-level security.
 
 Most of the plan is already built. The documents are the reference; [`TASKS/`](TASKS/) says what is left; [`MEMORY/`](MEMORY/) says what was done and why.
 
@@ -18,7 +18,7 @@ Start at [`docs/README.md`](docs/README.md). Then, by task:
 | The product, principles P1–P16 | `docs/PLAN/00` §3.2 |
 | Architecture as built, phases, gates | `docs/PLAN/12` (wins over `01` and `04` where they disagree) |
 | What is proven, divergences, silent bugs found | `docs/PLAN/13` |
-| Auth service, Redis, broker, tokens, the split | `docs/PLAN/14` |
+| Auth service, Redis, broker, tokens, the split | `docs/PLAN/14` — the split stops at stage 5 in use (ADR-032) |
 | Data model | `docs/PLAN/02`, then `packages/db/prisma/schema.prisma` |
 | Roles, permissions, menus | `docs/PLAN/05` |
 | Tenancy and authentication | `docs/PLAN/06`, `docs/PLAN/17` §1–2 |
@@ -62,7 +62,7 @@ For a small fix, use judgment — but not for the categories in step 2.
 9. **Never log** PII (NIK, NPWP, bank accounts), passwords, tokens, or coordinates. Never put a tenant, user, or email in a metric label.
 10. **No statutory payroll work** (PPh 21, BPJS, proration, THR, bank export) until Gate C is met. **No Phase 7+ module** until Gate D (`TASKS/README.md`).
 11. **Never hand-write API reference documentation.** Change the manifest entry and the `DOCS` entry in `apps/web/src/lib/openapi.ts`.
-12. **The interface is Indonesian; code, comments, and documentation are English.** Do not translate user-facing strings, error messages, seed data, or leave-type names. The language of API error messages is contested (`TASKS/BACKLOG.md` `OQ-01`) — translate nothing further in either direction until it is decided.
+12. **The backend is English; the frontend is Indonesian** (ADR-030). API responses, error messages, validation messages, logs, debug output, code, comments, and documentation are English. Every word a user sees in the frontend is Indonesian and comes from the frontend — **never render a server `message`**; map the error `code` (and `reason`) to Indonesian text. Seeded display data (menu labels, leave-type and holiday names) stays Indonesian. Emails and push notifications: `OQ-15`, not yet decided — leave them as they are.
 13. **Never mark a security-sensitive task done without an abuse-case test** that was seen to fail.
 14. **Never loosen a guard to make a build pass** — a test assertion, a lint rule, a manifest entry, a migration check. If a guard blocks you, the change is wrong or the guard needs an ADR.
 15. **`docs/` is reference documentation.** Amend it deliberately through the deviation protocol (`TASKS/00-TASK-CONVENTIONS.md` §7), not as a side effect — except to correct a statement about current state that your change makes false.
@@ -74,7 +74,7 @@ For a small fix, use judgment — but not for the categories in step 2.
 | Monorepo | pnpm 11, Turborepo, Node ≥ 24, TypeScript run with `--experimental-transform-types` |
 | Web | Next.js 16 App Router — pages and `/api`, `/admin/api` route handlers; Tailwind CSS 4; AG Grid 36; hand-written service worker |
 | Worker | Node; pg-boss by default, NATS JetStream when `BROKER_URL` is set |
-| Auth service | `apps/auth` (`node:http`), opt-in via `AUTH_SERVICE_URL` |
+| Auth service | `apps/auth` (`node:http`), built and **off** — authorization stays in-process; not enabled until SSO is adopted (ADR-032) |
 | Domain | `packages/core` — framework-free modules exposed through each `index.ts` |
 | Data | PostgreSQL 18, one database, a schema per module, forced RLS; Prisma 7 with the pg adapter |
 | Cache / limits | Redis 8 when `REDIS_URL` is set; fail-open |

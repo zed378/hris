@@ -63,7 +63,7 @@ The home dashboard defines a local `Kartu` (label, value, hint, `href`, `tone`).
 
 ### `ErrorLine`
 
-`rounded-md bg-red-50 px-3 py-2 text-sm text-red-800` showing `ApiError.message`. Must: `role="alert"` (3 uses today); distinct rendering for `402` and `403` (none today).
+`rounded-md bg-red-50 px-3 py-2 text-sm text-red-800` showing `ApiError.message` today. Must: show the Indonesian catalogue text for the error's `code`/`reason`, never the server's English `message` (`PF-20`); `role="alert"` (3 uses today); distinct rendering for `402` and `403` (none today).
 
 ### `DataTable`
 

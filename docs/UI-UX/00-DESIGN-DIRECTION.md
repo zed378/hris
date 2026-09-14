@@ -70,7 +70,7 @@ No illustrations, no animation that delays a task, no dashboard widgets that exi
 | 3. Excel habits | Met: grid, import with per-row errors, export |
 | 4. Evidence as claim | Met in the review queue and my-attendance |
 | 5. Privacy visible | Met: consent page, no coordinates on the live dashboard |
-| 6. Indonesian | Met in the UI; API error messages partly English (`../PLAN/15-API-CONTRACT.md` §11, `OQ-01`) |
+| 6. Indonesian | Met in page copy; **not met for errors** — pages show the server's `message`, which is English by decision (ADR-030). Fixed by the frontend catalogue (`PF-20`) |
 | 7. Nothing decorative | Met |
 | **Pocket product on a phone** | **Not met: the sidebar is hidden below 768 px and nothing replaces it.** The home dashboard's cards link onward to some pages (punch, my leave, my payslip, approvals), but no page links back home, and `/attendance/me`, consent, and settings have no path at all — `09-RESPONSIVE-AND-MOBILE.md` |
 | Accessibility | **Thin** — `10-ACCESSIBILITY.md` |

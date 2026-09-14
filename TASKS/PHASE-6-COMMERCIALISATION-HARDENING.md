@@ -202,30 +202,38 @@
 
 | | |
 |---|---|
-| **Status** | SPEC |
+| **Status** | TODO — design decided 2026-09-14 (`OQ-11`, ADR-031) |
 | **Priority** | P1 — requested by the user |
-| **Depends on** | — |
-| **Blocked by** | `OQ-11` for `P6-18.3` only |
-| **Plan refs** | `docs/PLAN/15` §10, `apps/web/src/lib/openapi.ts`, `docs/PLAN/17` §8 |
-| **Spec required** | Yes — authentication (a secret), exposure of the API surface |
-| **Surface** | web, backend, db |
+| **Depends on** | `P6-12` for `P6-18.3` (the page must load under the CSP) |
+| **Blocked by** | — |
+| **Plan refs** | `docs/PLAN/15` §10, `apps/web/src/lib/openapi.ts`, `docs/PLAN/17` §4 and §8, `MEMORY/specs/P6-18-api-documentation-access.md` (Reviewed) |
+| **Spec required** | Yes — written and reviewed |
+| **Surface** | web, backend, db, ops |
 | **Size** | L — three sub-tasks |
 
-**Goal** — every tenant route is documented, a logged-in administrator can browse the documentation interactively, and access additionally requires a secret header whose value only the platform operator knows, stored protected in the database.
+**Goal** — every tenant route is documented; a platform superuser can browse the documentation interactively; access additionally requires a secret header only the platform operator knows, stored as an Argon2id hash.
 
 **Sub-tasks**
 
-- **P6-18.1 — Coverage test.** A test in `apps/web/test/` that fails when a `ROUTE_MANIFEST` entry has no `DOCS` entry, with an explicit allowlist that starts with the 86 undocumented routes and may only shrink. Seen to fail by adding a route. Removes the false claim in `openapi.ts` (`PG-04`). **Size S. Not blocked.**
-- **P6-18.2 — Document the remaining routes.** Fill `DOCS` for all 100 routes, module by module, shrinking the allowlist to zero. **Size L. Not blocked.**
-- **P6-18.3 — Interactive page with secret-header access.** A page rendering Swagger UI (or Scalar/Redoc) from `/api/openapi.json`, available only to a session holding `core.settings.manage` **and** a request carrying the secret header. Design questions in `OQ-11`; draft spec `MEMORY/specs/P6-18-api-documentation-access.md`. **Blocked by `OQ-11`.**
+- **P6-18.1 — Coverage test.** A test in `apps/web/test/` that fails when a `ROUTE_MANIFEST` entry has no `DOCS` entry, with an explicit allowlist that starts with the 86 undocumented routes and may only shrink. Seen to fail by adding a route. Corrects the false claim in `openapi.ts` (`PG-04`). **Size S.**
+- **P6-18.2 — Document the remaining routes.** Fill `DOCS` for all 100 routes, module by module, shrinking the allowlist to zero. Summaries and descriptions in English (ADR-030). **Size L.**
+- **P6-18.3 — Interactive page with secret-header access.** **Size M.**
+  1. Migration: `platform.api_docs_keys` (`id`, `hash`, `created_at`, `expires_at`, `created_by`), granted to `hrms_platform` only.
+  2. `ops/scripts/set-docs-key.mjs`: generates ≥ 32 random bytes, prints the secret once, stores the Argon2id hash, optionally sets the previous key to expire in 24 hours.
+  3. `packages/core/src/platform/docs-keys.ts`: verify a presented key against unexpired hashes.
+  4. Control-plane routes in `ADMIN_ROUTE_MANIFEST`: `GET /admin/api/docs/openapi.json`, guarded by a superuser session **and** `X-Docs-Key`.
+  5. A page under `/admin` that asks for the key, holds it in memory only, fetches the JSON with the header, and renders it with a pinned documentation package (no CDN).
+  6. Remove the tenant route `GET /api/openapi.json` and its manifest entry.
 
 **Definition of Done**
 - `P6-18.1` and `P6-18.2` as above.
-- `P6-18.3`: without a session → refused; with a session lacking the permission → `403`; with both but a wrong or missing header → `404`; a timing-safe comparison; the secret never logged; stored so that a database read does not reveal it; rotation with two active values.
-- The interactive page loads its assets without breaking the CSP from `P6-12`.
-- `docs/PLAN/15` §10 updated.
+- `P6-18.3`, through the real admin route handlers against real PostgreSQL: no session → `401`; a tenant token → refused; a superuser without the header or with a wrong or expired key → `404`; a valid key → `200`; two valid keys during rotation both work; repeated wrong keys → `429`.
+- A test asserts the stored value is an Argon2id hash and never the secret; a test asserts the header is redacted from logs.
+- `platform_audit_logs` rows for key creation, expiry, and documentation access.
+- The page loads under the CSP from `P6-12` with zero violations.
+- `docs/PLAN/15` §10, `docs/PLAN/17` §4 and §8, `docs/SECURITY/02` §12 updated.
 
-**Abuse cases to test** — `SECURITY/02` §12 enumeration of the API surface by a non-administrator; brute force of the secret header (rate-limited per session and per address after `P3-12`); the secret leaking through logs or the OpenAPI document itself.
+**Abuse cases to test** — `SECURITY/02` §12 enumeration of the API surface by a tenant user or anonymous caller; brute force of the key (rate-limited per session and per trusted address after `P3-12`); the key leaking through logs, the OpenAPI document, or the page source; a timing difference between "no key configured" and "wrong key".
 
 ### P6-19 — Structural test: every `[id]` route checks ownership
 
@@ -270,3 +278,35 @@
 **Goal** — measured p95 latency and error rate for the 07:30–08:30 WIB shape: punch bursts with photos, offline queue replays arriving together, the live dashboard open, at 3× the stated envelope, in both the in-process and split topologies.
 
 **Definition of Done** — results against the p95 < 500 ms target recorded with host size and data volume; `docs/PLAN/18` §2–3 updated; any failure becomes a task.
+
+### P6-24 — English backend messages with machine-readable reasons
+
+| | |
+|---|---|
+| **Status** | TODO |
+| **Priority** | P1 — decided 2026-09-14 (`OQ-01`, ADR-030) |
+| **Depends on** | — |
+| **Blocked by** | `OQ-15` for email and push templates only |
+| **Plan refs** | `docs/PLAN/15` §6 and §11, `packages/contracts/src/errors.ts`, `docs/UI-UX/13` §1 |
+| **Spec required** | Yes — changes the error contract every endpoint returns |
+| **Surface** | backend, auth, worker, contracts |
+| **Size** | L — split per module |
+
+**Goal** — everything the backend produces — API error messages, validation messages, logs, debug output — is English, and every refusal a user can meet carries a stable machine-readable reason the frontend can turn into Indonesian text.
+
+**Steps**
+1. Spec: the reason field. Recommended: an optional `error.reason` (`SCREAMING_SNAKE`, e.g. `PUNCH_EVIDENCE_REQUIRED_OFF_NETWORK`, `LEAVE_INSUFFICIENT_BALANCE`, `LEAVE_SELF_APPROVAL`), with parameters in `error.details` (e.g. `{ "missing": ["location", "photo"] }`). `code` stays the coarse contract; `reason` refines it. Validation errors: `details` keyed by field, carrying Zod issue codes and bounds (`too_small`, `minimum: 12`) rather than sentences.
+2. Define reasons once in `packages/contracts` so the frontend can import the list.
+3. Module by module (`auth`, `iam`, `employee`, `attendance`, `leave`, `payroll`, `tenant`, `platform`, `notification`, worker): translate remaining Indonesian string literals to English and attach reasons to user-facing refusals. A rough search on 2026-09-14 found about 237 such literals in about 77 files — measure precisely in the spec.
+4. Replace the Indonesian messages in `packages/contracts` schemas (e.g. `passwordSchema`) with English.
+5. Email and push templates: follow `OQ-15`.
+6. Tests assert on `code` and `reason`, never on message text.
+
+**Definition of Done**
+- No Indonesian string literal remains in backend source except seeded display data (menu labels, leave-type and holiday names — frontend content per ADR-030) — enforced by a test that searches backend source for a list of common Indonesian words, with an explicit allowlist for seed files. Seen to fail by adding one.
+- Every refusal in `docs/UI-UX/04` flows returns a documented `reason`.
+- `docs/PLAN/15` §6 lists the reasons; `openapi.ts` documents `reason` on error responses.
+- `pnpm verify` passes.
+
+**Abuse cases to test** — none new; the change must not add information to refusals that `docs/SECURITY/02` §12 deliberately withholds (login failures stay a single `INVALID_CREDENTIALS` with no reason).
+
