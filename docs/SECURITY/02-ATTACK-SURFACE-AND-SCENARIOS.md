@@ -311,7 +311,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Impact | A control silently disappears |
 | Likelihood | **Medium, and rising with agent use** |
 | Mitigation | Hard rules in `CLAUDE.md` / `AGENTS.md`; every guard seen to fail before it is trusted (`../PLAN/16-TESTING-STRATEGY.md` §1); explicit file lists on commit |
-| Detection | Review of any diff touching the paths above. (c) was caught twice by deliberate violation |
+| Detection | Review of any diff touching the paths above. (c) was caught once by deliberate violation (`frontend-boundary.test.ts`) |
 | Response | Revert; record in `MEMORY/` |
 | Status | **Partial** — relies on review; no CI; no CODEOWNERS |
 

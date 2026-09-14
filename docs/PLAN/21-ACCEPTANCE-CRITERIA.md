@@ -93,9 +93,9 @@ The checklists are `12` §6. This section records, for each item, how it is veri
 | Item | Verified by | State |
 |---|---|---|
 | 3 parallel cycles identical to the rupiah | Parallel run | **Not possible** before Gate C |
-| 1,000 employees in < 3 minutes | Load run | **Not run** |
+| 1,000 employees in < 3 minutes | Worker run | Framework: 1,003 employees in 8.5 s (`13` §5). **Not re-measured with statutory components**, which do not exist |
 | The same run twice produces one run | Partial unique index → `409` | Built |
-| Killing the worker mid-calculation → no duplicate payslip | Worker kill test | **Not run** |
+| Killing the worker mid-calculation → no duplicate payslip | Chunked transactions; re-run | Re-running a run produced 0 new payslips; totals recomputed from the database at close (`13` §5). A kill mid-chunk is not recorded as tested |
 | A payslip visible only to its owner and permitted roles, cross-tenant token tested | Gateway tests | Partially |
 | A tax rate change through configuration, no redeploy | `statutory_configs` | Table exists; no statutory component consumes it |
 | MFA available for payroll roles | — | **Not built** |

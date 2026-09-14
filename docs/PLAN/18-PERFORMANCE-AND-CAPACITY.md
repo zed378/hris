@@ -33,6 +33,7 @@ Collected from where they were set, not invented here.
 | Backup and restore at size | 160 MB / 261,000 punches: backup **2 s**, restore **5 s**, row counts identical | `ops/RUNBOOK.md` §6 |
 | Readiness recovery | `ready` returns 200 within **40 ms** of PostgreSQL returning | `13` §3 |
 | Redis rate-limit cold start | First request after restart correctly counted in Redis | After the fix recorded in `14` §10.3 |
+| Payroll run in the worker | 1,003 employees, 21 chunks of 50: **8.5 s**; re-running the same run: 0 new payslips, 13 ms | Payroll **framework** only — components and formulas, no PPh 21 or BPJS (`13` §5) |
 
 ## 3. Not Measured
 
@@ -41,7 +42,7 @@ Collected from where they were set, not invented here.
 | p95 < 500 ms under realistic load | **Never load-tested.** Histogram buckets exist around 500 ms (`19-OBSERVABILITY.md`), but nothing has driven traffic at them |
 | Spike S2 — 5,000-row import in < 60 s | Not recorded as run |
 | Spike S3 — 100,000 concurrent transactions | Not recorded as run. RLS isolation is proven by tests, not at that concurrency |
-| 1,000-employee payroll in < 3 minutes | Blocked behind Gate C — the tax components that dominate the cost do not exist |
+| 1,000-employee payroll in < 3 minutes **with statutory components** | The framework run is measured (§2); PPh 21 and BPJS do not exist yet (Gate C), so the number that matters is not |
 | Lighthouse scores | Not run |
 | Latency cost of the remote authorization call (split topology) | Not measured; the permission cache is the mitigation (`14` §5) |
 | Availability | No uptime monitor exists to measure it |
