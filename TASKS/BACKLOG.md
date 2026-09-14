@@ -19,7 +19,7 @@ Created 2026-09-13. None of the open questions below has been discussed with the
 
 **Blocks**: nothing hard; **affects** every error line users see, `docs/UI-UX/13` §1, task `PF-04`.
 
-The product interface is Indonesian. API error `message` values were Indonesian throughout the build; commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13), from another tool's translation pass, translated many of them to English across `apps/auth`, `apps/web`, and `packages/core`, alongside documentation and comments. The standing instruction was "documentation, comments, and README in English" — which does not obviously cover strings shown to users.
+The product interface is Indonesian. API error `message` values were Indonesian throughout the build; commits `a13cfca` (2026-09-01) and `5d99226` (2026-09-13), from another tool's translation pass, translated many of them to English across `apps/auth`, `apps/web`, and `packages/core`, alongside documentation and comments. The standing instruction was "documentation, comments, and README in English" — and the root `README.md` already states the boundary explicitly: *"Do not translate user-facing strings, error messages, seed data, or leave-type names."* The translation commits contradicted the project's own written rule.
 
 **Today a user can see an English error inside an Indonesian page.**
 

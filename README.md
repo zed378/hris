@@ -30,6 +30,19 @@ stages were sequenced to preserve.
 > staff. Code, comments, and documentation are in English. Do not translate
 > user-facing strings, error messages, seed data, or leave-type names.
 
+## Documentation
+
+| Where | What |
+|---|---|
+| [`docs/README.md`](docs/README.md) | The way in: reading order, and which document answers what |
+| [`docs/PLAN/`](docs/PLAN/) | Plan (`00`–`12`), status (`13`), service split (`14`), and API contract, testing, security baseline, performance, observability, deployment, acceptance criteria, risk register, feature spec template (`15`–`23`) |
+| [`docs/SECURITY/`](docs/SECURITY/) | Assets, threat actors, attack scenarios, detection, incident playbooks, verification |
+| [`docs/UI-UX/`](docs/UI-UX/) | Design direction through UX acceptance criteria, describing the built screens and their gaps |
+| [`TASKS/`](TASKS/) | What is done, what is left, in what order — start at [`TASKS/PROGRESS.md`](TASKS/PROGRESS.md) |
+| [`MEMORY/`](MEMORY/) | Decisions (ADRs), change records, specs |
+| [`CLAUDE.md`](CLAUDE.md), [`AGENTS.md`](AGENTS.md) | Rules for AI coding agents working here |
+| [`ops/RUNBOOK.md`](ops/RUNBOOK.md) | Incidents, backup and restore, PITR, key rotation |
+
 ---
 
 ## Running locally
@@ -109,10 +122,12 @@ pnpm verify        # migration linter + module boundary lint + typecheck + test 
 apps/web            Next.js — UI and API route handlers for the tenant plane
                     (/api) and the control plane (/admin/api)
 apps/worker         Background process — outbox pump, pg-boss, scheduled jobs
+apps/auth           Auth service — opt-in via AUTH_SERVICE_URL (docs/PLAN/14)
 packages/core       Domain modules: tenant, iam, auth, employee, attendance,
                     leave, payroll, notification, reporting, platform
 packages/db         Prisma, migrations, tenant context, audit, outbox
 packages/contracts  Zod schemas: API, tokens, events, shared catalogues
+packages/cache      Redis-backed rate limits and permission cache, fail-open
 packages/observability  Structured logging and request context
 ops/                docker-compose, web & worker Dockerfiles, migration linter,
                     backup/restore and point-in-time recovery scripts
