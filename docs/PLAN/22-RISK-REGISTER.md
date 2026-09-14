@@ -1,8 +1,8 @@
 # 22 — Risk Register
 
-The live risk register. `04-Development-Phases-Team-Risk.md` §11 holds the original register (R1–R52), written for a sixteen-service architecture; `14-Service-Split-and-Platform-Evolution.md` §12 holds the split's risks (S1–S8). This document **re-assesses those against the system as built** and adds the risks found since. It is the one to update.
+The live risk register. `04-Development-Phases-Team-Risk.md` §11 holds the original register (R1–R52), written for a sixteen-service architecture; `12-Small-Team-Execution-Plan.md` §10.3 holds the modular monolith's risks (N1–N7); `14-Service-Split-and-Platform-Evolution.md` §12 holds the split's risks (S1–S8). This document **re-assesses those against the system as built** and adds the risks found since. It is the one to update.
 
-Risk ids are stable: `R` and `S` keep their original numbers; new risks are `N`. A retired risk keeps its row with the reason.
+Risk ids are stable: `R`, `N`, and `S` keep their original numbers; risks found while writing these documents on 2026-09-13 are `F`. A retired risk keeps its row with the reason.
 
 Assessed 2026-09-13.
 
@@ -20,34 +20,46 @@ Assessed 2026-09-13.
 
 | # | Risk | Prob. | Impact | Current control | Gap | Owner doc |
 |---|---|---|---|---|---|---|
-| **N1** | **Client-controlled `X-Forwarded-For` defeats per-address rate limits and office-network verification** | **High** | High | None — the first header entry is trusted | Take the address the trusted proxy appended; test with a spoofed header | `SECURITY/02` §4 |
+| **F1** | **Client-controlled `X-Forwarded-For` defeats per-address rate limits and office-network verification** | **High** | High | None — the first header entry is trusted | Take the address the trusted proxy appended; test with a spoofed header | `SECURITY/02` §4 |
 | R1 | Payroll calculations are inaccurate | Medium | **Critical** | Formula allowlist, period-based structures | Statutory components, golden regression, parallel run — Gate C | `12` Phase 5 |
 | R9 | A personal data incident under the PDP Act | Low | **Critical** | Encryption, redaction, access audit, retention | No incident playbook rehearsed; no alerting | `SECURITY/04` |
 | R18 | Without MFA, one leaked tenant password opens HR data | Medium | High | Lockout, refresh reuse detection | No tenant-user MFA; no new-device notification | `17` §9 |
-| **N2** | **No CI: every "CI gate" runs only when someone remembers** | **High** | High | `pnpm verify` locally | A pipeline running `verify`, image builds, dependency audit | `16` §4 |
-| **N3** | **No alerting: failures are logged and unseen** | **High** | High | Structured logs, readiness facts, metrics | Alert rules, error tracking, uptime check | `19` §6 |
-| **N4** | **Uploaded files and PII keys are outside every backup** | Medium | **Critical** | Volume on the host | Off-host file backup; key escrow procedure | `20` §6–7 |
-| R39 / R47 | Mock GPS in a browser; customers believe punching is spoof-proof | High | High | `WEB_UNVERIFIED_DEVICE` penalty, review queue, office network | Office network is bypassable (N1); sales material not written | `10`, `SECURITY/02` |
-| **N5** | **No browser security headers (CSP, HSTS, frame-ancestors)** | Medium | High | React escaping | Headers in Next config or the proxy | `17` §9 |
+| **F2** | **No CI: every "CI gate" runs only when someone remembers** | **High** | High | `pnpm verify` locally | A pipeline running `verify`, image builds, dependency audit | `16` §4 |
+| **F3** | **No alerting: failures are logged and unseen** | **High** | High | Structured logs, readiness facts, metrics | Alert rules, error tracking, uptime check | `19` §6 |
+| **F4** | **Every backup lives on the database host, and the PII keys are in no backup at all** | Medium | **Critical** | Daily dump + storage archive + WAL, on host volumes | Off-host copies; a key escrow procedure | `20` §6–7 |
+| R39 / R47 | Mock GPS in a browser; customers believe punching is spoof-proof | High | High | `WEB_UNVERIFIED_DEVICE` penalty, review queue, office network | Office network is bypassable (F1); sales material not written | `10`, `SECURITY/02` |
+| **F5** | **No browser security headers (CSP, HSTS, frame-ancestors)** | Medium | High | React escaping | Headers in Next config or the proxy | `17` §9 |
 | S1 | HS256 secret still able to mint tokens after the split | Medium | High | EdDSA default; readiness reports `hybrid` | Remove `JWT_SECRET` from every environment; compose example still uses it | `14` §6 |
-| R43 | Indoor GPS produces many false flags | High | Medium | Per-tenant accuracy threshold, office network | Office network bypassable (N1); unmeasured on devices | `10` |
+| R43 | Indoor GPS produces many false flags | High | Medium | Per-tenant accuracy threshold, office network | Office network bypassable (F1); unmeasured on devices | `10` |
 | R48 | Offline queue lost on iOS eviction | Medium | High | `storage.persist()`, warning | Not tested on a real iPhone | `11` |
-| **N6** | **No mobile navigation: the sidebar is hidden below `md` and nothing replaces it** | **High** | Medium | PWA shortcuts to punch and my attendance; home dashboard cards link onward | A mobile navigation pattern; a way back home from every page | `UI-UX/09` |
-| **N7** | **Concurrent AI agents editing the same working tree** | Medium | Medium | Explicit file lists on commit | A worktree-per-agent rule | `MEMORY/records/2026-09-13-concurrent-agent-commits.md` |
-| **N8** | **API documentation drifts: 14 of 100 routes documented, and a comment claims a coverage test that does not exist** | High | Medium | Generator derives paths from the manifest | The coverage test | `15` §9 |
+| **F6** | **No mobile navigation: the sidebar is hidden below `md` and nothing replaces it** | **High** | Medium | PWA shortcuts to punch and my attendance; home dashboard cards link onward | A mobile navigation pattern; a way back home from every page | `UI-UX/09` |
+| **F7** | **Concurrent AI agents editing the same working tree** | Medium | Medium | Explicit file lists on commit | A worktree-per-agent rule | `MEMORY/records/2026-09-13-concurrent-agent-commits.md` |
+| **F8** | **API documentation drifts: 14 of 100 routes documented, and a comment claims a coverage test that does not exist** | High | Medium | Generator derives paths from the manifest | The coverage test | `15` §9 |
 | S3 | Auth service as a single point of failure | Medium | High | Opt-in; `503` never a fallback; permission cache | Degraded mode not load-tested | `14` §10.6 |
 | R41 | Employees refuse permissions because they feel surveilled | Medium | High | Consent screen, no background location, no coordinates on the dashboard | No usability testing with real employees | `10` |
-| **N9** | **No capacity assumptions exist, so nothing can be sized or load-tested** | Medium | Medium | — | `TASKS/BACKLOG.md` `OQ-05` | `18` §5 |
+| **F9** | **No capacity assumptions exist, so nothing can be sized or load-tested** | Medium | Medium | — | `TASKS/BACKLOG.md` `OQ-05` | `18` §5 |
 | S6 | Logs shipped abroad carry PII | Medium | **Critical** | Redaction tested; logs not shipped | Decide the vendor with legal first | `14` §9.3 |
 | R17 | A noisy tenant degrades others | Medium | High | Per-tenant quota, statement timeouts | Not load-tested | `18` |
 | R26 | Breadth before depth | High | High | Five-module shortlist | Four modules built with no design-partner usage recorded in this repository | `12` §4 |
-| **N11** | **Viewing unmasked PII in the employee list or detail is not audited** — only exports are | Medium | High | Permission required; export audited | Audit row per unmasked read; `12` Phase 2 DoD | `SECURITY/02` §8 |
-| **N12** | **No permission ceiling: role and grant administrators can confer any permission, including on themselves** | Low | High | Audited; access version bumps | "Cannot grant what you do not hold" | `SECURITY/02` §5 |
-| **N13** | **Superuser TOTP secrets stored in plaintext; superuser logins not audited** | Low | High | `hrms_platform` has no tenant-data grant | Encrypt with the key ring; audit logins | `SECURITY/02` §9 |
-| **N10** | **The language of API error messages is contested** | Medium | Low | — | `TASKS/BACKLOG.md` `OQ-01` | `15` §11 |
+| **F11** | **Viewing unmasked PII in the employee list or detail is not audited** — only exports are | Medium | High | Permission required; export audited | Audit row per unmasked read; `12` Phase 2 DoD | `SECURITY/02` §8 |
+| **F12** | **No permission ceiling: role and grant administrators can confer any permission, including on themselves** | Low | High | Audited; access version bumps | "Cannot grant what you do not hold" | `SECURITY/02` §5 |
+| **F13** | **Superuser TOTP secrets stored in plaintext; superuser logins not audited** | Low | High | `hrms_platform` has no tenant-data grant | Encrypt with the key ring; audit logins | `SECURITY/02` §9 |
+| **F10** | **The language of API error messages is contested** | Medium | Low | — | `TASKS/BACKLOG.md` `OQ-01` | `15` §11 |
 | R2 | Tax and BPJS regulations change | High | Medium | `statutory_configs` versioned by date range | Tables exist; components do not | `07` |
 | R6 | The UI feels harder than Excel | High | High | AG Grid, `.xlsx` export, import pipeline | No usability testing | `UI-UX/` |
 | R52 | Web Push does not arrive on iOS | High | Medium | Push → email tiering | WhatsApp not built | `11` |
+
+### From `12` §10.3
+
+| # | Risk | Prob. | Impact | Current control | Gap |
+|---|---|---|---|---|---|
+| N1 | Module boundaries dissolve | High | High | `eslint-plugin-boundaries`; `frontend-boundary.test.ts` | Enforced only locally — no CI (F2) |
+| N2 | One bug takes down the whole system | Medium | High | Worker separate from web; `statement_timeout`; overload answers `503` | Rollback time not measured |
+| N3 | Bus factor of 1–2 people | High | **Critical** | Comments explain *why*; ADRs; runbook; these documents | Several ADRs are reconstructed after the fact (`MEMORY/DECISIONS.md`) |
+| N4 | Payroll built without a domain expert | High | **Critical** | Statutory calculation not built | **Gate C deviated**: the payroll framework was built ahead of the gate (`MEMORY/DECISIONS.md`) |
+| N5 | Running out of energy or money before the first customer | High | **Critical** | Gates A and B | **Phases 3–6 built without Gates A or B met** |
+| N6 | A large customer bends the roadmap | High | High | §4.5 waiting-list rule | No customer yet |
+| N7 | pg-boss becomes a bottleneck at peak | Low | Medium | NATS broker opt-in | Never measured at peak volume |
 
 ## 3. Controlled — Watch, Don't Work
 
@@ -60,7 +72,7 @@ Assessed 2026-09-13.
 | R20 | Superuser credentials leak | Mandatory TOTP by constraint; no grant on tenant data | A grant added "for support" |
 | R21 | `BYPASSRLS` added for convenience | Re-asserted per deploy; tested | Any exception, ever |
 | R33 | A migration locks a hot table | `lock_timeout`, online runner, migration lint | Hand-run DDL |
-| R37 | Manual schema change | Daily drift report | Nobody reading its output (N3) |
+| R37 | Manual schema change | Daily drift report | Nobody reading its output (F3) |
 | R50 | Shared-device cache leak | Service worker caches no API or credential path | Caching an API response "for offline" |
 | S4 | Rate limits multiplied by replicas | Redis-backed, reported in readiness | Redis unset in a multi-replica deploy |
 

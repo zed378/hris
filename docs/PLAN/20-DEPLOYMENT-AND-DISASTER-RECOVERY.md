@@ -87,7 +87,7 @@ Rollback is **forward-only**. Because migrations never drop or rename, the previ
 |---|---|---|
 | Database, logical | `ops/scripts/backup.sh` → `pg_dump` custom format; `backup` profile runs it daily at 02:15 | Yes — 28 Aug 2026, 160 MB / 261,000 punches: backup 2 s, restore 5 s, row counts identical (`RUNBOOK` §6) |
 | Database, continuous | WAL archiving + `ops/scripts/basebackup.sh` | Yes — point-in-time recovery verified (`RUNBOOK` §7) |
-| Uploaded files (photos, documents, leave attachments) | **Not covered by either backup** | — |
+| Uploaded files (photos, documents, leave attachments) | `backup.sh` archives the storage directory as `hrms-<stamp>-storage.tar.gz` beside the dump, with the same timestamp | Restore tested to the file hash (`13` §5); not measured with tens of thousands of small files |
 | PII encryption keys | **Not covered.** Kept outside the database by design | — |
 | Redis | Not backed up; nothing in it is authoritative | — |
 
@@ -102,7 +102,8 @@ A restore must be followed by the checks in `RUNBOOK` §6 "What MUST be checked 
 | Bad deploy | Redeploy previous image | None | Minutes |
 | Accidental data change by a tenant | PITR into a side instance, extract rows | Up to the WAL archive's last segment | Hours, manual |
 | Database host lost | Logical restore **or** base backup + WAL | Since the last backup (≤ 24 h), or last archived segment with PITR | Hours, manual |
-| Storage volume lost | — | **All photos and documents** | — |
+| Storage volume lost | Restore the storage archive | Files since the last backup (≤ 24 h) | Hours, manual |
+| Host lost with its backup volumes | — | **Everything**: every backup is on the same host | — |
 | PII key lost | — | **All encrypted PII fields, permanently** | — |
 
 The last two rows are the reason this section exists. Tracked in `TASKS/BACKLOG.md`.

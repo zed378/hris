@@ -57,7 +57,7 @@ There is no recovery. Every encrypted national ID, tax ID, and bank account is u
 1. Confirm no copy exists anywhere: other hosts, a password manager, a deployment secret store, an old backup of the environment file.
 2. Inform affected tenants: the fields must be re-collected from source documents.
 3. Generate a new key; existing ciphertext stays unreadable and must be overwritten by re-entry or re-import.
-4. Record this as a Critical incident — and treat it as the reason to build key escrow before the next one (`N4`).
+4. Record this as a Critical incident — and treat it as the reason to build key escrow before the next one (`F4`).
 
 ## Playbook 5: Credential Stuffing or Account Takeover
 

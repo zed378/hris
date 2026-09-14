@@ -88,7 +88,7 @@ Who realistically attacks an HR system for Indonesian SMEs, what they want, and 
 | Capability | High, indirect |
 | Targets | A-7, A-8, TB-12 |
 | Relevant scenarios | `02` §18 |
-| Posture | `pnpm-lock.yaml` pins versions. **No automated dependency audit runs** — there is no CI (N2) |
+| Posture | `pnpm-lock.yaml` pins versions. **No automated dependency audit runs** — there is no CI (F2) |
 
 ## Actor 9: An AI Coding Agent Working in This Repository
 

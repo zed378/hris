@@ -111,7 +111,7 @@ Applied retrospectively to a feature that exists (`packages/core/src/attendance/
 | 11. Validation | Each range a valid CIDR (`apps/web/src/lib/cidr.ts`). The client address normalised: IPv4-mapped IPv6 → IPv4, zone index stripped, anything `isIP` rejects → `null` → "no match" |
 | 12. Error Handling | Refused punch: an Indonesian message naming the missing evidence and four ways forward (office network, browser permission, attendance machine, HR correction). An unparseable address costs a match, never a punch |
 | 13. Edge Cases | Dual-stack listener reporting `::ffff:` addresses; a port suffix; three branches with three networks (ranges live on the site, not the tenant); a VPN back to the office (satisfies the check — it proves the connection, not presence) |
-| **14. Abuse Cases** | **An employee sends `X-Forwarded-For: <office address>` from home.** The gateway takes the *first* entry of that header; the reference nginx *appends* the real address after it. The spoofed address is checked, matches, removes the penalty, and satisfies `FALLBACK_ONLY`. **Not tested when built; open today** — `SECURITY/02` §4, `TASKS/BACKLOG.md`, risk `N1` |
+| **14. Abuse Cases** | **An employee sends `X-Forwarded-For: <office address>` from home.** The gateway takes the *first* entry of that header; the reference nginx *appends* the real address after it. The spoofed address is checked, matches, removes the penalty, and satisfies `FALLBACK_ONLY`. **Not tested when built; open today** — `SECURITY/02` §4, `TASKS/BACKLOG.md`, risk `F1` |
 | 15. Logging and Audit | Range changes audited on the work site. The client address is not logged per punch beyond the punch row |
 | 16. Security Controls | RLS on work sites; parameterised `$queryRaw`; address validated before the `::inet` cast. **Missing:** a trusted-proxy rule for the client address |
 | 17. Testing Strategy | `office-network.test.ts` (pure: address normalisation including an injection string; the trust score removing the penalty without adding score); `cidr.test.ts`. **Missing:** `checkOfficeNetwork` against real PostgreSQL (containment, IPv6, unconfigured tenant), and a gateway-level test sending a spoofed header through the real handler |
@@ -119,7 +119,7 @@ Applied retrospectively to a feature that exists (`packages/core/src/attendance/
 | 19. Definition of Done | Global DoD + the four criteria above passing — the fourth would have held the task open |
 | 20. Implementation Sequence | Migration → `normaliseClientIp` + tests → `checkOfficeNetwork` + tests → punch integration → trust score input → work site API and form → policy screen copy → **trusted client address in `define-route.ts` + spoof test** |
 | 21. Rollback Strategy | The previous image ignores `ip_ranges`; `FALLBACK_ONLY` reverts to its old no-op. No data loss |
-| 22. Technical Risks | R47, R43, **N1** |
+| 22. Technical Risks | R47, R43, **F1** |
 
 ---
 

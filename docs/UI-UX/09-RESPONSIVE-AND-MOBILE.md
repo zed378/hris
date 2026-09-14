@@ -32,7 +32,7 @@ Tailwind defaults.
 
 **Consequence:** from any page other than home, an employee on a phone has only the browser's back button. `/attendance/me`, `/attendance/consent`, and every settings page have no path at all except the PWA shortcut (for `/attendance/me`) or a typed URL.
 
-This is risk `N6` in `../PLAN/22-RISK-REGISTER.md` and the top frontend task in `TASKS/`.
+This is risk `F6` in `../PLAN/22-RISK-REGISTER.md` and the top frontend task in `TASKS/`.
 
 ## 3. Mobile Navigation — Specification
 
