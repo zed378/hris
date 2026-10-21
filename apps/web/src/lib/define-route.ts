@@ -1,4 +1,4 @@
-import { log, runWithContext, incrementCounter, observeDuration } from '@hrms/observability';
+import { log, runWithContext, incrementCounter, observeDuration, clientAddress } from '@hrms/observability';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { withTenant, type TenantClient } from '@hrms/db';
@@ -62,10 +62,7 @@ function fail(
 function contextFrom(req: Request): RequestContext {
   return {
     correlationId: req.headers.get('x-correlation-id') ?? randomUUID(),
-    ip:
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-      req.headers.get('x-real-ip') ??
-      undefined,
+    ip: clientAddress(req.headers),
     userAgent: req.headers.get('user-agent') ?? undefined,
   };
 }
@@ -122,7 +119,7 @@ function build(
   if ((rule.public === true) !== declaredPublic) {
     throw new Error(
       `Route "${routeId}": manifest declares public=${rule.public === true}, ` +
-        `but the handler uses ${declaredPublic ? 'definePublicRoute' : 'defineRoute'}.`,
+      `but the handler uses ${declaredPublic ? 'definePublicRoute' : 'defineRoute'}.`,
     );
   }
 
@@ -192,7 +189,7 @@ function build(
         return fail(
           429,
           ErrorCode.RATE_LIMITED,
-           'Too many requests. Try again in a moment.',
+          'Too many requests. Try again in a moment.',
           ctx.correlationId,
         );
       }
@@ -239,6 +236,7 @@ function build(
         routeRule.module,
         routeRule.permission,
         ctx.correlationId,
+        ctx.ip,
       );
 
       if (outcome.kind === 'rejected') {
@@ -260,7 +258,7 @@ function build(
          * only during incidents, is a second implementation nobody has tested,
          * diverging quietly from the one that normally runs. Risk S3.
          */
-      const response = fail(
+        const response = fail(
           AUTH_UNAVAILABLE_STATUS,
           ErrorCode.INTERNAL,
           'Auth service is not reachable. Try again shortly.',
@@ -292,7 +290,7 @@ function build(
           429,
           ErrorCode.RATE_LIMITED,
           `Your organization's requests have exceeded ${TENANT_QUOTA_MAX} per minute. ` +
-            'Try again shortly.',
+          'Try again shortly.',
           ctx.correlationId,
         );
         response.headers.set('retry-after', String(remoteQuota.resetSeconds));
@@ -345,11 +343,11 @@ function build(
         );
       } catch (error) {
         log.error({ scope: 'route', correlationId: ctx.correlationId, routeId, error });
-       return fail(500, ErrorCode.INTERNAL, 'A system error occurred', ctx.correlationId);
-     }
-   }
+        return fail(500, ErrorCode.INTERNAL, 'A system error occurred', ctx.correlationId);
+      }
+    }
 
-   let claims;
+    let claims;
     try {
       claims = await verifyAccessToken(bearer);
     } catch (error) {
@@ -357,7 +355,7 @@ function build(
       return fail(
         401,
         expired ? ErrorCode.TOKEN_EXPIRED : ErrorCode.TOKEN_INVALID,
-           expired ? 'Access token expired' : 'Invalid access token',
+        expired ? 'Access token expired' : 'Invalid access token',
         ctx.correlationId,
       );
     }
@@ -399,7 +397,7 @@ function build(
         429,
         ErrorCode.RATE_LIMITED,
         `Permintaan dari organisasi Anda melebihi ${TENANT_QUOTA_MAX} per menit. ` +
-          'Coba lagi sebentar lagi.',
+        'Coba lagi sebentar lagi.',
         ctx.correlationId,
       );
       response.headers.set('retry-after', String(quota.resetSeconds));
@@ -518,7 +516,7 @@ function build(
         const response = fail(
           503,
           ErrorCode.RATE_LIMITED,
-           'System is currently receiving too many simultaneous requests. Try again shortly.',
+          'System is currently receiving too many simultaneous requests. Try again shortly.',
           ctx.correlationId,
         );
         response.headers.set('retry-after', '2');

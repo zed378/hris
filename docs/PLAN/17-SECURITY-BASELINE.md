@@ -121,5 +121,5 @@ Controls a reader might reasonably assume exist, and which do not. Each is track
 | No permission ceiling for role and grant administrators | A holder of `iam.role.manage` or `iam.grant.manage` can confer any permission, including on themselves | Medium |
 | `hrms_app` can still read `auth.users` | The backend can read credential rows it no longer needs (`14` §10.5) | Medium |
 | Service-to-service authentication is a shared secret, not mTLS | As strong as the environment holding it — **only relevant if the auth service is enabled, which is not planned** (ADR-032) | Low |
-| No CI pipeline, so no dependency or secret scanning runs automatically | A vulnerable dependency or committed secret is not caught | Medium |
+| CI pipeline runs `pnpm verify`, dependency audit, secret scan, and image builds on every push and PR | — | — |
 | No error tracking (the Sentry named in `12` was never added) and no alerting | Security-relevant errors are visible only in logs someone reads | Medium |

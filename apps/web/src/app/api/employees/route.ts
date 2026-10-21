@@ -29,6 +29,12 @@ export const GET = defineRoute('GET /api/employees', async (req, ctx) => {
       // Daftar karyawan hampir selalu dibuka tanpa izin ini, dan itu jalur yang
       // benar: pada jalur tersamar tidak ada satu pun dekripsi yang terjadi.
       canUnmask: ctx.access.permissions.includes(UNMASK),
+      ctx: {
+        actorUserId: ctx.userId,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        correlationId: ctx.correlationId,
+      },
     }),
   );
 });

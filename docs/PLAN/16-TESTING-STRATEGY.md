@@ -87,7 +87,6 @@ Stated so that a green `pnpm verify` is not read as more than it is.
 
 | Not covered | Consequence | Where tracked |
 |---|---|---|
-| **No CI pipeline exists.** `pnpm verify` runs only when a person runs it | Every "CI gate" in `12` is a local gate | `TASKS/BACKLOG.md` |
 | Browser end-to-end (Chromium, WebKit) | UI regressions are found by hand | `TASKS/` |
 | Lighthouse PWA and performance scores (`12` Phase 3 DoD) | Not verified | Blocked on devices |
 | Real Android and iPhone devices (`12` spike S4) | Permissions, indoor GPS, iOS queue eviction unverified | Blocked on devices |

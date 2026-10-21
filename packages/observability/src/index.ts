@@ -13,3 +13,4 @@ export {
   metricsEnabled,
   metricsTokenMatches,
 } from './metrics.ts';
+export { clientAddress, clientAddressMode, forwardedClientAddress, FORWARDED_CLIENT_IP_HEADER } from './client-address.ts';

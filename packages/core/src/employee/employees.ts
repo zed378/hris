@@ -94,6 +94,18 @@ export interface EmployeeSummary {
   pii: PiiFields;
 }
 
+/**
+ * The unmasked fields an `employee.pii.unmasked` row records by NAME.
+ *
+ * The audit table is read by a broader set of roles than may see employee data
+ * and is kept for seven years, so a value — even a masked one — must never
+ * reach it. What is recorded is which fields were revealed, not what they were.
+ * `phone`, `email`, and `fullName` are omitted because masking never applies to
+ * them: they are returned identically with and without the permission, so they
+ * cannot distinguish an unmasked read from an ordinary one.
+ */
+const PII_FIELD_NAMES = ['nationalId', 'taxId', 'bankAccount'] as const;
+
 const PII_SELECT = {
   nationalIdEncrypted: true,
   nationalIdMasked: true,
@@ -121,19 +133,21 @@ export async function listEmployees(
     status?: string | undefined;
     departmentId?: string | undefined;
     canUnmask?: boolean;
-  } = {},
+    /** Who is asking, and from where. Required so an unmasked read leaves a trail. */
+    ctx: ActorContext;
+  },
 ): Promise<{ employees: EmployeeSummary[]; total: number }> {
   const where = {
     tenantId,
     ...(options.status ? { status: options.status as never } : {}),
     ...(options.search
       ? {
-          OR: [
-            { fullName: { contains: options.search, mode: 'insensitive' as const } },
-            { employeeNumber: { contains: options.search, mode: 'insensitive' as const } },
-            { email: { contains: options.search, mode: 'insensitive' as const } },
-          ],
-        }
+        OR: [
+          { fullName: { contains: options.search, mode: 'insensitive' as const } },
+          { employeeNumber: { contains: options.search, mode: 'insensitive' as const } },
+          { email: { contains: options.search, mode: 'insensitive' as const } },
+        ],
+      }
       : {}),
     ...(options.departmentId
       ? { employments: { some: { departmentId: options.departmentId, effectiveTo: null } } }
@@ -171,6 +185,26 @@ export async function listEmployees(
     tx.employee.count({ where }),
   ]);
 
+  const canUnmask = options.canUnmask ?? false;
+  if (canUnmask && rows.length > 0) {
+    // Unmasking on screen is a deliberate reveal, not the default view. One row
+    // lists every employee whose PII was revealed — 200 ids, not 200 rows — so
+    // "who bulk-unmasked the whole list" is answerable (SECURITY/02 §8(e)).
+    // Only ids, field names, and the actor's context: never a PII value.
+    await writeAudit(tx, tenantId, {
+      action: 'employee.pii.unmasked',
+      entityType: 'employee',
+      actorUserId: options.ctx.actorUserId,
+      after: {
+        employeeIds: rows.map((row) => row.id),
+        fields: PII_FIELD_NAMES,
+      },
+      ip: options.ctx.ip,
+      userAgent: options.ctx.userAgent,
+      correlationId: options.ctx.correlationId,
+    });
+  }
+
   return {
     total,
     employees: rows.map((row) => ({
@@ -184,7 +218,7 @@ export async function listEmployees(
       department: row.employments[0]?.department.name ?? null,
       position: row.employments[0]?.position.name ?? null,
       version: row.version,
-      pii: revealPii(row, options.canUnmask ?? false),
+      pii: revealPii(row, canUnmask),
     })),
   };
 }
@@ -194,6 +228,7 @@ export async function getEmployee(
   tenantId: string,
   employeeId: string,
   canUnmask: boolean,
+  ctx: ActorContext,
 ): Promise<EmployeeSummary & { bankName: string | null; address: string | null }> {
   const row = await tx.employee.findFirst({
     where: { id: employeeId, tenantId },
@@ -221,6 +256,22 @@ export async function getEmployee(
   });
 
   if (!row) throw new EmployeeError('Employee not found', 'not_found');
+
+  if (canUnmask) {
+    // The detail screen is the other unmasked read. Without this row the audit
+    // trail shows exports only, and "no export" reads as "nothing happened"
+    // while every national ID was on screen. Ids and field names, never values.
+    await writeAudit(tx, tenantId, {
+      action: 'employee.pii.unmasked',
+      entityType: 'employee',
+      entityId: employeeId,
+      actorUserId: ctx.actorUserId,
+      after: { employeeIds: [employeeId], fields: PII_FIELD_NAMES },
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      correlationId: ctx.correlationId,
+    });
+  }
 
   return {
     id: row.id,

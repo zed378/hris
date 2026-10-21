@@ -10,6 +10,17 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-21 — P0-09: CI pipeline
+
+**Fixed** — ([record](./records/2026-10-21-ci-pipeline.md))
+- GitHub Actions workflow (`.github/workflows/ci.yml`) with four jobs: `verify`, `broker`, `audit`, `images`.
+- `verify` runs `pnpm verify` against real PostgreSQL 18 and Redis 8 containers, with throwaway JWT and PII keys.
+- `broker` runs the NATS broker suite against a NATS container with JetStream.
+- `audit` runs `pnpm audit --audit-level high` and a secret scan with gitleaks (v8.21.1).
+- `images` builds the three Docker images (`Dockerfile.web`, `Dockerfile.worker`, `Dockerfile.auth`) without pushing.
+- Updated documentation: `docs/PLAN/16-TESTING-STRATEGY.md`, `docs/PLAN/17-SECURITY-BASELINE.md`, `docs/PLAN/22-RISK-REGISTER.md`.
+- Updated `TASKS/PROGRESS.md` (P0-09 DONE, P1-18 TODO).
+
 ### 2026-09-14 — Open questions answered
 
 **Decided** — ([record](./records/2026-09-14-open-question-answers.md))

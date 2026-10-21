@@ -1,4 +1,4 @@
-import { log } from '@hrms/observability';
+import { log, clientAddress } from '@hrms/observability';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { ErrorCode, type ApiError } from '@hrms/contracts';
@@ -47,10 +47,7 @@ function fail(status: number, code: ErrorCode, message: string, correlationId: s
 function baseContext(req: Request) {
   return {
     correlationId: req.headers.get('x-correlation-id') ?? randomUUID(),
-    ip:
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-      req.headers.get('x-real-ip') ??
-      undefined,
+    ip: clientAddress(req.headers),
   };
 }
 

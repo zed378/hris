@@ -66,8 +66,8 @@ In order. Each is unblocked today.
 | P0-06 | `pnpm verify` | — | — | DONE (retro) | — |
 | P0-07 | Interview five HR practitioners | M | P1 | TODO | people |
 | P0-08 | Collect real artefacts | M | P1 | TODO | P0-07 |
-| P0-09 | CI pipeline | M | **P0** | TODO | — |
-| P0-10 | Staging environment | L | P1 | TODO | P0-09; a host |
+| P0-09 | CI pipeline | M | **P0** | DONE | — |
+| P0-10 | Staging environment | L | P1 | TODO | a host (operator action) |
 | P0-11 | Spike S2: import at 5,000 rows | S | P3 | TODO | — |
 | P0-12 | Spike S3: 100,000 concurrent transactions | M | P2 | TODO | — |
 | P0-13 | Spike S1: PPh 21 TER, 30/30 | L | — | BLOCKED | Gate C |
@@ -94,7 +94,7 @@ In order. Each is unblocked today.
 | P1-15 | Composite tenant FK for documents | — | — | DONE (retro) | — |
 | P1-16 | Error tracking | M | P1 | BLOCKED | `OQ-09` |
 | P1-17 | Uptime check | S | P2 | TODO | P0-10 |
-| P1-18 | Make Phase 1 CI gates real | S | P1 | BLOCKED | P0-09 |
+| P1-18 | Make Phase 1 CI gates real | S | P1 | TODO | — (branch protection is an operator action in GitHub settings, not code) |
 
 ## Phase 2 — Employees
 
@@ -126,7 +126,7 @@ In order. Each is unblocked today.
 | P3-09 | Live dashboard | — | — | DONE (retro) | — |
 | P3-10 | Tenant time zones | — | — | DONE (retro) | — |
 | P3-11 | Office network verification | — | — | DONE (retro) | defect: P3-12 |
-| P3-12 | Trusted client address | M | **P0** | TODO | — |
+| P3-12 | Trusted client address | M | **P0** | DONE | — |
 | P3-13 | Run `work_date` backfill | S | P1 | TODO | — |
 | P3-14 | Lighthouse on pocket pages | S | P1 | TODO | — |
 | P3-15 | Chromium, WebKit, two devices | M | P1 | BLOCKED | devices |

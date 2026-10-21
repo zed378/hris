@@ -1,4 +1,4 @@
-import { log } from '@hrms/observability';
+import { log, clientAddressMode } from '@hrms/observability';
 import { appClient } from '@hrms/db';
 import { definePublicRoute } from '@/lib/define-route.ts';
 import { rateLimitBackend } from '@hrms/cache';
@@ -58,6 +58,7 @@ export const GET = definePublicRoute('GET /api/ready', async () => {
         checkMs: Date.now() - started,
         rateLimit: rateLimitBackend(),
         signing: await signingMode(),
+        clientAddress: clientAddressMode(),
       }),
       {
         status: 200,

@@ -62,6 +62,7 @@ export async function authorizeRemotely(
   module: string,
   permission: string | null,
   correlationId: string,
+  clientIp?: string,
 ): Promise<RemoteOutcome> {
   const base = authServiceUrl();
   if (!base) return { kind: 'unavailable' };
@@ -84,6 +85,13 @@ export async function authorizeRemotely(
         // Carried across the boundary so one request produces one story in the
         // logs, rather than two that have to be matched by timestamp.
         'x-correlation-id': correlationId,
+        // The address THIS process already resolved from its own inbound
+        // request (P3-12). The auth service sits behind no proxy of its own in
+        // the split topology, so without this it would see only the backend's
+        // address — collapsing every tenant's users into one rate-limit bucket.
+        // The auth service trusts this header only on requests carrying the
+        // internal secret, so a client cannot inject it.
+        ...(clientIp ? { 'x-forwarded-client-ip': clientIp } : {}),
       },
       body: JSON.stringify({ token, module, permission }),
       signal: AbortSignal.timeout(TIMEOUT_MS),

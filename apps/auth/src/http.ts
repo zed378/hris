@@ -1,6 +1,8 @@
+import { timingSafeEqual } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ErrorCode, ApiError } from '@hrms/contracts';
+import { clientAddress, forwardedClientAddress } from '@hrms/observability';
 
 /**
  * The small amount of HTTP this service needs (docs/PLAN/14 stage 6).
@@ -32,15 +34,41 @@ export interface RequestContext {
  * joined into one story. Without it the split turns every investigation into
  * matching timestamps by eye (docs/PLAN/14 §9.3).
  */
+/**
+ * Constant-time comparison of the presented internal secret against the
+ * configured one, or `false` when either side is missing.
+ *
+ * A character-by-character comparison that short-circuits would let a caller
+ * learn the secret one byte at a time over the loopback interface. The secret
+ * guards `/internal/*`, and its job is to be unguessable even to anything that
+ * can reach this port.
+ */
+function internalSecretValid(presented: string | string[] | undefined): boolean {
+  const expected = process.env['AUTH_INTERNAL_SECRET'];
+  if (!expected || typeof presented !== 'string') return false;
+
+  const a = Buffer.from(presented);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export function contextFrom(req: IncomingMessage): RequestContext {
   const header = (name: string): string | undefined => {
     const value = req.headers[name];
     return Array.isArray(value) ? value[0] : value;
   };
 
+  const secretOk = internalSecretValid(req.headers['x-internal-secret']);
+
   return {
     correlationId: header('x-correlation-id') ?? randomUUID(),
-    ip: header('x-forwarded-for')?.split(',')[0]?.trim() ?? header('x-real-ip'),
+    // The backend already resolved the original caller's address and passed it
+    // in `x-forwarded-client-ip` (P3-12). This service sits behind no proxy of
+    // its own in the split topology, so its own headers show only the backend.
+    // The header is trusted only when the caller proved itself with the
+    // internal secret — without it, the header does not exist as far as this
+    // service is concerned, and the same local resolution applies as before.
+    ip: forwardedClientAddress(req.headers, secretOk) ?? clientAddress(req.headers),
     userAgent: header('user-agent'),
   };
 }

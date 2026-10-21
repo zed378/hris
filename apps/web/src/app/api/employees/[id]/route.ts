@@ -21,7 +21,12 @@ export const GET = defineRoute('GET /api/employees/[id]', async (_req, ctx) => {
 
   try {
     return NextResponse.json(
-      await getEmployee(ctx.tx, ctx.tenantId, id, ctx.access.permissions.includes(UNMASK)),
+      await getEmployee(ctx.tx, ctx.tenantId, id, ctx.access.permissions.includes(UNMASK), {
+        actorUserId: ctx.userId,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        correlationId: ctx.correlationId,
+      }),
     );
   } catch (error) {
     if (error instanceof MaskedValueError || error instanceof InvalidIdentifierError) {

@@ -20,11 +20,10 @@ Assessed 2026-09-13.
 
 | # | Risk | Prob. | Impact | Current control | Gap | Owner doc |
 |---|---|---|---|---|---|---|
-| **F1** | **Client-controlled `X-Forwarded-For` defeats per-address rate limits and office-network verification** | **High** | High | None — the first header entry is trusted | Take the address the trusted proxy appended; test with a spoofed header | `SECURITY/02` §4 |
+| **F1** | **Client-controlled `X-Forwarded-For` defeats per-address rate limits and office-network verification** | **High** | High | `clientAddress()` reads only `X-Real-IP` when `TRUST_PROXY=true`; otherwise `unknown` | — | `SECURITY/02` §4 |
 | R1 | Payroll calculations are inaccurate | Medium | **Critical** | Formula allowlist, period-based structures | Statutory components, golden regression, parallel run — Gate C | `12` Phase 5 |
 | R9 | A personal data incident under the PDP Act | Low | **Critical** | Encryption, redaction, access audit, retention | No incident playbook rehearsed; no alerting | `SECURITY/04` |
 | R18 | Without MFA, one leaked tenant password opens HR data | Medium | High | Lockout, refresh reuse detection | No tenant-user MFA; no new-device notification | `17` §9 |
-| **F2** | **No CI: every "CI gate" runs only when someone remembers** | **High** | High | `pnpm verify` locally | A pipeline running `verify`, image builds, dependency audit | `16` §4 |
 | **F3** | **No alerting: failures are logged and unseen** | **High** | High | Structured logs, readiness facts, metrics | Alert rules, error tracking, uptime check | `19` §6 |
 | **F4** | **Every backup lives on the database host, and the PII keys are in no backup at all** | Medium | **Critical** | Daily dump + storage archive + WAL, on host volumes | Off-host copies; a key escrow procedure | `20` §6–7 |
 | R39 / R47 | Mock GPS in a browser; customers believe punching is spoof-proof | High | High | `WEB_UNVERIFIED_DEVICE` penalty, review queue, office network | Office network is bypassable (F1); sales material not written | `10`, `SECURITY/02` |
@@ -64,6 +63,7 @@ Assessed 2026-09-13.
 | # | Risk | Why controlled | What would reopen it |
 |---|---|---|---|
 | R4 | Cross-tenant data leak | FORCE RLS, `NOBYPASSRLS`, composite FKs, per-tenant channels, tests | A new table without RLS; a runtime role granted ownership |
+| **F2** | **CI gates run only when someone remembers** | GitHub Actions pipeline (`.github/workflows/ci.yml`): `pnpm verify` against real PostgreSQL and Redis, the broker suite over NATS, `pnpm audit`, gitleaks, and the three image builds (`P0-09`, 2026-10-21) | Branch protection on `main` not yet configured — an operator action in GitHub settings, not code |
 | R15 | `X-Tenant-ID` trusted without the token | Header only confirms; `TENANT_MISMATCH` test | A route not going through `defineRoute` |
 | R16 / S2 | Stale entitlement or permission cache | Access version in the key; tenant generation | Caching keyed without the version |
 | R19 | Accidental tenant purge | No purge path exists | Building one |

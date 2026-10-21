@@ -1,0 +1,219 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# ---------------------------------------------------------------------------
+# P0-09 — CI pipeline
+#
+# Four jobs, all required for merge:
+#   verify   — PostgreSQL 18 + Redis 8, runs pnpm verify
+#   broker   — NATS with JetStream, runs the broker suite
+#   audit    — dependency audit + secret scan with gitleaks
+#   images   — builds the three Dockerfiles (no push)
+# ---------------------------------------------------------------------------
+
+jobs:
+
+  # -- verify -----------------------------------------------------------------
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    services:
+      # postgres:18-alpine is the project's standard runtime (docs/PLAN/02,
+      # docker-compose.dev.yml). Port 5432 matches the CI container default;
+      # the dev compose uses 5433 only to avoid colliding with a local install.
+      postgres:
+        image: postgres:18-alpine
+        ports: [5432:5432]
+        env:
+          POSTGRES_USER: hrms_owner
+          POSTGRES_PASSWORD: hrms_dev_password
+          POSTGRES_DB: hrms
+        options: >-
+          --health-cmd "pg_isready -U hrms_owner -d hrms"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+        volumes:
+          - ./ops/initdb:/docker-entrypoint-initdb.d:ro
+
+      # redis:8-alpine is the project's standard (docker-compose.dev.yml).
+      # REDIS_URL is set so that suites which distinguish "unset" from
+      # "unreachable" FAIL when Redis is broken, rather than silently skip
+      # (docs/PLAN/16 §1 rule 5).
+      redis:
+        image: redis:8-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Throwaway keys — never commit real material.
+      # JWT keys: EdDSA Ed25519, one key per realm.
+      # PII keys: 32 random bytes each, base64url.
+      - id: keys
+        run: |
+          node - <<'NODE'
+          const { randomBytes } = require('crypto');
+          const { generateKeyPair, exportJWK } = require('jose');
+          const { randomUUID } = require('crypto');
+          (async () => {
+            const { publicKey, privateKey } = await generateKeyPair('EdDSA', { extractable: true });
+            const kid = randomUUID();
+            const privateJwk = { ...(await exportJWK(privateKey)), alg: 'EdDSA', kid, use: 'sig' };
+            const publicJwk = { ...(await exportJWK(publicKey)), alg: 'EdDSA', kid, use: 'sig' };
+            const piiEnc = randomBytes(32).toString('base64url');
+            const piiIdx = randomBytes(32).toString('base64url');
+            console.log(`jwt_private_jwk=${JSON.stringify(privateJwk)}`);
+            console.log(`jwt_public_jwks=${JSON.stringify({ keys: [publicJwk] })}`);
+            console.log(`pii_enc=${piiEnc}`);
+            console.log(`pii_idx=${piiIdx}`);
+          })();
+          NODE
+
+      - name: install
+        # --frozen-lockfile: the lockfile is the source of truth for CI. A drift
+        # between lockfile and manifest is a supply-chain change that must be
+        # reviewed, not silently absorbed.
+        run: pnpm install --frozen-lockfile
+
+      - name: migrate
+        env:
+          DATABASE_URL: postgresql://hrms_owner:hrms_dev_password@localhost:5432/hrms?schema=public
+          DATABASE_URL_APP: postgresql://hrms_app:hrms_app_password@localhost:5432/hrms?schema=public
+          DATABASE_URL_AUTH: postgresql://hrms_auth:hrms_auth_password@localhost:5432/hrms?schema=public
+          DATABASE_URL_WORKER: postgresql://hrms_worker:hrms_worker_password@localhost:5432/hrms?schema=public
+          DATABASE_URL_PLATFORM: postgresql://hrms_platform:hrms_platform_password@localhost:5432/hrms?schema=public
+          REDIS_URL: redis://localhost:6379
+          JWT_PRIVATE_JWK: ${{ steps.keys.outputs.jwt_private_jwk }}
+          JWT_PUBLIC_JWKS: ${{ steps.keys.outputs.jwt_public_jwks }}
+          PII_ENCRYPTION_KEY: ${{ steps.keys.outputs.pii_enc }}
+          PII_INDEX_KEY: ${{ steps.keys.outputs.pii_idx }}
+        run: pnpm db:migrate
+
+      - name: verify
+        env:
+          DATABASE_URL: postgresql://hrms_owner:hrms_dev_password@localhost:5432/hrms?schema=public
+          DATABASE_URL_APP: postgresql://hrms_app:hrms_app_password@localhost:5432/hrms?schema=public
+          DATABASE_URL_AUTH: postgresql://hrms_auth:hrms_auth_password@localhost:5432/hrms?schema=public
+          DATABASE_URL_WORKER: postgresql://hrms_worker:hrms_worker_password@localhost:5432/hrms?schema=public
+          DATABASE_URL_PLATFORM: postgresql://hrms_platform:hrms_platform_password@localhost:5432/hrms?schema=public
+          REDIS_URL: redis://localhost:6379
+          JWT_PRIVATE_JWK: ${{ steps.keys.outputs.jwt_private_jwk }}
+          JWT_PUBLIC_JWKS: ${{ steps.keys.outputs.jwt_public_jwks }}
+          PII_ENCRYPTION_KEY: ${{ steps.keys.outputs.pii_enc }}
+          PII_INDEX_KEY: ${{ steps.keys.outputs.pii_idx }}
+        run: pnpm verify
+
+  # -- broker -----------------------------------------------------------------
+  broker:
+    name: broker
+    runs-on: ubuntu-latest
+    needs: verify
+    services:
+      # NATS with JetStream (-js) is the broker implementation under test
+      # (apps/worker/src/broker.ts, docs/PLAN/14 stage 7).
+      nats:
+        image: nats:alpine
+        ports: [4222:4222]
+        command: ["-js"]
+        options: >-
+          --health-cmd "nc -z localhost 4222"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: broker tests
+        env:
+          DATABASE_URL: postgresql://hrms_owner:hrms_dev_password@localhost:5432/hrms?schema=public
+          BROKER_URL: nats://localhost:4222
+        run: pnpm --filter @hrms/worker test
+
+  # -- audit ------------------------------------------------------------------
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    needs: verify
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # gitleaks needs the full history
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Dependency audit: refuse high+ vulnerabilities.
+      - name: npm audit
+        run: pnpm audit --audit-level high
+
+      # Secret scan: gitleaks pinned to v8.21.1.
+      # Substitution note: if gitleaks-action is unavailable, run
+      # `docker run --rm -v ${{ github.workspace }}:/src zricethezav/gitleaks:8.21.1 detect
+      # --source /src --report-path /tmp/gitleaks.json --report-format json`
+      # and fail on any finding. Recorded in MEMORY/records/2026-10-21-ci-pipeline.md.
+      - name: gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          version: "8.21.1"
+          args: detect --source=. --report-path=/tmp/gitleaks.json --report-format json
+
+  # -- images -----------------------------------------------------------------
+  images:
+    name: images
+    runs-on: ubuntu-latest
+    needs: [verify, broker, audit]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build web
+        run: docker build -t hrms-web:ci -f ops/Dockerfile.web .
+
+      - name: build worker
+        run: docker build -t hrms-worker:ci -f ops/Dockerfile.worker .
+
+      - name: build auth
+        run: docker build -t hrms-auth:ci -f ops/Dockerfile.auth .

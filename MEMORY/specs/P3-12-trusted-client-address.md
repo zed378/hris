@@ -1,6 +1,6 @@
 # P3-12 — Take the Client Address From the Trusted Proxy
 
-Status: **Draft** — sections 6, 10, 21 carry decisions for review
+Status: **Implemented** — all sections resolved; see `MEMORY/CHANGELOG.md` 2026-10-21
 Task: `TASKS/PHASE-3-ATTENDANCE-PWA.md` P3-12
 Plan refs: `docs/SECURITY/02` §4, `docs/PLAN/15` §4 and §9, `docs/PLAN/23` worked example, `docs/PLAN/20` §1, `ops/proxy/proxy-common.inc`, risk F1
 

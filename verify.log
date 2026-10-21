@@ -1,0 +1,339 @@
+$ pnpm lint:migrations && pnpm lint && turbo run typecheck test build
+$ node ops/scripts/lint-migrations.mjs
+lint-migrations: 32 migrasi diperiksa, bersih.
+$ eslint packages apps
+[boundaries][warning]: The 'mode' option in element descriptors is deprecated and will be removed in a future major version.
+  Use 'partialMatch: false' instead of 'mode: "full"'. Remove 'mode: "folder"' (it is the default). More info: https://www.jsboundaries.dev/docs/releases/migration-guides/v6-to-v7/#deprecated-mode-in-element-descriptors
+
+• turbo 2.10.10
+
+   • Packages in scope: @hrms/auth-service, @hrms/cache, @hrms/contracts, @hrms/core, @hrms/db, @hrms/observability, @hrms/web, @hrms/worker
+   • Running typecheck, test, build in 8 packages
+   • Remote caching disabled
+
+@hrms/observability:typecheck: cache hit, replaying logs efa763cb719a6607
+@hrms/cache:typecheck: cache hit, replaying logs 868c9a6d9aff1cb1
+@hrms/db:typecheck: cache hit, replaying logs 47081406270d5d4a
+@hrms/contracts:test: cache hit, replaying logs a26c3e45f4a0928d
+@hrms/observability:typecheck: $ tsc --noEmit
+@hrms/contracts:typecheck: cache hit, replaying logs f09f8d2d849cb65a
+@hrms/cache:typecheck: $ tsc --noEmit
+@hrms/cache:test: cache hit, replaying logs c4f8b4e3389cc8c3
+@hrms/contracts:test: $ vitest run --passWithNoTests
+@hrms/contracts:test: 
+@hrms/contracts:test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/Zed/Documents/Project/hris/packages/contracts[39m
+@hrms/contracts:test: 
+@hrms/contracts:test: No test files found, exiting with code 0
+@hrms/contracts:test: 
+@hrms/contracts:test: [2minclude: [22m[33m**/*.{test,spec}.?(c|m)[jt]s?(x)[39m
+@hrms/contracts:test: [2mexclude:  [22m[33m**/node_modules/**[2m, [22m**/.git/**[39m
+@hrms/contracts:test: 
+@hrms/db:test: cache hit, replaying logs 105870e3c3aaaea9
+@hrms/db:typecheck: $ tsc --noEmit
+@hrms/core:test: cache hit, replaying logs e9d3130aeb76ae94
+@hrms/cache:test: $ vitest run --passWithNoTests
+@hrms/cache:test: 
+@hrms/cache:test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/Zed/Documents/Project/hris/packages/cache[39m
+@hrms/cache:test: 
+@hrms/cache:test: [90mstdout[2m | test/rate-limit.test.ts
+@hrms/cache:test: [22m[39m{"ts":"2026-10-21T04:54:38.899Z","level":"info","scope":"redis","event":"ready"}
+@hrms/cache:test: 
+@hrms/cache:test: [90mstdout[2m | test/rate-limit.test.ts[2m > [22m[2mrate limiting with Redis[2m > [22m[2mdoes not bypass the shared counter on the first call after a cold start
+@hrms/cache:test: [22m[39m{"ts":"2026-10-21T04:54:40.232Z","level":"info","scope":"redis","event":"ready"}
+@hrms/cache:test: 
+@hrms/cache:test: [90mstderr[2m | test/rate-limit.test.ts[2m > [22m[2mwithout Redis[2m > [22m[2mfails open to the local counter when Redis is configured but dead
+@hrms/contracts:typecheck: $ tsc --noEmit
+@hrms/cache:test: [22m[39m{"ts":"2026-10-21T04:54:40.300Z","level":"error","scope":"redis","event":"unavailable","error":{"name":"Error","message":"connect ECONNREFUSED 127.0.0.1:6399","code":"ECONNREFUSED"}}
+@hrms/cache:test: 
+@hrms/cache:test:  [32m✓[39m test/rate-limit.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 7564[2mms[22m[39m
+@hrms/cache:test:      [33m[2m✓[22m[39m lets the window expire and starts counting again [33m 1218[2mms[22m[39m
+@hrms/cache:test:      [33m[2m✓[22m[39m fails open to the local counter when Redis is configured but dead [33m 6177[2mms[22m[39m
+@hrms/cache:test: [90mstdout[2m | test/access-cache.test.ts
+@hrms/observability:test: cache hit, replaying logs ab59f3cbc24fb180
+@hrms/db:test: $ vitest run
+@hrms/db:test: 
+@hrms/db:test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/Zed/Documents/Project/hris/packages/db[39m
+@hrms/web:typecheck: cache hit, replaying logs d00b065853088161
+@hrms/cache:test: [22m[39m{"ts":"2026-10-21T04:54:48.891Z","level":"info","scope":"redis","event":"ready"}
+@hrms/cache:test: 
+@hrms/cache:test:  [32m✓[39m test/access-cache.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 213[2mms[22m[39m
+@hrms/cache:test: 
+@hrms/cache:test: [2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+@hrms/cache:test: [2m      Tests [22m [1m[32m26 passed[39m[22m[90m (26)[39m
+@hrms/cache:test: [2m   Start at [22m 11:54:36
+@hrms/cache:test: [2m   Duration [22m 12.37s[2m (transform 362ms, setup 0ms, import 1.76s, tests 7.78s, environment 1ms)[22m
+@hrms/core:test: $ vitest run
+@hrms/observability:test: $ vitest run --passWithNoTests
+@hrms/observability:test: 
+@hrms/observability:test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/Zed/Documents/Project/hris/packages/observability[39m
+@hrms/web:test: cache hit, replaying logs fa3c46cd514bb6a7
+@hrms/cache:test: 
+@hrms/observability:test: 
+@hrms/observability:test:  [32m✓[39m test/logger.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+@hrms/observability:test:  [32m✓[39m test/metrics.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+@hrms/db:test: 
+@hrms/db:test:  [32m✓[39m test/tenant-isolation.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 2313[2mms[22m[39m
+@hrms/auth-service:typecheck: cache hit, replaying logs c57548738014a364
+@hrms/web:test: $ vitest run
+@hrms/web:test: [33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@hrms/core:typecheck: cache hit, replaying logs 7969058513553c0b
+@hrms/core:test: 
+@hrms/core:test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/Zed/Documents/Project/hris/packages/core[39m
+@hrms/web:typecheck: $ tsc --noEmit
+@hrms/observability:test:  [32m✓[39m test/client-address.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 183[2mms[22m[39m
+@hrms/observability:test: 
+@hrms/observability:test: [2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+@hrms/db:test:      [33m[2m✓[22m[39m hanya melihat baris milik tenant pada konteks [33m 495[2mms[22m[39m
+@hrms/db:test:  [32m✓[39m test/rls-coverage.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 923[2mms[22m[39m
+@hrms/db:test:      [33m[2m✓[22m[39m setiap tabel ber-tenant_id punya RLS aktif, FORCE, dan kebijakan isolasi [33m 699[2mms[22m[39m
+@hrms/web:test:   - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@hrms/web:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+@hrms/web:test: 
+@hrms/auth-service:typecheck: $ tsc --noEmit
+@hrms/db:test:  [32m✓[39m test/document-kinds.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 765[2mms[22m[39m
+@hrms/db:test:      [33m[2m✓[22m[39m sama persis antara TypeScript dan CHECK constraint basis data [33m 748[2mms[22m[39m
+@hrms/web:test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/Zed/Documents/Project/hris/apps/web[39m
+@hrms/auth-service:test: cache hit, replaying logs bba9ecbd11e0575b
+@hrms/db:test:  [32m✓[39m test/online-migrations.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+@hrms/db:test: 
+@hrms/db:test: [2m Test Files [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+@hrms/observability:test: [2m      Tests [22m [1m[32m33 passed[39m[22m[90m (33)[39m
+@hrms/observability:test: [2m   Start at [22m 11:54:33
+@hrms/observability:test: [2m   Duration [22m 1.82s[2m (transform 281ms, setup 0ms, import 505ms, tests 223ms, environment 1ms)[22m
+@hrms/observability:test: 
+@hrms/core:typecheck: $ tsc --noEmit
+@hrms/core:test: 
+@hrms/core:test:  [32m✓[39m test/jwt-signing.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 625[2mms[22m[39m
+@hrms/core:test: [90mstdout[2m | test/authorize.test.ts[2m > [22m[2mdecideAccess[2m > [22m[2mallows a subscribed module and a held permission
+@hrms/core:test: [22m[39m{"ts":"2026-10-21T04:54:42.988Z","level":"info","scope":"redis","event":"ready"}
+@hrms/auth-service:test: $ vitest run --passWithNoTests
+@hrms/auth-service:test: 
+@hrms/auth-service:test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/Zed/Documents/Project/hris/apps/auth[39m
+@hrms/auth-service:test: 
+@hrms/core:test: 
+@hrms/core:test:  [32m✓[39m test/authorize.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 2752[2mms[22m[39m
+@hrms/web:test: 
+@hrms/web:test: [90mstdout[2m | test/gateway.test.ts[2m > [22m[2mthe gateway chain[2m > [22m[2mlets a properly entitled request through
+@hrms/web:test: [22m[39m{"ts":"2026-10-21T04:54:44.513Z","level":"info","scope":"redis","event":"ready"}
+@hrms/web:test: 
+@hrms/web:test: [90mstdout[2m | test/gateway.test.ts[2m > [22m[2mthe access version (docs/PLAN/14 stage 2)[2m > [22m[2mrefuses a token whose access version is behind the record
+@hrms/web:test: [22m[39m{"ts":"2026-10-21T04:54:45.440Z","level":"info","correlationId":"d086ead6-b712-446a-b444-4c1f607b4983","tenantId":"a06e6efc-ba1e-4fd4-8f3f-df7d74db95d0","scope":"access-version","userId":"809fa076-1df8-4b68-a27e-ba5ebc5e139b","routeId":"GET /api/leave/balances","tokenVersion":"[disunting]","currentVersion":1}
+@hrms/worker:typecheck: cache hit, replaying logs 4adbb4d60e094e94
+@hrms/db:test: [2m      Tests [22m [1m[32m39 passed[39m[22m[90m (39)[39m
+@hrms/db:test: [2m   Start at [22m 11:54:35
+@hrms/auth-service:test: [90mstdout[2m | test/service.test.ts[2m > [22m[2mrouting[2m > [22m[2manswers health and readiness
+@hrms/auth-service:test: [22m[39m{"ts":"2026-10-21T04:54:53.954Z","level":"info","scope":"redis","event":"ready"}
+@hrms/auth-service:test: 
+@hrms/auth-service:test:  [32m✓[39m test/service.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 5498[2mms[22m[39m
+@hrms/db:test: [2m   Duration [22m 11.40s[2m (transform 759ms, setup 0ms, import 2.70s, tests 4.02s, environment 1ms)[22m
+@hrms/worker:test: cache hit, replaying logs 4e9a3109a52ba5ec
+@hrms/core:test:      [33m[2m✓[22m[39m allows a subscribed module and a held permission [33m 432[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/leave-approver.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 2878[2mms[22m[39m
+@hrms/auth-service:test:      [33m[2m✓[22m[39m answers health and readiness [33m 395[2mms[22m[39m
+@hrms/auth-service:test:      [33m[2m✓[22m[39m issues a token and sets the refresh cookie [33m 628[2mms[22m[39m
+@hrms/worker:test: $ vitest run --passWithNoTests
+@hrms/auth-service:test:      [33m[2m✓[22m[39m refreshes with the cookie and rotates it [33m 305[2mms[22m[39m
+@hrms/auth-service:test: 
+@hrms/worker:typecheck: $ tsc --noEmit
+@hrms/core:test:  [32m✓[39m test/trends.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 1689[2mms[22m[39m
+@hrms/core:test:      [33m[2m✓[22m[39m returns the requested number of months, oldest first, ending with the current one [33m 376[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/photo.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/workdate.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/pii.test.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 77[2mms[22m[39m
+@hrms/db:test: 
+@hrms/auth-service:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@hrms/auth-service:test: [2m      Tests [22m [1m[32m22 passed[39m[22m[90m (22)[39m
+@hrms/auth-service:test: [2m   Start at [22m 11:54:42
+@hrms/auth-service:test: [2m   Duration [22m 13.52s[2m (transform 3.70s, setup 0ms, import 6.33s, tests 5.50s, environment 0ms)[22m
+@hrms/auth-service:test: 
+@hrms/web:test: 
+@hrms/web:test: [90mstdout[2m | test/gateway.test.ts[2m > [22m[2mthe access version (docs/PLAN/14 stage 2)[2m > [22m[2mrefuses a token whose access version is ahead of the record
+@hrms/core:test:  [32m✓[39m test/formula.test.ts [2m([22m[2m33 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/import-schema.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/pii-rotation.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/office-network.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/payroll-order.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/import-pii.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/leave.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/leave-accrual.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/device-format.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/trust.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+@hrms/core:test:  [32m✓[39m test/documents.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+@hrms/core:test: 
+@hrms/core:test: [2m Test Files [22m [1m[32m18 passed[39m[22m[90m (18)[39m
+@hrms/core:test: [2m      Tests [22m [1m[32m249 passed[39m[22m[90m (249)[39m
+@hrms/core:test: [2m   Start at [22m 11:54:35
+@hrms/core:test: [2m   Duration [22m 34.88s[2m (transform 2.32s, setup 0ms, import 8.75s, tests 8.44s, environment 27ms)[22m
+@hrms/core:test: 
+@hrms/worker:test: 
+@hrms/worker:test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/Zed/Documents/Project/hris/apps/worker[39m
+@hrms/worker:test: 
+@hrms/web:test: [22m[39m{"ts":"2026-10-21T04:54:45.499Z","level":"info","correlationId":"c4e2524c-d1ba-4fbb-9d59-6c5bf1eecf64","tenantId":"a06e6efc-ba1e-4fd4-8f3f-df7d74db95d0","scope":"access-version","userId":"809fa076-1df8-4b68-a27e-ba5ebc5e139b","routeId":"GET /api/leave/balances","tokenVersion":"[disunting]","currentVersion":1}
+@hrms/web:test: 
+@hrms/worker:test: [90mstderr[2m | test/broker.test.ts
+@hrms/worker:test: [22m[39mNATS tidak berjalan — uji broker dilewati. Jalankan: docker run -d --name hrms-nats -p 4222:4222 nats:alpine -js
+@hrms/worker:test: 
+@hrms/web:test: [90mstdout[2m | test/gateway.test.ts[2m > [22m[2mthe access version (docs/PLAN/14 stage 2)[2m > [22m[2minvalidates outstanding tokens when the version is bumped, and the next one works
+@hrms/web:test: [22m[39m{"ts":"2026-10-21T04:54:45.614Z","level":"info","correlationId":"55861aed-4519-49a1-add9-533b95783bf4","tenantId":"a06e6efc-ba1e-4fd4-8f3f-df7d74db95d0","scope":"access-version","userId":"809fa076-1df8-4b68-a27e-ba5ebc5e139b","routeId":"GET /api/leave/balances","tokenVersion":"[disunting]","currentVersion":2}
+@hrms/web:test: 
+@hrms/web:test:  [32m✓[39m test/gateway.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 2330[2mms[22m[39m
+@hrms/web:test:      [33m[2m✓[22m[39m lets a properly entitled request through [33m 323[2mms[22m[39m
+@hrms/web:test:  [32m✓[39m test/offline-queue.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 292[2mms[22m[39m
+@hrms/web:test:  [32m✓[39m test/service-worker.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 161[2mms[22m[39m
+@hrms/web:test:  [32m✓[39m test/frontend-boundary.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+@hrms/worker:test:  [32m✓[39m test/broker.test.ts [2m([22m[2m7 tests[22m[2m | [22m[33m6 skipped[39m[2m)[22m[32m 10[2mms[22m[39m
+@hrms/worker:test: 
+@hrms/worker:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@hrms/worker:test: [2m      Tests [22m [1m[32m1 passed[39m[22m[2m | [22m[33m6 skipped[39m[90m (7)[39m
+@hrms/worker:test: [2m   Start at [22m 11:54:48
+@hrms/web:test:  [32m✓[39m test/cidr.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+@hrms/web:test:  [32m✓[39m test/menu-coverage.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+@hrms/web:test:  [32m✓[39m test/route-manifest.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+@hrms/worker:test: [2m   Duration [22m 16.32s[2m (transform 353ms, setup 0ms, import 14.49s, tests 10ms, environment 0ms)[22m
+@hrms/worker:test: 
+@hrms/web:test:  [32m✓[39m test/api-call-coverage.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+@hrms/web:test: 
+@hrms/web:test: [2m Test Files [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+@hrms/web:test: [2m      Tests [22m [1m[32m61 passed[39m[22m[90m (61)[39m
+@hrms/web:test: [2m   Start at [22m 11:54:37
+@hrms/web:test: [2m   Duration [22m 19.95s[2m (transform 2.64s, setup 0ms, import 5.43s, tests 2.95s, environment 5ms)[22m
+@hrms/web:test: 
+@hrms/web:build: cache hit, replaying logs cd04448fc4d0ff03
+@hrms/web:build: $ next build
+@hrms/web:build: ▲ Next.js 16.3.1 (Turbopack)
+@hrms/web:build: ✓ Running next.config.ts took 262ms
+@hrms/web:build: 
+@hrms/web:build:   Creating an optimized production build ...
+@hrms/web:build: ✓ Compiled successfully in 35.3s
+@hrms/web:build:   Running TypeScript ...
+@hrms/web:build:   Finished TypeScript in 16.1s ...
+@hrms/web:build:   Collecting page data using 15 workers ...
+@hrms/web:build:   Generating static pages using 15 workers (0/35) ...
+@hrms/web:build:   Generating static pages using 15 workers (8/35) 
+@hrms/web:build:   Generating static pages using 15 workers (17/35) 
+@hrms/web:build:   Generating static pages using 15 workers (26/35) 
+@hrms/web:build: ✓ Generating static pages using 15 workers (35/35) in 1066ms
+@hrms/web:build:   Finalizing page optimization ...
+@hrms/web:build: 
+@hrms/web:build: Route (app)
+@hrms/web:build: ┌ ○ /
+@hrms/web:build: ├ ○ /_not-found
+@hrms/web:build: ├ ○ /accept-invitation
+@hrms/web:build: ├ ○ /admin
+@hrms/web:build: ├ ƒ /admin/api/auth/login
+@hrms/web:build: ├ ƒ /admin/api/overview
+@hrms/web:build: ├ ƒ /admin/api/tenants
+@hrms/web:build: ├ ƒ /admin/api/tenants/detail
+@hrms/web:build: ├ ƒ /admin/api/tenants/status
+@hrms/web:build: ├ ƒ /api/.well-known/jwks.json
+@hrms/web:build: ├ ƒ /api/attendance/consent
+@hrms/web:build: ├ ƒ /api/attendance/device-import
+@hrms/web:build: ├ ƒ /api/attendance/holidays
+@hrms/web:build: ├ ƒ /api/attendance/live
+@hrms/web:build: ├ ƒ /api/attendance/manual-punch
+@hrms/web:build: ├ ƒ /api/attendance/me
+@hrms/web:build: ├ ƒ /api/attendance/photo
+@hrms/web:build: ├ ƒ /api/attendance/photo/[key]
+@hrms/web:build: ├ ƒ /api/attendance/policy
+@hrms/web:build: ├ ƒ /api/attendance/punch
+@hrms/web:build: ├ ƒ /api/attendance/records
+@hrms/web:build: ├ ƒ /api/attendance/records/export
+@hrms/web:build: ├ ƒ /api/attendance/review
+@hrms/web:build: ├ ƒ /api/attendance/schedules
+@hrms/web:build: ├ ƒ /api/attendance/shifts
+@hrms/web:build: ├ ƒ /api/attendance/work-sites
+@hrms/web:build: ├ ƒ /api/attendance/work-sites/[id]
+@hrms/web:build: ├ ƒ /api/audit
+@hrms/web:build: ├ ƒ /api/auth/invitation/accept
+@hrms/web:build: ├ ƒ /api/auth/login
+@hrms/web:build: ├ ƒ /api/auth/logout
+@hrms/web:build: ├ ƒ /api/auth/password/forgot
+@hrms/web:build: ├ ƒ /api/auth/password/reset
+@hrms/web:build: ├ ƒ /api/auth/refresh
+@hrms/web:build: ├ ƒ /api/contracts
+@hrms/web:build: ├ ƒ /api/contracts/expiring
+@hrms/web:build: ├ ƒ /api/dashboard
+@hrms/web:build: ├ ƒ /api/dashboard/trends
+@hrms/web:build: ├ ƒ /api/documents/[docId]
+@hrms/web:build: ├ ƒ /api/employees
+@hrms/web:build: ├ ƒ /api/employees/[id]
+@hrms/web:build: ├ ƒ /api/employees/[id]/documents
+@hrms/web:build: ├ ƒ /api/employees/bulk
+@hrms/web:build: ├ ƒ /api/employees/export
+@hrms/web:build: ├ ƒ /api/employees/import
+@hrms/web:build: ├ ƒ /api/employees/import/[id]
+@hrms/web:build: ├ ƒ /api/employees/import/[id]/commit
+@hrms/web:build: ├ ƒ /api/employees/template
+@hrms/web:build: ├ ƒ /api/health
+@hrms/web:build: ├ ƒ /api/leave/approvers
+@hrms/web:build: ├ ƒ /api/leave/attachments
+@hrms/web:build: ├ ƒ /api/leave/attachments/[key]
+@hrms/web:build: ├ ƒ /api/leave/balances
+@hrms/web:build: ├ ƒ /api/leave/requests
+@hrms/web:build: ├ ƒ /api/leave/requests/[id]/decision
+@hrms/web:build: ├ ƒ /api/leave/requests/export
+@hrms/web:build: ├ ƒ /api/leave/types
+@hrms/web:build: ├ ƒ /api/me/bootstrap
+@hrms/web:build: ├ ƒ /api/metrics
+@hrms/web:build: ├ ƒ /api/notifications/subscriptions
+@hrms/web:build: ├ ƒ /api/openapi.json
+@hrms/web:build: ├ ƒ /api/org/departments
+@hrms/web:build: ├ ƒ /api/org/placements
+@hrms/web:build: ├ ƒ /api/org/positions
+@hrms/web:build: ├ ƒ /api/payroll/components
+@hrms/web:build: ├ ƒ /api/payroll/payslips
+@hrms/web:build: ├ ƒ /api/payroll/runs
+@hrms/web:build: ├ ƒ /api/payroll/runs/[id]
+@hrms/web:build: ├ ƒ /api/payroll/runs/export
+@hrms/web:build: ├ ƒ /api/payroll/salary
+@hrms/web:build: ├ ƒ /api/ready
+@hrms/web:build: ├ ƒ /api/reports/attendance-monthly
+@hrms/web:build: ├ ƒ /api/roles
+@hrms/web:build: ├ ƒ /api/roles/[id]/permissions
+@hrms/web:build: ├ ƒ /api/subscription
+@hrms/web:build: ├ ƒ /api/tenant/export
+@hrms/web:build: ├ ƒ /api/tenants/register
+@hrms/web:build: ├ ƒ /api/users
+@hrms/web:build: ├ ƒ /api/users/[id]/grants
+@hrms/web:build: ├ ƒ /api/users/from-employees
+@hrms/web:build: ├ ○ /attendance/consent
+@hrms/web:build: ├ ○ /attendance/device-import
+@hrms/web:build: ├ ○ /attendance/live
+@hrms/web:build: ├ ○ /attendance/me
+@hrms/web:build: ├ ○ /attendance/punch
+@hrms/web:build: ├ ○ /attendance/records
+@hrms/web:build: ├ ○ /attendance/review
+@hrms/web:build: ├ ○ /attendance/shifts
+@hrms/web:build: ├ ○ /attendance/sites
+@hrms/web:build: ├ ○ /employees
+@hrms/web:build: ├ ○ /employees/contracts
+@hrms/web:build: ├ ○ /employees/documents
+@hrms/web:build: ├ ○ /employees/grid
+@hrms/web:build: ├ ○ /employees/import
+@hrms/web:build: ├ ○ /icon.svg
+@hrms/web:build: ├ ○ /leave/approvals
+@hrms/web:build: ├ ○ /leave/calendar
+@hrms/web:build: ├ ○ /leave/me
+@hrms/web:build: ├ ○ /leave/policies
+@hrms/web:build: ├ ○ /login
+@hrms/web:build: ├ ƒ /modules/[code]
+@hrms/web:build: ├ ○ /payroll/components
+@hrms/web:build: ├ ○ /payroll/me
+@hrms/web:build: ├ ○ /payroll/runs
+@hrms/web:build: ├ ○ /payroll/structures
+@hrms/web:build: ├ ○ /register
+@hrms/web:build: ├ ○ /reset-password
+@hrms/web:build: ├ ○ /settings/audit
+@hrms/web:build: ├ ○ /settings/roles
+@hrms/web:build: ├ ○ /settings/subscription
+@hrms/web:build: └ ○ /settings/users
+@hrms/web:build: 
+@hrms/web:build: 
+@hrms/web:build: ○  (Static)   prerendered as static content
+@hrms/web:build: ƒ  (Dynamic)  server-rendered on demand
+@hrms/web:build: 
+
+ Tasks:    17 successful, 17 total
+Cached:    17 cached, 17 total
+  Time:    194ms >>> FULL TURBO
+
