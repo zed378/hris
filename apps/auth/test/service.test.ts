@@ -13,7 +13,7 @@ loadEnv({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env'
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { disconnectAll } from '@hrms/db';
-import { disconnectRedis, resetAccessCache } from '@hrms/cache';
+import { disconnectRedis, redis, redisReady, resetAccessCache } from '@hrms/cache';
 import { issueAccessToken } from '@hrms/core/auth';
 import { createAuthServer } from '../src/server.ts';
 
@@ -77,6 +77,15 @@ async function currentVersion(): Promise<number> {
 }
 
 beforeAll(async () => {
+  // Without a trusted proxy every request here counts against one shared
+  // "unknown" address bucket in Redis, and the password-reset limit is small:
+  // a second run inside its window answered 429 and failed a test about
+  // enumeration, not rate limiting. Each run starts from empty buckets.
+  if (await redisReady()) {
+    const keys = await redis()!.keys('rl:auth:*:unknown');
+    if (keys.length > 0) await redis()!.del(...keys);
+  }
+
   process.env['AUTH_INTERNAL_SECRET'] = SECRET;
   // Plain HTTP on localhost: a `Secure` cookie would be discarded and every
   // session assertion below would fail for a reason unrelated to the code.

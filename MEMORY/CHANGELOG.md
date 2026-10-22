@@ -10,6 +10,18 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — P6-20: Lockout and login timing
+
+**Security** — (ADR-036)
+- Login timing was not equal, despite `SECURITY/02` §12 saying so: wrong password 40 ms, unknown email 26 ms, unknown tenant 20 ms (medians of nine). Every `INVALID_CREDENTIALS` refusal now returns no earlier than 250 ms after the attempt began.
+
+**Tests**
+- `apps/web/test/login-lockout.test.ts`: lockout through the real handler with a faked clock (8 failures → `423`, `Retry-After: 900`, right password refused while locked, unlocked after 15 minutes, counter cleared); timing medians within 15%. Fails with `MAX_FAILED_ATTEMPTS` raised and with the floor at 0.
+- `apps/auth/test/service.test.ts` clears its Redis rate-limit buckets before running; a second run inside the window used to fail with 429.
+
+**Found**
+- `PG-07`: Node 26 rejects `--experimental-transform-types`; seed, worker, and auth service cannot start locally on it.
+
 ### 2026-10-22 — P4-08: Leave approval control tests
 
 **Tests**

@@ -40,7 +40,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Mitigation | Argon2id. Account lock after 8 failures for 15 minutes with `retry-after`. Login rate-limited to 20 per 5 minutes **per address**, shared across replicas through Redis. An unknown tenant costs the same time as a wrong password. Refresh token reuse revokes the family |
 | Detection | `auth.login.failed` and `auth.login.locked` audit rows. **No alert** on a spike (`03`) |
 | Response | `04` "Credential stuffing" |
-| Status | (b) **Mitigated** in code — lockout and equal timing have no automated test. (a) **Partial** — per-address limits are bypassable (§4), and distributed stuffing stays under per-address limits anyway. (c) **Open** — no tenant-user MFA (R18), no breached-password check, no new-device notification |
+| Status | (b) **Mitigated** — `login-lockout.test.ts` (P6-20): 8 failures lock with `423 ACCOUNT_LOCKED` and `Retry-After`, the right password is refused while locked, the lock expires after 15 minutes. (a) **Partial** — per-address limits are bypassable (§4), and distributed stuffing stays under per-address limits anyway. (c) **Open** — no tenant-user MFA (R18), no breached-password check, no new-device notification |
 
 ## 3. Token and Session Attacks
 
@@ -198,7 +198,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Scenario | (a) Discover which emails have accounts. (b) Discover which tenant codes exist. (c) Discover internal routes |
 | Impact | Targeting for §2 |
 | Likelihood | Medium |
-| Mitigation | (a) login does not distinguish email, password, or tenant, and costs equal time; forgot-password always `204`. (b) registration reveals a taken tenant code by necessity, rate-limited to 5 per hour per address. (c) internal and unknown-method requests return `404` |
+| Mitigation | (a) login does not distinguish email, password, or tenant, and costs equal time — an argon2 burn plus a 250 ms floor on every refusal (ADR-036; before it, a wrong password took 40 ms and an unknown email 26 ms), held by `login-lockout.test.ts`; forgot-password always `204`. (b) registration reveals a taken tenant code by necessity, rate-limited to 5 per hour per address. (c) internal and unknown-method requests return `404` |
 | Detection | Rate-limit refusals |
 | Response | — |
 | Status | (a)(c) **Mitigated**. (b) **Accepted**, with the per-address limit bypassable through §4 |

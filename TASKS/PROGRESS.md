@@ -2,8 +2,8 @@
 
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
-**Last updated**: 2026-10-22 — `P4-08` DONE (leave approval control tests)
-**Overall**: 81 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 4 since
+**Last updated**: 2026-10-22 — `P6-20` DONE (lockout and timing tests; login timing gap fixed, ADR-036)
+**Overall**: 82 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 5 since
 **Gates**: A untested · B untested · C not met · D not reached
 
 > **Read this first.** Phases 0–6 and service-split stages 1–7 were built between 2026-08-18 and 2026-09-01, before
@@ -201,7 +201,7 @@ In order. Each is unblocked today.
 | P6-17 | Off-host backups and key escrow | M | P1 | BLOCKED | `OQ-02`, `OQ-12` |
 | P6-18 | API documentation (18.1 coverage · 18.2 routes · 18.3 page and secret) | L | P1 | TODO | 18.3: P6-12 |
 | P6-19 | Ownership structural test | M | P1 | TODO | — |
-| P6-20 | Lockout and timing tests | S | P1 | TODO | — |
+| P6-20 | Lockout and timing tests | S | P1 | DONE | — |
 | P6-21 | Morning-peak load test | L | P3 | BLOCKED | P0-10 |
 | P6-22 | Metrics endpoint | — | — | DONE (retro) | — |
 | P6-23 | Generated OpenAPI document | — | — | DONE (retro) | coverage: P6-18 |

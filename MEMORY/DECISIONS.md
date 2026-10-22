@@ -706,6 +706,28 @@ Numbers are sequential and permanent. A superseded ADR stays, with its status up
 
 ---
 
+## ADR-036 — A time floor on every failed login
+
+| | |
+|---|---|
+| **Date** | 2026-10-22 |
+| **Status** | Accepted |
+| **Task** | P6-20 |
+| **Deciders** | Agent, under the task's DoD; open to the user's review |
+| **Reconstructed** | No |
+
+**Context** — `docs/SECURITY/02` §12(a) says login "costs equal time" for an unknown tenant, an unknown email, and a wrong password. The first test of it (P6-20) found that false. Medians over nine runs: wrong password 40 ms, unknown email 26 ms, unknown tenant 20 ms. The argon2 burn worked (without it an unknown tenant answered in 1.6 ms), but a wrong password on a real account also commits a second transaction for the failure counter and its audit row. A 14 ms gap is measurable over repeated tries and enumerates addresses.
+
+**Decision** — every `INVALID_CREDENTIALS` refusal returns no earlier than 250 ms after the attempt began (`FAILURE_FLOOR_MS` in `packages/core/src/auth/login.ts`). The argon2 burn stays, so CPU cost is equal as well as latency. `ACCOUNT_LOCKED` and `TENANT_SUSPENDED` are not floored: they are disclosed on purpose.
+
+**Alternatives considered** — making each path do identical work (e.g. a dummy counter transaction for unknown users): rejected — it equalises only until someone adds work to one path, and the floor holds regardless. Random jitter: rejected — it adds noise, but the difference between medians survives averaging over enough attempts.
+
+**Consequences** — a failed login takes at least 250 ms; a successful one is unchanged. If a failure path ever exceeds 250 ms under load, the tail leaks again; `login-lockout.test.ts` bounds the medians within 15% and fails with the floor at 0. The test does not detect removal of the argon2 burn while the floor holds.
+
+**Plan impact** — none; brings the build to what `docs/SECURITY/02` §12 already claimed.
+
+---
+
 ## Decisions Pending
 
 Each moves into the log when decided. The open question holds the detail and a recommendation. Answered on 2026-09-14: `OQ-01` → ADR-030, `OQ-11` → ADR-031, `OQ-03` → ADR-032 (making `OQ-04` and `OQ-10` unnecessary), `OQ-05` → ADR-033, `OQ-15` → ADR-034.

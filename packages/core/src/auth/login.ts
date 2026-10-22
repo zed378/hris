@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { appClient, withTenant, writeAudit, publishEvent, type TenantClient } from '@hrms/db';
 import { ErrorCode, EventTopic, type TokenPair } from '@hrms/contracts';
 import { resolveTenantByCode } from '../tenant/index.ts';
@@ -36,6 +37,27 @@ import {
 /** Lock the account after this many consecutive failed attempts. */
 const MAX_FAILED_ATTEMPTS = 8;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
+
+/**
+ * Every `INVALID_CREDENTIALS` answer leaves no earlier than this after the
+ * attempt began (P6-20, ADR-036).
+ *
+ * The argon2 burn alone did not equalise the paths. A wrong password on a real
+ * account also commits a second transaction — the counter and its audit row —
+ * and measured 40 ms against 26 ms for an unknown email and 20 ms for an
+ * unknown tenant: a gap that enumerates addresses over repeated tries. A floor
+ * well above the slowest failure path makes them end together. Only failures
+ * pay it; a slow wrong answer costs a legitimate user nothing they would notice
+ * and costs a guesser time.
+ */
+const FAILURE_FLOOR_MS = 250;
+
+/** Waits out the rest of the floor, then refuses with the one indistinguishable error. */
+async function refuseCredentials(startedAt: number): Promise<never> {
+  const remaining = FAILURE_FLOOR_MS - (performance.now() - startedAt);
+  if (remaining > 0) await new Promise((done) => setTimeout(done, remaining));
+  throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Invalid credentials');
+}
 
 export class AuthError extends Error {
   constructor(
@@ -83,13 +105,14 @@ export async function login(
   input: { tenantCode: string; email: string; password: string },
   ctx: LoginContext = {},
 ): Promise<LoginResult> {
+  const startedAt = performance.now();
   const tenant = await resolveTenantByCode(input.tenantCode);
 
   if (!tenant) {
     // Pay the same time cost as a real verification, so a latency difference does
     // not reveal which tenants exist.
     await burnTimingBudget(input.password);
-    throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Invalid credentials');
+    return refuseCredentials(startedAt);
   }
 
   if (tenant.status === 'SUSPENDED' || tenant.status === 'CHURNED') {
@@ -217,10 +240,10 @@ export async function login(
       await withTenant(tenant.id, (tx) =>
         registerFailedAttempt(tx, tenant.id, outcome.userId, ctx),
       );
-      throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Invalid credentials');
+      return refuseCredentials(startedAt);
 
     case 'rejected':
-      throw new AuthError(ErrorCode.INVALID_CREDENTIALS, 'Invalid credentials');
+      return refuseCredentials(startedAt);
   }
 }
 

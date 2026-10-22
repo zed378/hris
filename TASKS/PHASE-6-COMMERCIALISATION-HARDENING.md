@@ -254,7 +254,7 @@
 
 | | |
 |---|---|
-| **Status** | TODO |
+| **Status** | DONE — 2026-10-22 (`apps/web/test/login-lockout.test.ts`, ADR-036) |
 | **Priority** | P1 |
 | **Plan refs** | `docs/SECURITY/02` §2, §12; `packages/core/src/auth/login.ts` |
 | **Spec required** | No — coverage |

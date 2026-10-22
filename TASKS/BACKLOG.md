@@ -164,6 +164,10 @@ Both describe a 16-service Kubernetes architecture. `docs/PLAN/12` §3 replaced 
 
 `docs/PLAN/12` Phase 0 and 1 name CI, staging, managed PostgreSQL, Sentry, and an uptime check. None exists. Recorded as `DV-09`; the work is `P0-09`, `P0-10`, `P1-13`, `P1-14`.
 
+### PG-07 — Node 26 rejects `--experimental-transform-types`
+
+Found 2026-10-22. `package.json` allows `node >=24`, and on Node 26 `node --experimental-transform-types` exits with `bad option`, so `pnpm db:seed`, the worker, and the auth service cannot start locally (Vitest is unaffected; the Docker images pin `node:24` and are unaffected). The code needs transforms, not only type stripping — classes such as `AuthError` use parameter properties. **Recommendation:** pin `engines.node` to `>=24 <26` and add an `.nvmrc` of `24` now; decide on a loader (`tsx`) or removing parameter properties before moving to Node 26. Needs a decision from the user.
+
 ---
 
 ## Deviations
