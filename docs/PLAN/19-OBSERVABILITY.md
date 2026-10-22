@@ -40,11 +40,11 @@ Log levels carry meaning: an expected refusal — a wrong password, a stale toke
 Readiness also **reports two facts** that cannot make an instance unready but are invisible otherwise:
 
 ```json
-{ "status": "ready", "checkMs": 222, "rateLimit": "redis", "signing": "hybrid" }
+{ "status": "ready", "checkMs": 222, "rateLimit": "redis", "signing": "asymmetric" }
 ```
 
 - `rateLimit: "in-process"` on a deployment with more than one replica means every limit is silently multiplied by the replica count.
-- `signing: "hybrid"` means the shared HS256 secret can still mint tokens. Expected during the migration, alarming after it.
+- `signing: "unconfigured"` means this instance holds no private key and cannot issue tokens — every login through it fails. HS256 no longer exists (ADR-038).
 
 Readiness replies carry no version, database name, or raw error — the endpoint is unauthenticated because an orchestrator calls it before any session exists.
 

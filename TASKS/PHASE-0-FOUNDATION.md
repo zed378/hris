@@ -124,7 +124,7 @@ Retrospective IDs (`00-TASK-CONVENTIONS.md` §1).
 
 **Definition of Done**
 - Deployed from a tagged commit by a documented procedure.
-- `/api/ready` reports `rateLimit: redis` and `signing` not `hybrid`.
+- `/api/ready` reports `rateLimit: redis` and `signing: asymmetric`.
 - A restore from its own backup rehearsed once.
 - No real tenant data.
 

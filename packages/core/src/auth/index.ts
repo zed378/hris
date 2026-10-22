@@ -21,7 +21,6 @@ export {
   privateSigningKey,
   publicVerificationKeys,
   publicJwksDocument,
-  legacySecret,
   signingMode,
   type SigningKey,
   type KeyRealm,

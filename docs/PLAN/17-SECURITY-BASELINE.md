@@ -117,7 +117,7 @@ Controls a reader might reasonably assume exist, and which do not. Each is track
 | **The client address is the first `X-Forwarded-For` entry, which the client controls** | Per-address rate limits and office-network verification can be bypassed | **High** |
 | ~~No `Content-Security-Policy`, `Strict-Transport-Security`, or frame-ancestors headers~~ | **Closed by P6-12** — `apps/web/next.config.ts` sets CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy | — |
 | No MFA for tenant users — only superusers have TOTP | One leaked password opens a tenant's HR data (R18); `12` Phase 5 DoD item unmet | High |
-| `JWT_SECRET` still configured, so HS256 tokens still verify | Anything holding the secret can still mint tokens | Medium |
+| ~~`JWT_SECRET` still configured, so HS256 tokens still verify~~ | **Closed by PS-08** — HS256 removed from code (ADR-038) | — |
 | ~~Viewing unmasked PII in the employee list or detail is not audited — only exports are~~ | **Closed by P2-08** — `employee.pii.unmasked` audit row now records every unmasked read | — |
 | ~~Superuser TOTP secrets stored in plaintext~~ | **Closed by P6-14** | — |
 | No permission ceiling for role and grant administrators | A holder of `iam.role.manage` or `iam.grant.manage` can confer any permission, including on themselves | Medium |

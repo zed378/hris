@@ -328,8 +328,6 @@ services:
       JWT_PUBLIC_JWKS: ${JWT_PUBLIC_JWKS:-}
       ADMIN_JWT_PRIVATE_JWK: ${ADMIN_JWT_PRIVATE_JWK:-}
       ADMIN_JWT_PUBLIC_JWKS: ${ADMIN_JWT_PUBLIC_JWKS:-}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib dipasang}
-      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET wajib dipasang}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
       # Shared with the backend, and with nothing else. Guards /internal/* when
@@ -364,18 +362,19 @@ services:
       # in employee, attendance, leave, or payroll (docs/PLAN/14 stage 5).
       DATABASE_URL_AUTH: postgresql://hrms_auth:${AUTH_DB_PASSWORD:-hrms_auth_password}@postgres:5432/${POSTGRES_DB:-hrms}
       DATABASE_URL_PLATFORM: postgresql://hrms_platform:${PLATFORM_DB_PASSWORD:-hrms_platform_password}@postgres:5432/${POSTGRES_DB:-hrms}
-      # MUST be changed in production. Two different secrets, so a tenant token
-      # and an admin token can never verify against each other.
       # Unset it and the limiter falls back to in-process counters — correct for
       # a single replica, and quietly wrong for more than one.
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib dipasang}
-      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET wajib dipasang}
-      # The PUBLIC key set only. The backend verifies; it must not be able to
-      # mint. `JWT_PRIVATE_JWK` is deliberately absent here and its absence is
-      # the security property, not an oversight (docs/PLAN/14 §6).
-      JWT_PUBLIC_JWKS: ${JWT_PUBLIC_JWKS:-}
-      ADMIN_JWT_PUBLIC_JWKS: ${ADMIN_JWT_PUBLIC_JWKS:-}
+      # Signing keys. Authentication runs in-process (ADR-032), so this
+      # container logs users in and must hold the PRIVATE keys; HS256 no longer
+      # exists (PS-08, ADR-038), so without them every login fails. If the
+      # `split` profile is ever adopted, the private keys move to `auth` and are
+      # removed from here — a container holding them can mint a token for any
+      # user of any tenant (docs/PLAN/14 §6).
+      JWT_PRIVATE_JWK: ${JWT_PRIVATE_JWK:?JWT_PRIVATE_JWK wajib dipasang}
+      JWT_PUBLIC_JWKS: ${JWT_PUBLIC_JWKS:?JWT_PUBLIC_JWKS wajib dipasang}
+      ADMIN_JWT_PRIVATE_JWK: ${ADMIN_JWT_PRIVATE_JWK:?ADMIN_JWT_PRIVATE_JWK wajib dipasang}
+      ADMIN_JWT_PUBLIC_JWKS: ${ADMIN_JWT_PUBLIC_JWKS:?ADMIN_JWT_PUBLIC_JWKS wajib dipasang}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
       # Empty means "authorize in-process", which is the default and a complete,

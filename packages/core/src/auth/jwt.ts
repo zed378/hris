@@ -1,6 +1,5 @@
 import { SignJWT, jwtVerify, decodeProtectedHeader, type JWTPayload } from 'jose';
 import {
-  legacySecret,
   privateSigningKey,
   publicVerificationKeys,
   type KeyRealm,
@@ -47,22 +46,20 @@ export async function signJwt(
 
   const key = await privateSigningKey(realm);
 
-  if (key) {
-    // `kid` in the header is what lets a verifier pick the right key without
-    // trying all of them — and, more importantly, what makes rotation possible
-    // at all: two keys are valid at once and each token says which one signed it.
-    return signer.setProtectedHeader({ alg: key.alg, typ: 'JWT', kid: key.kid }).sign(key.key);
-  }
-
-  const secret = legacySecret(realm);
-  if (!secret) {
+  // No shared-secret fallback (PS-08, ADR-038): a symmetric secret cannot tell
+  // "may verify" from "may mint", and `JWT_SECRET` being set grants nothing.
+  if (!key) {
     throw new Error(
-      'No signing key configured. Set JWT_PRIVATE_JWK (recommended) ' +
-        'or a JWT_SECRET of at least 32 characters.',
+      `No signing key configured for the ${realm} realm. Set ` +
+        `${realm === 'admin' ? 'ADMIN_JWT_PRIVATE_JWK' : 'JWT_PRIVATE_JWK'} ` +
+        '(node ops/scripts/generate-jwt-keys.mjs).',
     );
   }
 
-  return signer.setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).sign(secret);
+  // `kid` in the header is what lets a verifier pick the right key without
+  // trying all of them — and, more importantly, what makes rotation possible
+  // at all: two keys are valid at once and each token says which one signed it.
+  return signer.setProtectedHeader({ alg: key.alg, typ: 'JWT', kid: key.kid }).sign(key.key);
 }
 
 export class JwtVerificationError extends Error {
@@ -121,20 +118,6 @@ export async function verifyJwt(
       // distinction matters to the caller: the client refreshes on `expired` and
       // logs out on `invalid`. Collapsing the two would make every expiry look
       // like a rejected session.
-      if ((error as { code?: string }).code === 'ERR_JWT_EXPIRED') expired = true;
-    }
-  }
-
-  const secret = legacySecret(realm);
-  if (secret) {
-    try {
-      const { payload } = await jwtVerify(token, secret, {
-        issuer: ISSUER,
-        audience,
-        algorithms: ['HS256'],
-      });
-      return payload;
-    } catch (error) {
       if ((error as { code?: string }).code === 'ERR_JWT_EXPIRED') expired = true;
     }
   }

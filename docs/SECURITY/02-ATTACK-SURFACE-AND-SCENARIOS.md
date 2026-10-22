@@ -54,9 +54,9 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Impact | (a)(b)(f) session for any user of any tenant. (c) persistent access. (d) access beyond current grants |
 | Likelihood | Low for (a)(b); Medium for (c)(d) |
 | Mitigation | (a) the algorithm comes from the key, never the token — tested. (b) separate audiences and key realms. (c) `HttpOnly`, `SameSite=Strict`, `Path=/api/auth`; rotated per use; reuse revokes the family. Access token in memory only, 15-minute TTL. (d) access version `av` compared on every request → `401 TOKEN_STALE`. (e) checked at login and refresh |
-| Detection | `TOKEN_REUSE_DETECTED` audit rows; readiness reports `signing: hybrid` while (f) is possible |
+| Detection | `TOKEN_REUSE_DETECTED` audit rows |
 | Response | `04` "Signing key compromise" |
-| Status | (a)(b)(c)(d) **Mitigated**. (e) **Accepted** — a live access token survives suspension for at most 15 minutes, by decision recorded in `packages/core/src/platform/tenant-admin.ts`. (f) **Partial** — EdDSA is the default, but HS256 still verifies while `JWT_SECRET` is set, and `ops/.env.compose.example` sets it |
+| Status | (a)(b)(c)(d) **Mitigated**. (e) **Accepted** — a live access token survives suspension for at most 15 minutes, by decision recorded in `packages/core/src/platform/tenant-admin.ts`. (f) **Mitigated** — 2026-10-22 (`PS-08`): HS256 is removed from code; a token signed with `JWT_SECRET` or the derived admin secret is refused even while the variable is set (`jwt-signing.test.ts`) |
 
 ## 4. Client Address Spoofing Through `X-Forwarded-For`
 
@@ -355,7 +355,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 |---|---|---|
 | 1 | Cross-tenant / cross-object access | Mitigated (tenant) · Partial (object) |
 | 2 | Authentication attacks | Partial — no MFA |
-| 3 | Tokens and sessions | Mitigated · HS256 still verifies |
+| 3 | Tokens and sessions | Mitigated |
 | 4 | `X-Forwarded-For` spoofing | Mitigated |
 | 5 | Privilege escalation, self-approval | Mitigated |
 | 6 | Subscription bypass | Mitigated |

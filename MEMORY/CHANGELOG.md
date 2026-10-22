@@ -10,6 +10,13 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — PS-08: HS256 removed
+
+**Security** — ([spec](./specs/PS-08-end-hs256.md), ADR-038)
+- Nothing signs or verifies with `JWT_SECRET` / `ADMIN_JWT_SECRET`; a token signed with either is refused even while the variable is set. Closes risk S1.
+- `ops/docker-compose.yml` requires both EdDSA key pairs on the web container (it logs users in, ADR-032) and no longer reads the secrets; `.env.example` and `ops/.env.compose.example` follow.
+- `/api/ready` reports `signing: asymmetric` or `unconfigured`.
+
 ### 2026-10-22 — Decisions: error reasons, HS256, Node 24
 
 **Decided** — ADR-037 (`error.reason` in the error contract; unblocks P6-24, PF-20, PF-04), ADR-038 (HS256 verification ends; answers OQ-14), ADR-039 (Node 24 pinned through `engines` and `.nvmrc`; resolves PG-07).

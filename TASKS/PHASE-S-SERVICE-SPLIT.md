@@ -30,10 +30,10 @@
 
 | | |
 |---|---|
-| **Status** | BLOCKED |
+| **Status** | DONE — 2026-10-22 (ADR-038) |
 | **Priority** | P1 |
 | **Depends on** | — |
-| **Blocked by** | `OQ-14` (the date) |
+| **Blocked by** | — (`OQ-14` answered: end it now) |
 | **Plan refs** | `docs/PLAN/14` §6 and §10.1, `docs/SECURITY/02` §3(f), risk S1 |
 | **Spec required** | Yes — authentication |
 | **Surface** | auth, backend, ops |

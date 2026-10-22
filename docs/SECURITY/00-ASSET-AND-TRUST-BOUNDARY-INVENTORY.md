@@ -16,7 +16,7 @@ Inventoried against the code on 2026-09-13. The controls listed are summaries; `
 | A-4 | Payroll: salary structures, components, runs, payslips | `payroll.*` | Pay confidentiality between colleagues; fraud; wrong pay is a trust incident | **Restricted** |
 | A-5 | Leave: balances, requests, medical attachments | `leave.*`, attachment storage volume | Attachments may carry health data | Confidential |
 | A-6 | Credentials: Argon2id password hashes, refresh token hashes, action token hashes | `auth.*` | Account takeover | **Restricted** |
-| A-7 | Token signing keys: `JWT_PRIVATE_JWK`, `ADMIN_JWT_PRIVATE_JWK`, `JWT_SECRET` | Environment of `web` / `auth` | Anyone holding one can mint a session for any user of any tenant | **Critical secret** |
+| A-7 | Token signing keys: `JWT_PRIVATE_JWK`, `ADMIN_JWT_PRIVATE_JWK` | Environment of `web` / `auth` | Anyone holding one can mint a session for any user of any tenant | **Critical secret** |
 | A-8 | PII encryption and index keys: `PII_ENCRYPTION_KEY`, `PII_INDEX_KEY`, old key rings | Environment of `web` / `worker` | Decrypts A-1 for every tenant; losing it destroys A-1 | **Critical secret** |
 | A-9 | Superuser accounts and TOTP secrets | `platform.superusers` — **TOTP secret stored in plaintext** | Control-plane takeover | **Restricted** |
 | A-10 | Roles, permissions, grants, menus, access versions | `iam.*` | Integrity: a changed grant is an authorization bypass | Integrity-critical |

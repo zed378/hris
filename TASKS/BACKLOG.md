@@ -226,4 +226,4 @@ Found while writing `docs/SECURITY/`. Each is a risk in `docs/PLAN/22` and a tas
 | F3 | No alerting | `P6-16` | P1 |
 | F4 | All backups on-host; PII keys in no backup | `P6-17` | P1 |
 | — | No automated test for self-approval refusal, account lockout, login timing | `P4-08`, `P6-20` | P1 |
-| S1 | HS256 still verifies; the compose example configures it | `PS-08` | P1 |
+| S1 | ~~HS256 still verifies; the compose example configures it~~ — closed 2026-10-22 | `PS-08` | P1 |

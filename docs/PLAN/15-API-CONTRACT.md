@@ -83,7 +83,7 @@ The refresh token **never** appears in a response body. It lives only in the coo
 }
 ```
 
-- Signed **EdDSA** with a `kid` when `JWT_PRIVATE_JWK` is set; public keys at `GET /api/.well-known/jwks.json`. HS256 with `JWT_SECRET` still verifies while that variable is set (`14` §10.1).
+- Signed **EdDSA** with a `kid` when `JWT_PRIVATE_JWK` is set; public keys at `GET /api/.well-known/jwks.json`. No HS256: a token signed with a shared secret is refused (ADR-038).
 - `av` is the access version. It is compared on every request; a mismatch is `401 TOKEN_STALE`.
 - Control-plane tokens use audience `hrms-admin`, an 8-hour TTL, a separate key realm (`ADMIN_JWT_*`), and are refused by the tenant gateway.
 

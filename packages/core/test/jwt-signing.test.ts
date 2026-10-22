@@ -21,8 +21,8 @@ import { publicJwksDocument, signingMode } from '../src/auth/signing-keys.ts';
  * security of one.
  *
  * These tests use real key material generated per run, not fixtures. What is
- * under test is the interaction between `jose`, the key ring, and the fallback
- * window, and a stubbed signer would only prove the stub agrees with itself.
+ * under test is the interaction between `jose` and the key ring, and a stubbed
+ * signer would only prove the stub agrees with itself.
  *
  * They do not touch the database: nothing in this layer reads one. Signing and
  * verification take a token and some key material and return a decision, and
@@ -64,7 +64,6 @@ afterEach(() => {
 function useKeys(signWith: Pair, verifyWith: Pair[]): void {
   process.env['JWT_PRIVATE_JWK'] = signWith.privateJwk;
   process.env['JWT_PUBLIC_JWKS'] = JSON.stringify({ keys: verifyWith.map((p) => p.publicJwk) });
-  delete process.env['JWT_SECRET'];
 }
 
 describe('asymmetric signing', () => {
@@ -194,81 +193,64 @@ describe('rotation', () => {
   });
 });
 
-describe('the HS256 fallback window', () => {
+describe('HS256 is gone (PS-08, ADR-038)', () => {
   /**
-   * Stage 1 must not log everybody out on deploy.
-   *
-   * An operator who discovers that every session died the moment they shipped
-   * will reach for the rollback rather than the migration, and the migration
-   * that gets rolled back once tends not to be attempted again.
+   * A shared secret cannot tell "may verify" from "may mint". The window in
+   * which HS256 still verified existed only so stage 1 would not log everyone
+   * out, and it has ended. These run with the secrets STILL SET, as on a
+   * deployment that has not removed them yet: their mere presence must grant
+   * nothing.
    */
-  it('still accepts a token signed with the shared secret while it is configured', async () => {
-    const secret = 'x'.repeat(48);
-    process.env['JWT_SECRET'] = secret;
-    delete process.env['JWT_PRIVATE_JWK'];
-    delete process.env['JWT_PUBLIC_JWKS'];
+  const SECRET = 'x'.repeat(48);
 
-    const legacyToken = await signJwt({}, { subject: 'u1', audience: AUDIENCE, ttlSeconds: 60 });
-    expect(decodeProtectedHeader(legacyToken).alg).toBe('HS256');
+  async function hs256(key: string, audience = AUDIENCE): Promise<string> {
+    return new SignJWT({})
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setSubject('u1')
+      .setIssuer(ISSUER)
+      .setAudience(audience)
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(new TextEncoder().encode(key));
+  }
 
-    // Now the asymmetric key is introduced alongside it — the hybrid state.
-    process.env['JWT_PRIVATE_JWK'] = ed.privateJwk;
-    process.env['JWT_PUBLIC_JWKS'] = JSON.stringify({ keys: [ed.publicJwk] });
-
-    const newToken = await signJwt({}, { subject: 'u2', audience: AUDIENCE, ttlSeconds: 60 });
-
-    expect(decodeProtectedHeader(newToken).alg).toBe('EdDSA');
-    expect((await verifyJwt(legacyToken, AUDIENCE)).sub).toBe('u1');
-    expect((await verifyJwt(newToken, AUDIENCE)).sub).toBe('u2');
-  });
-
-  /**
-   * Withdrawing the secret is what ENDS the migration, and it has to bite.
-   *
-   * A fallback with no end date leaves the shared secret able to mint tokens
-   * forever, which is the exact property the move to asymmetric keys exists to
-   * remove. Same reasoning as the PII key ring: the breakage is the evidence
-   * that the migration finished.
-   */
-  it('refuses HS256 tokens once the secret is withdrawn', async () => {
-    process.env['JWT_SECRET'] = 'x'.repeat(48);
-    delete process.env['JWT_PRIVATE_JWK'];
-    delete process.env['JWT_PUBLIC_JWKS'];
-    const legacyToken = await signJwt({}, { subject: 'u1', audience: AUDIENCE, ttlSeconds: 60 });
-
+  it('refuses a tenant token signed with JWT_SECRET, even while it is configured', async () => {
     useKeys(ed, [ed]);
-    await expect(verifyJwt(legacyToken, AUDIENCE)).rejects.toBeInstanceOf(JwtVerificationError);
+    process.env['JWT_SECRET'] = SECRET;
+    await expect(verifyJwt(await hs256(SECRET), AUDIENCE)).rejects.toBeInstanceOf(JwtVerificationError);
   });
 
-  it('reports which mode the process is in', async () => {
-    process.env['JWT_SECRET'] = 'x'.repeat(48);
-    delete process.env['JWT_PRIVATE_JWK'];
-    expect(await signingMode()).toBe('hs256');
-
-    process.env['JWT_PRIVATE_JWK'] = ed.privateJwk;
-    expect(await signingMode()).toBe('hybrid');
-
-    delete process.env['JWT_SECRET'];
-    expect(await signingMode()).toBe('asymmetric');
+  it('refuses an admin token signed with the derived admin secret', async () => {
+    process.env['ADMIN_JWT_PRIVATE_JWK'] = ed2.privateJwk;
+    process.env['ADMIN_JWT_PUBLIC_JWKS'] = JSON.stringify({ keys: [ed2.publicJwk] });
+    process.env['ADMIN_JWT_SECRET'] = SECRET;
+    await expect(verifyJwt(await hs256(`admin:${SECRET}`), AUDIENCE, 'admin')).rejects.toBeInstanceOf(
+      JwtVerificationError,
+    );
   });
 
-  it('refuses to sign at all when no key of any kind is configured', async () => {
-    delete process.env['JWT_SECRET'];
+  it('refuses to mint with the shared secret when no private key is configured', async () => {
+    process.env['JWT_SECRET'] = SECRET;
     delete process.env['JWT_PRIVATE_JWK'];
     delete process.env['JWT_PUBLIC_JWKS'];
 
     /**
-     * Matched on the variable name, not on the prose.
-     *
-     * The wording is a message to an operator and may be rewritten or
-     * translated; `JWT_PRIVATE_JWK` is the thing they actually have to set, and
-     * it is the part of this error that cannot change without the contract
-     * changing. An assertion on the sentence broke the first time somebody
-     * edited it, which taught nothing about signing.
+     * Matched on the variable name, not on the prose: `JWT_PRIVATE_JWK` is what
+     * an operator has to set, and the part of the error that cannot change
+     * without the contract changing.
      */
-    await expect(
-      signJwt({}, { subject: 'u1', audience: AUDIENCE, ttlSeconds: 60 }),
-    ).rejects.toThrow(/JWT_PRIVATE_JWK/);
+    await expect(signJwt({}, { subject: 'u1', audience: AUDIENCE, ttlSeconds: 60 })).rejects.toThrow(
+      /JWT_PRIVATE_JWK/,
+    );
+  });
+
+  it('never reports hybrid, whatever secrets are set', async () => {
+    process.env['JWT_SECRET'] = SECRET;
+    delete process.env['JWT_PRIVATE_JWK'];
+    expect(await signingMode()).toBe('unconfigured');
+
+    process.env['JWT_PRIVATE_JWK'] = ed.privateJwk;
+    expect(await signingMode()).toBe('asymmetric');
   });
 });
 

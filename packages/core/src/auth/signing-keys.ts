@@ -40,13 +40,13 @@ import { importJWK, type JWK, type KeyObject } from 'jose';
  * a signing key logs every user out at once — which is how key rotation quietly
  * becomes something nobody is willing to do.
  *
- * ## HS256 still verifies, deliberately
+ * ## HS256 is gone
  *
- * While `JWT_SECRET` is configured, tokens signed with it are still accepted.
- * The alternative is a deploy that invalidates every live session, and an
- * operator who discovers that at the wrong moment will reach for the rollback
- * rather than the migration. `signingAlgorithm()` reports which mode is active
- * so the state is observable rather than guessed.
+ * For a migration window, tokens signed with `JWT_SECRET` were still accepted
+ * so the switch would not log everyone out. The window ended on 2026-10-22
+ * (PS-08, ADR-038): nothing signs or verifies with a shared secret, and a
+ * `JWT_SECRET` left in an environment grants nothing. `signingMode()` reports
+ * whether a realm can sign at all.
  */
 
 export interface SigningKey {
@@ -124,9 +124,8 @@ async function importAll(raw: string, label: string): Promise<SigningKey[]> {
  * single shared key pair would have made `aud` the only thing standing between a
  * tenant session and the control plane.
  *
- * A realm whose asymmetric keys are not configured stays on its legacy secret.
- * The two planes migrate independently, which is what allows the tenant plane to
- * move first without a coordinated cutover of both.
+ * Each realm is configured on its own; a realm without keys can neither sign
+ * nor verify.
  */
 export type KeyRealm = 'tenant' | 'admin';
 
@@ -140,7 +139,7 @@ const REALMS: Record<KeyRealm, RealmConfig> = {
   admin: { privateVar: 'ADMIN_JWT_PRIVATE_JWK', publicVar: 'ADMIN_JWT_PUBLIC_JWKS' },
 };
 
-/** The key that SIGNS, or `null` when this realm is still on HS256. */
+/** The key that SIGNS, or `null` when this realm has none configured. */
 export async function privateSigningKey(realm: KeyRealm = 'tenant'): Promise<SigningKey | null> {
   const { privateVar } = REALMS[realm];
   const raw = process.env[privateVar];
@@ -155,8 +154,8 @@ export async function privateSigningKey(realm: KeyRealm = 'tenant'): Promise<Sig
 /**
  * Every key that may VERIFY.
  *
- * Empty is a valid answer — it means this deployment has not moved off HS256
- * yet, and the caller falls back to the shared secret.
+ * Empty is a valid answer: every token is then refused, which is the correct
+ * result for a process with no key to check signatures against.
  */
 export async function publicVerificationKeys(
   realm: KeyRealm = 'tenant',
@@ -193,40 +192,11 @@ export function publicJwksDocument(realm: KeyRealm = 'tenant'): { keys: JWK[] } 
 }
 
 /**
- * The HS256 secret for a realm, while one is still configured.
- *
- * The admin realm derives `admin:${secret}` exactly as before. Changing that
- * derivation would invalidate every live superuser session, and — worse — a
- * derivation that accidentally matched the tenant one would make the two planes
- * interchangeable, which is the failure this separation exists to prevent.
- */
-export function legacySecret(realm: KeyRealm = 'tenant'): Uint8Array | null {
-  if (realm === 'admin') {
-    const value = process.env['ADMIN_JWT_SECRET'] ?? process.env['JWT_SECRET'];
-    if (!value || value.length < 32) return null;
-    return new TextEncoder().encode(`admin:${value}`);
-  }
-
-  const value = process.env['JWT_SECRET'];
-  if (!value || value.length < 32) return null;
-  return new TextEncoder().encode(value);
-}
-
-/**
  * Which mode this process is in — for the readiness endpoint and the logs.
  *
- * `hybrid` is the expected state DURING a migration and an alarming one after
- * it: the shared secret is still accepted, so anything holding it can still mint
- * tokens, which is the exact property the move to asymmetric keys exists to
- * remove. Naming the state is how it stops being invisible.
+ * `unconfigured` means this process cannot sign tokens for the realm. HS256 no
+ * longer exists (PS-08, ADR-038), so there is no hybrid state to report.
  */
-export async function signingMode(
-  realm: KeyRealm = 'tenant',
-): Promise<'asymmetric' | 'hybrid' | 'hs256'> {
-  const hasPrivate = (await privateSigningKey(realm)) !== null;
-  const hasLegacy = legacySecret(realm) !== null;
-
-  if (hasPrivate && hasLegacy) return 'hybrid';
-  if (hasPrivate) return 'asymmetric';
-  return 'hs256';
+export async function signingMode(realm: KeyRealm = 'tenant'): Promise<'asymmetric' | 'unconfigured'> {
+  return (await privateSigningKey(realm)) !== null ? 'asymmetric' : 'unconfigured';
 }

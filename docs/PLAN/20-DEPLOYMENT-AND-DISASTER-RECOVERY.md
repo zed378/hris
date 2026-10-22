@@ -60,7 +60,7 @@ All configuration is environment variables. The complete list with explanations 
 | Group | Variables | If wrong |
 |---|---|---|
 | Database | `DATABASE_URL`, `DATABASE_URL_APP`, `_WORKER`, `_PLATFORM`, `_AUTH` | A runtime process connecting as `hrms_owner` bypasses nothing (FORCE RLS), but can run DDL |
-| Tenant tokens | `JWT_PRIVATE_JWK`, `JWT_PUBLIC_JWKS`, `JWT_SECRET` | `JWT_SECRET` set keeps HS256 verification alive (`17` §9) |
+| Tenant tokens | `JWT_PRIVATE_JWK`, `JWT_PUBLIC_JWKS` | Unset private key → every login fails; `/api/ready` reports `signing: unconfigured`. `JWT_SECRET` is no longer read (ADR-038) |
 | Control-plane tokens | `ADMIN_JWT_*` | Must differ from the tenant realm |
 | Personal data | `PII_ENCRYPTION_KEY`, `PII_INDEX_KEY`, `*_KEYS_OLD` | **Losing `PII_ENCRYPTION_KEY` loses every encrypted national ID, tax ID, and bank account.** It is not in the database backup |
 | Platform | `REDIS_URL`, `BROKER_URL`, `AUTH_SERVICE_URL`, `AUTH_INTERNAL_SECRET` | Each unset means the in-process fallback; readiness reports which |
@@ -68,7 +68,7 @@ All configuration is environment variables. The complete list with explanations 
 | Email | `RESEND_API_KEY`, `EMAIL_FROM` | Unset → emails are **printed to the log, not sent** (`packages/core/src/notification/transport.ts`). Invitations and password resets never arrive, with no error to the user. Commented out in `.env.example` |
 | Other | `METRICS_TOKEN`, `VAPID_*`, `APP_BASE_URL`, `COOKIE_SECURE` | — |
 
-`ops/.env.compose.example` configures HS256 (`JWT_SECRET`) and not the EdDSA keys. A deployment copied from it runs on the legacy signing path — tracked in `TASKS/`.
+`ops/.env.compose.example` configures the EdDSA key pairs (`node ops/scripts/generate-jwt-keys.mjs`); `ops/docker-compose.yml` refuses to start without them.
 
 Generate keys with `node ops/scripts/generate-jwt-keys.mjs` and `node ops/scripts/generate-vapid.mjs`.
 

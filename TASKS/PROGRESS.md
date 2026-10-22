@@ -2,8 +2,8 @@
 
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
-**Last updated**: 2026-10-22 — `P6-14` DONE (superuser TOTP sealed; superuser logins audited)
-**Overall**: 84 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 7 since
+**Last updated**: 2026-10-22 — `PS-08` DONE (HS256 removed, ADR-038)
+**Overall**: 85 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 8 since
 **Gates**: A untested · B untested · C not met · D not reached
 
 > **Read this first.** Phases 0–6 and service-split stages 1–7 were built between 2026-08-18 and 2026-09-01, before
@@ -218,7 +218,7 @@ In order. Each is unblocked today.
 | PS-05 | Stage 5: `hrms_auth` role | — | — | DONE (retro) | — |
 | PS-06 | Stage 6: auth service | — | — | DONE (retro) | opt-in |
 | PS-07 | Stage 7: broker seam | — | — | DONE (retro) | opt-in |
-| PS-08 | End the HS256 window | S | P1 | BLOCKED | `OQ-14` |
+| PS-08 | End the HS256 window | S | P1 | DONE | — |
 | PS-09 | Revoke `hrms_app` on `auth.users` | L | P2 | TODO | — |
 | PS-10 | Service identity beyond a shared secret | L | P3 | BLOCKED | `DF-11` (SSO) |
 | PS-11 | Stage 8: split builds | L | P3 | BLOCKED | `DF-11` (SSO) |

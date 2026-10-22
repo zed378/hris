@@ -79,7 +79,7 @@ For a small fix, use judgment — but not for the categories in step 2.
 | Data | PostgreSQL 18, one database, a schema per module, forced RLS; Prisma 7 with the pg adapter |
 | Cache / limits | Redis 8 when `REDIS_URL` is set; fail-open |
 | Contracts | Zod (`packages/contracts`) |
-| Tokens | EdDSA with JWKS; HS256 still verifies while `JWT_SECRET` is set |
+| Tokens | EdDSA with JWKS, one key pair per plane; no HS256 (ADR-038) |
 | Tests | Vitest against real PostgreSQL, Redis, NATS — no mocks |
 | Deployment | Docker Compose (`ops/docker-compose.yml`), profiles `split`, `broker`, `backup` |
 

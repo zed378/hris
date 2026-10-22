@@ -13,7 +13,7 @@ How an attack or a failing control becomes visible. `../PLAN/19-OBSERVABILITY.md
 | Audit trail | `audit.audit_logs`, `platform.platform_audit_logs`, `attendance.photo_access_logs` | Yes | Who did what: logins, failures, lockouts, token reuse, role and grant changes, exports, photo access. **Not** unmasked PII views |
 | Structured logs | JSON to stdout, redacted, correlation id per request | Yes | Refusals, quota hits, Redis and auth-service outages |
 | Metrics | `hrms_http_requests_total{route,status}`, duration histogram | Yes, behind `METRICS_TOKEN` | Rates of `401`, `403`, `429`, `503` per route |
-| Readiness facts | `rateLimit`, `signing` in `/api/ready` | Yes | A deployment silently running per-process limits or HS256 |
+| Readiness facts | `rateLimit`, `signing` in `/api/ready` | Yes | A deployment silently running per-process limits, or unable to sign tokens |
 | Trust scoring | Punch flags, review queue, flagged ratio | Yes | Attendance fraud surfaced to a human (P14) |
 | Alerting | — | **No** | — |
 | Error tracking | — | **No** | — |
@@ -29,7 +29,7 @@ Consolidated from the Detection rows of `02-ATTACK-SURFACE-AND-SCENARIOS.md`. No
 | D-1 | Schema drift finding of any kind | Drift job log `severity: critical` | `02` §1 | **Page** |
 | D-2 | Refresh token reuse detected | `auth.token.reuse_detected` audit rows | `02` §3 | **Page** if > 3 / hour across tenants; ticket otherwise |
 | D-3 | Failed-login spike | `auth.login.failed` + `auth.login.locked` rate, platform-wide and per tenant | `02` §2 | Page |
-| D-4 | Readiness reports `signing: hybrid` after the HS256 retirement date | `/api/ready` | `02` §3(f) | Ticket |
+| D-4 | Readiness reports `signing: unconfigured` on a container that serves login | `/api/ready` | `02` §3 | Page — every login fails |
 | D-5 | Readiness reports `rateLimit: in-process` with > 1 replica | `/api/ready` | `02` §14 | Ticket |
 | D-6 | Bulk PII unmask | > N unmasked employee reads by one actor in an hour — **the audit row does not exist yet**; requires `02` §8(e) first | `02` §8 | Ticket to the tenant's owner |
 | D-7 | Role or grant change conferring an `iam.*` or `payroll.*` permission | `iam.role.permissions_changed`, grant audit rows | `02` §5 | Notify the tenant's owner |

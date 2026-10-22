@@ -41,7 +41,7 @@ What to do, in order, when a security incident is suspected. Operational inciden
 
 ## Playbook 3: Signing Key Compromise
 
-**Trigger:** `JWT_PRIVATE_JWK`, `JWT_SECRET`, or `ADMIN_JWT_*` exposed — committed, in a leaked environment file, or on a compromised host.
+**Trigger:** `JWT_PRIVATE_JWK` or `ADMIN_JWT_*` exposed — committed, in a leaked environment file, or on a compromised host.
 
 1. **Contain.** Generate a new key pair (`node ops/scripts/generate-jwt-keys.mjs`). Deploy with the new private key and **only** the new public key in `JWT_PUBLIC_JWKS`. If `JWT_SECRET` was exposed, **unset it** — this also ends the HS256 hybrid window (`../PLAN/14` §10.1).
 2. Every outstanding access token now fails verification; clients refresh. Refresh tokens are opaque and stored hashed — they are not affected by a signing key leak and need no revocation for this cause alone.

@@ -45,9 +45,10 @@ export const GET = definePublicRoute('GET /api/ready', async () => {
      *   `rateLimit: 'in-process'` on a deployment with more than one replica
      *   means the configured limit is silently multiplied by the replica count.
      *
-     *   `signing: 'hs256'` or `'hybrid'` means the shared secret can still MINT
-     *   tokens. That is expected during the migration to asymmetric keys and
-     *   alarming once it is supposed to be finished (docs/PLAN/14 §6).
+     *   `signing: 'unconfigured'` means this instance has no private key and
+     *   cannot issue tokens — correct for a verifying-only web container in the
+     *   split topology, a broken login anywhere else. HS256 no longer exists
+     *   (PS-08, ADR-038).
      *
      * Reported as plain words rather than a health verdict, because the right
      * answer depends on the topology and this endpoint does not know it.
