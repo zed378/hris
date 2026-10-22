@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-10-21T04:52:06.191Z",
+  "last_updated": "2026-10-22T06:42:37.621Z",
   "sources": [
     "README.md",
     "TASKS\\README.md",
@@ -1885,7 +1885,32 @@
     "MEMORY\\CHANGELOG.md",
     "TASKS\\PROGRESS.md",
     "MEMORY\\specs\\P3-12-trusted-client-address.md",
-    "MEMORY\\records\\2026-10-21-ci-pipeline.md"
+    "MEMORY\\records\\2026-10-21-ci-pipeline.md",
+    "MEMORY\\records\\2026-10-21-pii-audit.md",
+    "TASKS\\PHASE-2-EMPLOYEES.md",
+    "MEMORY\\MEMORY-INDEX.md",
+    "test-output.txt",
+    "MEMORY\\records\\2026-10-21-security-headers.md",
+    "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+    "MEMORY\\records\\2026-10-21-openapi-coverage-test.md",
+    "MEMORY\\records\\2026-10-21-ui-components.md",
+    "MEMORY\\specs\\P6-13-permission-ceiling.md",
+    "MEMORY\\DECISIONS.md",
+    "TASKS\\BACKLOG.md",
+    "TASKS\\PHASE-F-FRONTEND.md",
+    "MEMORY\\records\\2026-10-22-permission-ceiling.md",
+    "apps\\web\\AGENTS.md",
+    "apps\\web\\CLAUDE.md",
+    "MEMORY\\records\\2026-10-22-mobile-navigation.md",
+    "TASKS\\PHASE-4-LEAVE.md",
+    "MEMORY\\specs\\P6-14-superuser-totp-and-login-audit.md",
+    "ops\\RUNBOOK.md",
+    "MEMORY\\records\\2026-10-22-superuser-totp.md",
+    "MEMORY\\records\\2026-10-22-api-documentation.md",
+    "TASKS\\PHASE-0-FOUNDATION.md",
+    "TASKS\\PHASE-S-SERVICE-SPLIT.md",
+    "MEMORY\\specs\\PS-08-end-hs256.md",
+    "MEMORY\\specs\\P6-24-english-backend-reasons.md"
   ],
   "entities": [
     {
@@ -39228,6 +39253,2211 @@
       "source": "MEMORY\\CHANGELOG.md",
       "line": 13,
       "evidence": "### 2026-10-21 — P0-09: CI pipeline"
+    },
+    {
+      "id": "sec_p2_08_audit_unmasked_pii_reads",
+      "name": "P2-08 — Audit unmasked PII reads",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-21-pii-audit.md",
+      "source": "MEMORY\\records\\2026-10-21-pii-audit.md",
+      "line": 1,
+      "evidence": "# P2-08 — Audit unmasked PII reads"
+    },
+    {
+      "id": "sec_deviation",
+      "name": "Deviation",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-21-pii-audit.md",
+      "source": "MEMORY\\records\\2026-10-21-pii-audit.md",
+      "line": 30,
+      "evidence": "## Deviation"
+    },
+    {
+      "id": "sec_phase_2_employees_and_excel_import",
+      "name": "Phase 2 — Employees and Excel Import",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-2-EMPLOYEES.md",
+      "source": "TASKS\\PHASE-2-EMPLOYEES.md",
+      "line": 1,
+      "evidence": "# Phase 2 — Employees and Excel Import"
+    },
+    {
+      "id": "sec_delivered",
+      "name": "Delivered",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-2-EMPLOYEES.md",
+      "source": "TASKS\\PHASE-2-EMPLOYEES.md",
+      "line": 19,
+      "evidence": "## Delivered"
+    },
+    {
+      "id": "sec_open",
+      "name": "Open",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-2-EMPLOYEES.md",
+      "source": "TASKS\\PHASE-2-EMPLOYEES.md",
+      "line": 33,
+      "evidence": "## Open"
+    },
+    {
+      "id": "sec_p2_09_gate_a_three_pilots_import_their_own_files",
+      "name": "P2-09 — Gate A: three pilots import their own files",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-2-EMPLOYEES.md",
+      "source": "TASKS\\PHASE-2-EMPLOYEES.md",
+      "line": 62,
+      "evidence": "### P2-09 — Gate A: three pilots import their own files"
+    },
+    {
+      "id": "sec_p2_10_delete_employee_documents_after_the_retention_period",
+      "name": "P2-10 — Delete employee documents after the retention period",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-2-EMPLOYEES.md",
+      "source": "TASKS\\PHASE-2-EMPLOYEES.md",
+      "line": 83,
+      "evidence": "### P2-10 — Delete employee documents after the retention period"
+    },
+    {
+      "id": "sec_2026_10_21_p2_08_audit_unmasked_pii_reads",
+      "name": "2026-10-21 — P2-08: Audit unmasked PII reads",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-21 — P2-08: Audit unmasked PII reads"
+    },
+    {
+      "id": "sec_memory_index",
+      "name": "Memory Index",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\MEMORY-INDEX.md",
+      "source": "MEMORY\\MEMORY-INDEX.md",
+      "line": 1,
+      "evidence": "# Memory Index"
+    },
+    {
+      "id": "sec_records",
+      "name": "Records",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\MEMORY-INDEX.md",
+      "source": "MEMORY\\MEMORY-INDEX.md",
+      "line": 9,
+      "evidence": "## Records"
+    },
+    {
+      "id": "sec_2026_10_21_p6_12_browser_security_headers",
+      "name": "2026-10-21 — P6-12: Browser security headers",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-21-security-headers.md",
+      "source": "MEMORY\\records\\2026-10-21-security-headers.md",
+      "line": 1,
+      "evidence": "# 2026-10-21 — P6-12: Browser security headers"
+    },
+    {
+      "id": "sec_open_commercial",
+      "name": "Open — Commercial",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 33,
+      "evidence": "## Open — Commercial"
+    },
+    {
+      "id": "sec_p6_09_billing",
+      "name": "P6-09 — Billing",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 35,
+      "evidence": "### P6-09 — Billing"
+    },
+    {
+      "id": "sec_p6_10_whatsapp_notifications_for_urgent_matters",
+      "name": "P6-10 — WhatsApp notifications for urgent matters",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 51,
+      "evidence": "### P6-10 — WhatsApp notifications for urgent matters"
+    },
+    {
+      "id": "sec_p6_11_subscription_credit_for_reference_product_licence_owners",
+      "name": "P6-11 — Subscription credit for reference-product licence owners",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 63,
+      "evidence": "### P6-11 — Subscription credit for reference-product licence owners"
+    },
+    {
+      "id": "sec_open_security_findings",
+      "name": "Open — Security Findings",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 75,
+      "evidence": "## Open — Security Findings"
+    },
+    {
+      "id": "sec_p6_12_browser_security_headers",
+      "name": "P6-12 — Browser security headers",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 77,
+      "evidence": "### P6-12 — Browser security headers"
+    },
+    {
+      "id": "sec_p6_13_permission_ceiling_for_role_and_grant_administrators",
+      "name": "P6-13 — Permission ceiling for role and grant administrators",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 122,
+      "evidence": "### P6-13 — Permission ceiling for role and grant administrators"
+    },
+    {
+      "id": "sec_p6_14_encrypt_superuser_totp_secrets_audit_superuser_logins",
+      "name": "P6-14 — Encrypt superuser TOTP secrets; audit superuser logins",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 148,
+      "evidence": "### P6-14 — Encrypt superuser TOTP secrets; audit superuser logins"
+    },
+    {
+      "id": "sec_p6_15_constant_time_comparison_of_the_internal_secret",
+      "name": "P6-15 — Constant-time comparison of the internal secret",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 173,
+      "evidence": "### P6-15 — Constant-time comparison of the internal secret"
+    },
+    {
+      "id": "sec_p6_16_alerting_the_first_four_alerts",
+      "name": "P6-16 — Alerting: the first four alerts",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 186,
+      "evidence": "### P6-16 — Alerting: the first four alerts"
+    },
+    {
+      "id": "sec_p6_17_off_host_backups_and_pii_key_escrow",
+      "name": "P6-17 — Off-host backups and PII key escrow",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 202,
+      "evidence": "### P6-17 — Off-host backups and PII key escrow"
+    },
+    {
+      "id": "sec_p6_18_api_documentation_coverage_interactive_page_and_secret_header_access",
+      "name": "P6-18 — API documentation: coverage, interactive page, and secret-header access",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 218,
+      "evidence": "### P6-18 — API documentation: coverage, interactive page, and secret-header access"
+    },
+    {
+      "id": "ent_p6_18_1_coverage_test_",
+      "name": "P6-18.1 — Coverage test.",
+      "type": "Component/Requirement",
+      "description": "A test in `apps/web/test/` that fails when a `ROUTE_MANIFEST` entry has no `DOCS` entry, with an explicit allowlist that starts with the 86 undocumented routes and may only shrink. Seen to fail by add",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 235,
+      "evidence": "- **P6-18.1 — Coverage test.** A test in `apps/web/test/` that fails when a `ROUTE_MANIFEST` entry has no `DOCS` entry, with an explicit allowlist that starts w"
+    },
+    {
+      "id": "ent_p6_18_2_document_the_remaining_routes_",
+      "name": "P6-18.2 — Document the remaining routes.",
+      "type": "Component/Requirement",
+      "description": "Fill `DOCS` for all 100 routes, module by module, shrinking the allowlist to zero. Summaries and descriptions in English (ADR-030). **Size L.**",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 236,
+      "evidence": "- **P6-18.2 — Document the remaining routes.** Fill `DOCS` for all 100 routes, module by module, shrinking the allowlist to zero. Summaries and descriptions in "
+    },
+    {
+      "id": "ent_p6_18_3_interactive_page_with_secret_header_access_",
+      "name": "P6-18.3 — Interactive page with secret-header access.",
+      "type": "Component/Requirement",
+      "description": "**Size M.**",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 237,
+      "evidence": "- **P6-18.3 — Interactive page with secret-header access.** **Size M.**"
+    },
+    {
+      "id": "sec_p6_19_structural_test_every_id_route_checks_ownership",
+      "name": "P6-19 — Structural test: every [id] route checks ownership",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 255,
+      "evidence": "### P6-19 — Structural test: every `[id]` route checks ownership"
+    },
+    {
+      "id": "sec_p6_20_tests_for_account_lockout_and_login_timing",
+      "name": "P6-20 — Tests for account lockout and login timing",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 270,
+      "evidence": "### P6-20 — Tests for account lockout and login timing"
+    },
+    {
+      "id": "sec_p6_21_load_test_the_morning_peak",
+      "name": "P6-21 — Load test the morning peak",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 283,
+      "evidence": "### P6-21 — Load test the morning peak"
+    },
+    {
+      "id": "sec_p6_24_english_backend_messages_with_machine_readable_reasons",
+      "name": "P6-24 — English backend messages with machine-readable reasons",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "source": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 299,
+      "evidence": "### P6-24 — English backend messages with machine-readable reasons"
+    },
+    {
+      "id": "sec_p6_18_1_openapi_coverage_test",
+      "name": "P6-18.1 — OpenAPI coverage test",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-21-openapi-coverage-test.md",
+      "source": "MEMORY\\records\\2026-10-21-openapi-coverage-test.md",
+      "line": 1,
+      "evidence": "# P6-18.1 — OpenAPI coverage test"
+    },
+    {
+      "id": "sec_2026_10_21_p6_18_1_openapi_coverage_test",
+      "name": "2026-10-21 — P6-18.1: OpenAPI coverage test",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-21 — P6-18.1: OpenAPI coverage test"
+    },
+    {
+      "id": "sec_pf_01_extract_ui_components",
+      "name": "PF-01 — Extract UI components",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-21-ui-components.md",
+      "source": "MEMORY\\records\\2026-10-21-ui-components.md",
+      "line": 1,
+      "evidence": "# PF-01 — Extract UI components"
+    },
+    {
+      "id": "sec_2026_10_21_pf_01_ui_component_audit",
+      "name": "2026-10-21 — PF-01: UI component audit",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-21 — PF-01: UI component audit"
+    },
+    {
+      "id": "ent_fr1_ceiling_",
+      "name": "FR1 — Ceiling.",
+      "type": "Component/Requirement",
+      "description": "An actor who does not hold the `TENANT_OWNER` role may confer only permissions they hold. \"Hold\" means steps 1–3 of `docs/PLAN/05` §4: role permissions plus unexpired GRANTs minus DENYs — **before** t",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 19,
+      "evidence": "- **FR1 — Ceiling.** An actor who does not hold the `TENANT_OWNER` role may confer only permissions they hold. \"Hold\" means steps 1–3 of `docs/PLAN/05` §4: role"
+    },
+    {
+      "id": "ent_fr2_what_confers_",
+      "name": "FR2 — What confers.",
+      "type": "Component/Requirement",
+      "description": "Each of these confers permissions and is checked:",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 20,
+      "evidence": "- **FR2 — What confers.** Each of these confers permissions and is checked:"
+    },
+    {
+      "id": "ent_fr3_removing_access_stays_possible_",
+      "name": "FR3 — Removing access stays possible.",
+      "type": "Component/Requirement",
+      "description": "`setUserGrant` with `DENY`, `removeUserGrant` of a `GRANT`, and removing permissions from a role are not subject to the ceiling.",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 25,
+      "evidence": "- **FR3 — Removing access stays possible.** `setUserGrant` with `DENY`, `removeUserGrant` of a `GRANT`, and removing permissions from a role are not subject to "
+    },
+    {
+      "id": "ent_fr4_owner_protection_",
+      "name": "FR4 — Owner protection.",
+      "type": "Component/Requirement",
+      "description": "A non-owner may not change the `TENANT_OWNER` role's permissions, assign the `TENANT_OWNER` role, or set or remove a grant on a user who holds `TENANT_OWNER`. Without this, a delegate could DENY `iam.",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 26,
+      "evidence": "- **FR4 — Owner protection.** A non-owner may not change the `TENANT_OWNER` role's permissions, assign the `TENANT_OWNER` role, or set or remove a grant on a us"
+    },
+    {
+      "id": "ent_fr5_owner_",
+      "name": "FR5 — Owner.",
+      "type": "Component/Requirement",
+      "description": "A holder of `TENANT_OWNER` is not subject to FR1–FR4.",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 27,
+      "evidence": "- **FR5 — Owner.** A holder of `TENANT_OWNER` is not subject to FR1–FR4."
+    },
+    {
+      "id": "ent_fr6_distinct_refusal_",
+      "name": "FR6 — Distinct refusal.",
+      "type": "Component/Requirement",
+      "description": "A refusal is `403` with code `PERMISSION_CEILING`, and `details.permissions` listing the permissions the actor lacks, or `details.role = [\"TENANT_OWNER\"]` for owner protection. Nothing is written.",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 28,
+      "evidence": "- **FR6 — Distinct refusal.** A refusal is `403` with code `PERMISSION_CEILING`, and `details.permissions` listing the permissions the actor lacks, or `details."
+    },
+    {
+      "id": "api_put_api_users_",
+      "name": "PUT /api/users/",
+      "type": "API_Endpoint",
+      "description": "| `PUT /api/users/[id]/grants` | 403 `PERMISSION_CEILING` |",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 49,
+      "evidence": "| `PUT /api/users/[id]/grants` | 403 `PERMISSION_CEILING` |"
+    },
+    {
+      "id": "api_delete_api_users_",
+      "name": "DELETE /api/users/",
+      "type": "API_Endpoint",
+      "description": "| `DELETE /api/users/[id]/grants` | 403 `PERMISSION_CEILING` |",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 50,
+      "evidence": "| `DELETE /api/users/[id]/grants` | 403 `PERMISSION_CEILING` |"
+    },
+    {
+      "id": "api_post_api_users",
+      "name": "POST /api/users",
+      "type": "API_Endpoint",
+      "description": "| `POST /api/users` | 403 `PERMISSION_CEILING` |",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 51,
+      "evidence": "| `POST /api/users` | 403 `PERMISSION_CEILING` |"
+    },
+    {
+      "id": "ent_subscription_",
+      "name": "Subscription.",
+      "type": "Component/Requirement",
+      "description": "The ceiling compares against held permissions before the subscription filter. A delegate whose role contains `payroll.payslip.read.own` while payroll is unsubscribed can still invite employees into th",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 81,
+      "evidence": "- **Subscription.** The ceiling compares against held permissions before the subscription filter. A delegate whose role contains `payroll.payslip.read.own` whil"
+    },
+    {
+      "id": "ent_expired_grant_",
+      "name": "Expired grant.",
+      "type": "Component/Requirement",
+      "description": "An expired GRANT is not held.",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 82,
+      "evidence": "- **Expired grant.** An expired GRANT is not held."
+    },
+    {
+      "id": "ent_self_deny_",
+      "name": "Self-DENY.",
+      "type": "Component/Requirement",
+      "description": "An actor holding a DENY on a permission does not hold it, so cannot lift their own DENY.",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 83,
+      "evidence": "- **Self-DENY.** An actor holding a DENY on a permission does not hold it, so cannot lift their own DENY."
+    },
+    {
+      "id": "ent_self_grant_of_a_held_permission_",
+      "name": "Self-grant of a held permission.",
+      "type": "Component/Requirement",
+      "description": "Allowed and audited; it confers nothing new. Refusing it outright (card step 3) was considered and not done: it adds a rule without closing an escalation.",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 84,
+      "evidence": "- **Self-grant of a held permission.** Allowed and audited; it confers nothing new. Refusing it outright (card step 3) was considered and not done: it adds a ru"
+    },
+    {
+      "id": "ent_editing_one_s_own_role_",
+      "name": "Editing one's own role.",
+      "type": "Component/Requirement",
+      "description": "Covered by FR1 — no special case.",
+      "source": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 85,
+      "evidence": "- **Editing one's own role.** Covered by FR1 — no special case."
+    },
+    {
+      "id": "sec_decision_log_adrs_",
+      "name": "Decision Log (ADRs)",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 1,
+      "evidence": "# Decision Log (ADRs)"
+    },
+    {
+      "id": "sec_adr_nnn_title_",
+      "name": "ADR-NNN — <Title>",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 12,
+      "evidence": "## ADR-NNN — <Title>"
+    },
+    {
+      "id": "sec_adr_001_a_modular_monolith_instead_of_sixteen_services",
+      "name": "ADR-001 — A modular monolith instead of sixteen services",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 35,
+      "evidence": "## ADR-001 — A modular monolith instead of sixteen services"
+    },
+    {
+      "id": "sec_adr_002_one_postgresql_database_a_schema_per_module",
+      "name": "ADR-002 — One PostgreSQL database, a schema per module",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 55,
+      "evidence": "## ADR-002 — One PostgreSQL database, a schema per module"
+    },
+    {
+      "id": "sec_adr_003_pg_boss_and_a_transactional_outbox_instead_of_a_broker",
+      "name": "ADR-003 — pg-boss and a transactional outbox instead of a broker",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 75,
+      "evidence": "## ADR-003 — pg-boss and a transactional outbox instead of a broker"
+    },
+    {
+      "id": "sec_adr_004_module_boundaries_enforced_by_lint",
+      "name": "ADR-004 — Module boundaries enforced by lint",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 95,
+      "evidence": "## ADR-004 — Module boundaries enforced by lint"
+    },
+    {
+      "id": "sec_adr_005_tenant_isolation_by_forced_fail_closed_row_level_security",
+      "name": "ADR-005 — Tenant isolation by forced, fail-closed row-level security",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 113,
+      "evidence": "## ADR-005 — Tenant isolation by forced, fail-closed row-level security"
+    },
+    {
+      "id": "sec_adr_006_additive_only_migrations_and_a_runner_for_what_cannot_run_in_a_transaction",
+      "name": "ADR-006 — Additive-only migrations, and a runner for what cannot run in a transaction",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 131,
+      "evidence": "## ADR-006 — Additive-only migrations, and a runner for what cannot run in a transaction"
+    },
+    {
+      "id": "sec_adr_007_the_control_plane_is_a_separate_realm_with_no_path_to_tenant_data",
+      "name": "ADR-007 — The control plane is a separate realm with no path to tenant data",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 149,
+      "evidence": "## ADR-007 — The control plane is a separate realm with no path to tenant data"
+    },
+    {
+      "id": "sec_adr_008_one_next_js_application_serving_pages_and_the_api_the_frontend_api_only",
+      "name": "ADR-008 — One Next.js application serving pages and the API; the frontend API-only",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 167,
+      "evidence": "## ADR-008 — One Next.js application serving pages and the API; the frontend API-only"
+    },
+    {
+      "id": "sec_adr_009_a_pwa_not_a_native_app_for_employees",
+      "name": "ADR-009 — A PWA, not a native app, for employees",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 185,
+      "evidence": "## ADR-009 — A PWA, not a native app, for employees"
+    },
+    {
+      "id": "sec_adr_010_attendance_evidence_is_scored_and_reviewed_never_auto_rejected",
+      "name": "ADR-010 — Attendance evidence is scored and reviewed, never auto-rejected",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 203,
+      "evidence": "## ADR-010 — Attendance evidence is scored and reviewed, never auto-rejected"
+    },
+    {
+      "id": "sec_adr_011_real_time_over_sse_and_listen_notify",
+      "name": "ADR-011 — Real time over SSE and LISTEN/NOTIFY",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 221,
+      "evidence": "## ADR-011 — Real time over SSE and `LISTEN`/`NOTIFY`"
+    },
+    {
+      "id": "sec_adr_012_tenant_and_site_time_zones",
+      "name": "ADR-012 — Tenant and site time zones",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 239,
+      "evidence": "## ADR-012 — Tenant and site time zones"
+    },
+    {
+      "id": "sec_adr_013_generic_attendance_machine_import_not_per_vendor_connectors",
+      "name": "ADR-013 — Generic attendance machine import, not per-vendor connectors",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 259,
+      "evidence": "## ADR-013 — Generic attendance machine import, not per-vendor connectors"
+    },
+    {
+      "id": "sec_adr_014_leave_single_step_approval_and_a_row_lock_on_the_balance",
+      "name": "ADR-014 — Leave: single-step approval, and a row lock on the balance",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 277,
+      "evidence": "## ADR-014 — Leave: single-step approval, and a row lock on the balance"
+    },
+    {
+      "id": "sec_adr_015_the_payroll_framework_was_built_before_gate_c",
+      "name": "ADR-015 — The payroll framework was built before Gate C",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 297,
+      "evidence": "## ADR-015 — The payroll framework was built before Gate C"
+    },
+    {
+      "id": "sec_adr_016_phases_3_6_were_built_without_gates_a_and_b",
+      "name": "ADR-016 — Phases 3–6 were built without Gates A and B",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 317,
+      "evidence": "## ADR-016 — Phases 3–6 were built without Gates A and B"
+    },
+    {
+      "id": "sec_adr_017_split_authentication_ahead_of_docs_plan_12_9_s_triggers",
+      "name": "ADR-017 — Split authentication ahead of docs/PLAN/12 §9's triggers",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 337,
+      "evidence": "## ADR-017 — Split authentication ahead of `docs/PLAN/12` §9's triggers"
+    },
+    {
+      "id": "sec_adr_018_rate_limiting_and_caches_fail_open_when_redis_is_unavailable",
+      "name": "ADR-018 — Rate limiting and caches fail open when Redis is unavailable",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 355,
+      "evidence": "## ADR-018 — Rate limiting and caches fail open when Redis is unavailable"
+    },
+    {
+      "id": "sec_adr_019_nats_jetstream_behind_a_broker_seam_off_by_default",
+      "name": "ADR-019 — NATS JetStream behind a broker seam, off by default",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 373,
+      "evidence": "## ADR-019 — NATS JetStream behind a broker seam, off by default"
+    },
+    {
+      "id": "sec_adr_020_a_guard_is_not_trusted_until_it_has_been_seen_to_fail",
+      "name": "ADR-020 — A guard is not trusted until it has been seen to fail",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 391,
+      "evidence": "## ADR-020 — A guard is not trusted until it has been seen to fail"
+    },
+    {
+      "id": "sec_adr_021_tests_use_real_services_never_mocked_data_layers",
+      "name": "ADR-021 — Tests use real services, never mocked data layers",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 411,
+      "evidence": "## ADR-021 — Tests use real services, never mocked data layers"
+    },
+    {
+      "id": "sec_adr_022_plan_moved_under_docs_plan_numbers_kept_new_documents_from_15",
+      "name": "ADR-022 — PLAN/ moved under docs/PLAN/; numbers kept; new documents from 15",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 429,
+      "evidence": "## ADR-022 — `PLAN/` moved under `docs/PLAN/`; numbers kept; new documents from 15"
+    },
+    {
+      "id": "sec_adr_023_documentation_in_english_interface_in_indonesian",
+      "name": "ADR-023 — Documentation in English, interface in Indonesian",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 449,
+      "evidence": "## ADR-023 — Documentation in English, interface in Indonesian"
+    },
+    {
+      "id": "sec_adr_024_email_through_resend_printed_to_the_log_when_unconfigured",
+      "name": "ADR-024 — Email through Resend, printed to the log when unconfigured",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 467,
+      "evidence": "## ADR-024 — Email through Resend, printed to the log when unconfigured"
+    },
+    {
+      "id": "sec_adr_025_attendance_photos_uploaded_through_the_server",
+      "name": "ADR-025 — Attendance photos uploaded through the server",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 485,
+      "evidence": "## ADR-025 — Attendance photos uploaded through the server"
+    },
+    {
+      "id": "sec_adr_026_a_hand_written_service_worker",
+      "name": "ADR-026 — A hand-written service worker",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 503,
+      "evidence": "## ADR-026 — A hand-written service worker"
+    },
+    {
+      "id": "sec_adr_027_files_on_local_disk_behind_a_blobstore_interface",
+      "name": "ADR-027 — Files on local disk behind a BlobStore interface",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 521,
+      "evidence": "## ADR-027 — Files on local disk behind a `BlobStore` interface"
+    },
+    {
+      "id": "sec_adr_028_metrics_404_without_the_token_never_labelled_by_tenant",
+      "name": "ADR-028 — Metrics: 404 without the token, never labelled by tenant",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 539,
+      "evidence": "## ADR-028 — Metrics: `404` without the token, never labelled by tenant"
+    },
+    {
+      "id": "sec_adr_029_an_unconfigured_office_network_degrades_fallbackonly_suspension_does_not_revoke_live_sessions",
+      "name": "ADR-029 — An unconfigured office network degrades FALLBACKONLY; suspension does not revoke live sessions",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 557,
+      "evidence": "## ADR-029 — An unconfigured office network degrades `FALLBACK_ONLY`; suspension does not revoke live sessions"
+    },
+    {
+      "id": "sec_adr_030_backend_in_english_frontend_fully_indonesian",
+      "name": "ADR-030 — Backend in English, frontend fully Indonesian",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 575,
+      "evidence": "## ADR-030 — Backend in English, frontend fully Indonesian"
+    },
+    {
+      "id": "sec_adr_031_api_documentation_behind_a_superuser_session_and_a_hashed_docs_key",
+      "name": "ADR-031 — API documentation behind a superuser session and a hashed docs key",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 600,
+      "evidence": "## ADR-031 — API documentation behind a superuser session and a hashed docs key"
+    },
+    {
+      "id": "sec_adr_032_authorization_stays_in_process_the_service_split_stops",
+      "name": "ADR-032 — Authorization stays in-process; the service split stops",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 620,
+      "evidence": "## ADR-032 — Authorization stays in-process; the service split stops"
+    },
+    {
+      "id": "sec_adr_033_first_year_capacity_envelope_3_tenants_up_to_600_employees",
+      "name": "ADR-033 — First-year capacity envelope: 3 tenants, up to 600 employees",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 640,
+      "evidence": "## ADR-033 — First-year capacity envelope: 3 tenants, up to 600 employees"
+    },
+    {
+      "id": "sec_adr_034_emails_and_push_notifications_in_indonesian",
+      "name": "ADR-034 — Emails and push notifications in Indonesian",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 660,
+      "evidence": "## ADR-034 — Emails and push notifications in Indonesian"
+    },
+    {
+      "id": "sec_adr_035_permission_ceiling_nobody_but_the_owner_confers_what_they_do_not_hold",
+      "name": "ADR-035 — Permission ceiling: nobody but the owner confers what they do not hold",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 682,
+      "evidence": "## ADR-035 — Permission ceiling: nobody but the owner confers what they do not hold"
+    },
+    {
+      "id": "sec_decisions_pending",
+      "name": "Decisions Pending",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 709,
+      "evidence": "## Decisions Pending"
+    },
+    {
+      "id": "sec_backlog_open_questions_plan_gaps_deviations_deferrals",
+      "name": "Backlog — Open Questions, Plan Gaps, Deviations, Deferrals",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 1,
+      "evidence": "# Backlog — Open Questions, Plan Gaps, Deviations, Deferrals"
+    },
+    {
+      "id": "ent_open_questions_oq_",
+      "name": "Open Questions (OQ)",
+      "type": "Component/Requirement",
+      "description": "— decisions the documents do not contain. **Raised with the user, never resolved unilaterally.** Each carries a recommendation so the decision is quick.",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 5,
+      "evidence": "- **Open Questions (OQ)** — decisions the documents do not contain. **Raised with the user, never resolved unilaterally.** Each carries a recommendation so the "
+    },
+    {
+      "id": "ent_plan_gaps_pg_",
+      "name": "Plan Gaps (PG)",
+      "type": "Component/Requirement",
+      "description": "— something the plan implies but does not specify, or states wrongly. Each needs a plan amendment or a documented decision.",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 6,
+      "evidence": "- **Plan Gaps (PG)** — something the plan implies but does not specify, or states wrongly. Each needs a plan amendment or a documented decision."
+    },
+    {
+      "id": "ent_deviations_dv_",
+      "name": "Deviations (DV)",
+      "type": "Component/Requirement",
+      "description": "— where the built system differs from the plan. Each has an ADR.",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 7,
+      "evidence": "- **Deviations (DV)** — where the built system differs from the plan. Each has an ADR."
+    },
+    {
+      "id": "ent_deferred_df_",
+      "name": "Deferred (DF)",
+      "type": "Component/Requirement",
+      "description": "— explicitly out of scope now, recorded so the decision is not quietly reversed.",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 8,
+      "evidence": "- **Deferred (DF)** — explicitly out of scope now, recorded so the decision is not quietly reversed."
+    },
+    {
+      "id": "sec_open_questions",
+      "name": "Open Questions",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 16,
+      "evidence": "## Open Questions"
+    },
+    {
+      "id": "sec__oq_01_language_of_api_error_messages_answered_2026_09_14",
+      "name": "~~OQ-01 — Language of API error messages~~ — ANSWERED 2026-09-14",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 18,
+      "evidence": "### ~~OQ-01 — Language of API error messages~~ — ANSWERED 2026-09-14"
+    },
+    {
+      "id": "ent_the_frontend_never_renders_a_server_message_",
+      "name": "The frontend never renders a server `message`.",
+      "type": "Component/Requirement",
+      "description": "It maps the error `code` — and a finer-grained reason where one code covers several refusals — to Indonesian text of its own (`PF-20`). About 30 places render the server message today.",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 25,
+      "evidence": "- **The frontend never renders a server `message`.** It maps the error `code` — and a finer-grained reason where one code covers several refusals — to Indonesia"
+    },
+    {
+      "id": "ent_interpretation_stated_so_it_can_be_corrected",
+      "name": "Interpretation, stated so it can be corrected",
+      "type": "Component/Requirement",
+      "description": "data the frontend displays — seeded menu labels, leave-type names, holiday names — counts as frontend content and stays Indonesian. Emails and push notifications reach users outside the frontend and a",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 27,
+      "evidence": "- **Interpretation, stated so it can be corrected**: data the frontend displays — seeded menu labels, leave-type names, holiday names — counts as frontend conte"
+    },
+    {
+      "id": "sec_oq_02_where_do_off_host_backups_go_and_who_holds_the_pii_keys_",
+      "name": "OQ-02 — Where do off-host backups go, and who holds the PII keys?",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 29,
+      "evidence": "### OQ-02 — Where do off-host backups go, and who holds the PII keys?"
+    },
+    {
+      "id": "sec__oq_03_is_sso_saml_or_a_public_api_actually_on_the_roadmap_answered_2026_09_14",
+      "name": "~~OQ-03 — Is SSO/SAML (or a public API) actually on the roadmap?~~ — ANSWERED 2026-09-14",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 37,
+      "evidence": "### ~~OQ-03 — Is SSO/SAML (or a public API) actually on the roadmap?~~ — ANSWERED 2026-09-14"
+    },
+    {
+      "id": "sec__oq_04_one_database_instance_or_two_for_auth_not_needed_2026_09_14_",
+      "name": "~~OQ-04 — One database instance or two for auth?~~ — NOT NEEDED (2026-09-14)",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 50,
+      "evidence": "### ~~OQ-04 — One database instance or two for auth?~~ — NOT NEEDED (2026-09-14)"
+    },
+    {
+      "id": "sec__oq_05_capacity_assumptions_answered_2026_09_14",
+      "name": "~~OQ-05 — Capacity assumptions~~ — ANSWERED 2026-09-14",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 54,
+      "evidence": "### ~~OQ-05 — Capacity assumptions~~ — ANSWERED 2026-09-14"
+    },
+    {
+      "id": "sec_oq_06_who_receives_alerts_and_who_owns_security_",
+      "name": "OQ-06 — Who receives alerts, and who owns security?",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 69,
+      "evidence": "### OQ-06 — Who receives alerts, and who owns security?"
+    },
+    {
+      "id": "sec_oq_07_retention_period_for_employee_documents",
+      "name": "OQ-07 — Retention period for employee documents",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 77,
+      "evidence": "### OQ-07 — Retention period for employee documents"
+    },
+    {
+      "id": "sec_oq_08_gate_c_who_is_the_payroll_expert_and_when_",
+      "name": "OQ-08 — Gate C: who is the payroll expert, and when?",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 85,
+      "evidence": "### OQ-08 — Gate C: who is the payroll expert, and when?"
+    },
+    {
+      "id": "sec_oq_09_log_shipping_vendor",
+      "name": "OQ-09 — Log shipping vendor",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 91,
+      "evidence": "### OQ-09 — Log shipping vendor"
+    },
+    {
+      "id": "sec__oq_10_does_the_control_plane_deploy_with_auth_or_separately_not_needed_2026_09_14_",
+      "name": "~~OQ-10 — Does the control plane deploy with auth or separately?~~ — NOT NEEDED (2026-09-14)",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 99,
+      "evidence": "### ~~OQ-10 — Does the control plane deploy with auth or separately?~~ — NOT NEEDED (2026-09-14)"
+    },
+    {
+      "id": "sec__oq_11_api_documentation_access_the_secret_header_answered_2026_09_14",
+      "name": "~~OQ-11 — API documentation access: the secret header~~ — ANSWERED 2026-09-14",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 103,
+      "evidence": "### ~~OQ-11 — API documentation access: the secret header~~ — ANSWERED 2026-09-14"
+    },
+    {
+      "id": "sec_oq_12_recovery_objectives_rpo_rto_",
+      "name": "OQ-12 — Recovery objectives (RPO / RTO)",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 117,
+      "evidence": "### OQ-12 — Recovery objectives (RPO / RTO)"
+    },
+    {
+      "id": "sec_oq_13_subscription_credit_for_owners_of_the_reference_excel_product",
+      "name": "OQ-13 — Subscription credit for owners of the reference Excel product",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 123,
+      "evidence": "### OQ-13 — Subscription credit for owners of the reference Excel product"
+    },
+    {
+      "id": "sec_oq_14_hs256_retirement_date",
+      "name": "OQ-14 — HS256 retirement date",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 127,
+      "evidence": "### OQ-14 — HS256 retirement date"
+    },
+    {
+      "id": "sec__oq_15_language_of_emails_and_push_notifications_answered_2026_09_14",
+      "name": "~~OQ-15 — Language of emails and push notifications~~ — ANSWERED 2026-09-14",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 133,
+      "evidence": "### ~~OQ-15 — Language of emails and push notifications~~ — ANSWERED 2026-09-14"
+    },
+    {
+      "id": "sec_plan_gaps",
+      "name": "Plan Gaps",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 141,
+      "evidence": "## Plan Gaps"
+    },
+    {
+      "id": "sec_pg_01_no_pagination_convention",
+      "name": "PG-01 — No pagination convention",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 143,
+      "evidence": "### PG-01 — No pagination convention"
+    },
+    {
+      "id": "sec_pg_02_no_api_versioning_policy",
+      "name": "PG-02 — No API versioning policy",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 147,
+      "evidence": "### PG-02 — No API versioning policy"
+    },
+    {
+      "id": "sec_pg_03_docs_plan_13_is_stale_in_places",
+      "name": "PG-03 — docs/PLAN/13 is stale in places",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 151,
+      "evidence": "### PG-03 — `docs/PLAN/13` is stale in places"
+    },
+    {
+      "id": "sec_pg_04_openapi_ts_claims_a_coverage_test_that_does_not_exist",
+      "name": "PG-04 — openapi.ts claims a coverage test that does not exist",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 155,
+      "evidence": "### PG-04 — `openapi.ts` claims a coverage test that does not exist"
+    },
+    {
+      "id": "sec_pg_05_docs_plan_01_and_04_do_not_say_they_are_superseded",
+      "name": "PG-05 — docs/PLAN/01 and 04 do not say they are superseded",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 159,
+      "evidence": "### PG-05 — `docs/PLAN/01` and `04` do not say they are superseded"
+    },
+    {
+      "id": "sec_pg_06_the_phase_0_and_phase_1_environment_was_never_built_as_planned",
+      "name": "PG-06 — The Phase 0 and Phase 1 environment was never built as planned",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 163,
+      "evidence": "### PG-06 — The Phase 0 and Phase 1 environment was never built as planned"
+    },
+    {
+      "id": "sec_deviations",
+      "name": "Deviations",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 169,
+      "evidence": "## Deviations"
+    },
+    {
+      "id": "sec_deferred",
+      "name": "Deferred",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 190,
+      "evidence": "## Deferred"
+    },
+    {
+      "id": "sec_security_findings_of_2026_09_13",
+      "name": "Security Findings of 2026-09-13",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 209,
+      "evidence": "## Security Findings of 2026-09-13"
+    },
+    {
+      "id": "sec_pf_01_extract_the_repeated_ui_patterns_into_components",
+      "name": "PF-01 — Extract the repeated UI patterns into components",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 19,
+      "evidence": "### PF-01 — Extract the repeated UI patterns into components"
+    },
+    {
+      "id": "sec_pf_02_mobile_navigation",
+      "name": "PF-02 — Mobile navigation",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 38,
+      "evidence": "### PF-02 — Mobile navigation"
+    },
+    {
+      "id": "sec_pf_03_tables_that_scroll_at_phone_width",
+      "name": "PF-03 — Tables that scroll at phone width",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 61,
+      "evidence": "### PF-03 — Tables that scroll at phone width"
+    },
+    {
+      "id": "sec_pf_04_refused_state_for_402_and_403",
+      "name": "PF-04 — Refused state for 402 and 403",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 75,
+      "evidence": "### PF-04 — Refused state for `402` and `403`"
+    },
+    {
+      "id": "sec_pf_05_offline_state_on_pages_other_than_punch",
+      "name": "PF-05 — Offline state on pages other than punch",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 96,
+      "evidence": "### PF-05 — Offline state on pages other than punch"
+    },
+    {
+      "id": "sec_pf_06_focus_visibility_skip_link_labelled_navigation",
+      "name": "PF-06 — Focus visibility, skip link, labelled navigation",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 110,
+      "evidence": "### PF-06 — Focus visibility, skip link, labelled navigation"
+    },
+    {
+      "id": "sec_pf_07_page_titles_and_focus_on_navigation",
+      "name": "PF-07 — Page titles and focus on navigation",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 124,
+      "evidence": "### PF-07 — Page titles and focus on navigation"
+    },
+    {
+      "id": "sec_pf_08_announce_async_outcomes",
+      "name": "PF-08 — Announce async outcomes",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 137,
+      "evidence": "### PF-08 — Announce async outcomes"
+    },
+    {
+      "id": "sec_pf_09_field_level_server_errors",
+      "name": "PF-09 — Field-level server errors",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 150,
+      "evidence": "### PF-09 — Field-level server errors"
+    },
+    {
+      "id": "sec_pf_10_images_contrast_and_touch_targets",
+      "name": "PF-10 — Images, contrast, and touch targets",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 164,
+      "evidence": "### PF-10 — Images, contrast, and touch targets"
+    },
+    {
+      "id": "sec_pf_11_first_run_setup_guidance",
+      "name": "PF-11 — First-run setup guidance",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 177,
+      "evidence": "### PF-11 — First-run setup guidance"
+    },
+    {
+      "id": "sec_pf_12_hr_views_render_other_people_s_punch_times_in_the_tenant_s_time_zone",
+      "name": "PF-12 — HR views render other people's punch times in the tenant's time zone",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 191,
+      "evidence": "### PF-12 — HR views render other people's punch times in the tenant's time zone"
+    },
+    {
+      "id": "sec_pf_13_browser_end_to_end_suite",
+      "name": "PF-13 — Browser end-to-end suite",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 204,
+      "evidence": "### PF-13 — Browser end-to-end suite"
+    },
+    {
+      "id": "sec_pf_14_automated_accessibility_checks",
+      "name": "PF-14 — Automated accessibility checks",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 220,
+      "evidence": "### PF-14 — Automated accessibility checks"
+    },
+    {
+      "id": "sec_pf_15_one_error_colour",
+      "name": "PF-15 — One error colour",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 234,
+      "evidence": "### PF-15 — One error colour"
+    },
+    {
+      "id": "sec_pf_16_confirm_discarding_an_import_and_closing_a_payroll_run",
+      "name": "PF-16 — Confirm discarding an import and closing a payroll run",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 246,
+      "evidence": "### PF-16 — Confirm discarding an import and closing a payroll run"
+    },
+    {
+      "id": "sec_pf_17_move_the_attendance_policy_out_of_the_shifts_page",
+      "name": "PF-17 — Move the attendance policy out of the shifts page",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 259,
+      "evidence": "### PF-17 — Move the attendance policy out of the shifts page"
+    },
+    {
+      "id": "sec_pf_18_mobile_friendly_pocket_pages",
+      "name": "PF-18 — Mobile-friendly pocket pages",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 270,
+      "evidence": "### PF-18 — Mobile-friendly pocket pages"
+    },
+    {
+      "id": "sec_pf_19_warn_about_anniversary_on_the_leave_policy_screen",
+      "name": "PF-19 — Warn about ANNIVERSARY on the leave policy screen",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 284,
+      "evidence": "### PF-19 — Warn about `ANNIVERSARY` on the leave policy screen"
+    },
+    {
+      "id": "sec_pf_20_indonesian_message_catalogue_never_render_server_messages",
+      "name": "PF-20 — Indonesian message catalogue; never render server messages",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-F-FRONTEND.md",
+      "source": "TASKS\\PHASE-F-FRONTEND.md",
+      "line": 297,
+      "evidence": "### PF-20 — Indonesian message catalogue; never render server messages"
+    },
+    {
+      "id": "sec_p6_13_permission_ceiling",
+      "name": "P6-13 — Permission ceiling",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-22-permission-ceiling.md",
+      "source": "MEMORY\\records\\2026-10-22-permission-ceiling.md",
+      "line": 1,
+      "evidence": "# P6-13 — Permission ceiling"
+    },
+    {
+      "id": "sec_decisions",
+      "name": "Decisions",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-22-permission-ceiling.md",
+      "source": "MEMORY\\records\\2026-10-22-permission-ceiling.md",
+      "line": 40,
+      "evidence": "## Decisions"
+    },
+    {
+      "id": "sec_2026_10_22_p6_13_permission_ceiling",
+      "name": "2026-10-22 — P6-13: Permission ceiling",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — P6-13: Permission ceiling"
+    },
+    {
+      "id": "sec_discrepancy",
+      "name": "Discrepancy",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-22-mobile-navigation.md",
+      "source": "MEMORY\\records\\2026-10-22-mobile-navigation.md",
+      "line": 52,
+      "evidence": "## Discrepancy"
+    },
+    {
+      "id": "sec_not_done",
+      "name": "Not Done",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-22-mobile-navigation.md",
+      "source": "MEMORY\\records\\2026-10-22-mobile-navigation.md",
+      "line": 56,
+      "evidence": "## Not Done"
+    },
+    {
+      "id": "sec_2026_10_22_pf_02_mobile_navigation",
+      "name": "2026-10-22 — PF-02: Mobile navigation",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — PF-02: Mobile navigation"
+    },
+    {
+      "id": "sec_2026_10_22_p6_15_constant_time_internal_secret",
+      "name": "2026-10-22 — P6-15: Constant-time internal secret",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — P6-15: Constant-time internal secret"
+    },
+    {
+      "id": "sec_p4_08_automated_tests_for_the_leave_approval_controls",
+      "name": "P4-08 — Automated tests for the leave approval controls",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-4-LEAVE.md",
+      "source": "TASKS\\PHASE-4-LEAVE.md",
+      "line": 35,
+      "evidence": "### P4-08 — Automated tests for the leave approval controls"
+    },
+    {
+      "id": "sec_p4_11_tiered_approval",
+      "name": "P4-11 — Tiered approval",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-4-LEAVE.md",
+      "source": "TASKS\\PHASE-4-LEAVE.md",
+      "line": 58,
+      "evidence": "### P4-11 — Tiered approval"
+    },
+    {
+      "id": "sec_p4_12_anniversary_based_balance_periods",
+      "name": "P4-12 — Anniversary-based balance periods",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-4-LEAVE.md",
+      "source": "TASKS\\PHASE-4-LEAVE.md",
+      "line": 69,
+      "evidence": "### P4-12 — Anniversary-based balance periods"
+    },
+    {
+      "id": "sec_2026_10_22_p4_08_leave_approval_control_tests",
+      "name": "2026-10-22 — P4-08: Leave approval control tests",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — P4-08: Leave approval control tests"
+    },
+    {
+      "id": "sec_pg_07_node_26_rejects_experimental_transform_types",
+      "name": "PG-07 — Node 26 rejects --experimental-transform-types",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 167,
+      "evidence": "### PG-07 — Node 26 rejects `--experimental-transform-types`"
+    },
+    {
+      "id": "sec_adr_036_a_time_floor_on_every_failed_login",
+      "name": "ADR-036 — A time floor on every failed login",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 709,
+      "evidence": "## ADR-036 — A time floor on every failed login"
+    },
+    {
+      "id": "sec_2026_10_22_p6_20_lockout_and_login_timing",
+      "name": "2026-10-22 — P6-20: Lockout and login timing",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — P6-20: Lockout and login timing"
+    },
+    {
+      "id": "ent_fr6",
+      "name": "FR6",
+      "type": "Component/Requirement",
+      "description": "The response to every failure is unchanged: one `401 INVALID_CREDENTIALS`.",
+      "source": "MEMORY\\specs\\P6-14-superuser-totp-and-login-audit.md",
+      "line": 24,
+      "evidence": "- **FR6** The response to every failure is unchanged: one `401 INVALID_CREDENTIALS`."
+    },
+    {
+      "id": "ent_fr7",
+      "name": "FR7",
+      "type": "Component/Requirement",
+      "description": "An unknown email pays the same argon2 cost as a known one.",
+      "source": "MEMORY\\specs\\P6-14-superuser-totp-and-login-audit.md",
+      "line": 25,
+      "evidence": "- **FR7** An unknown email pays the same argon2 cost as a known one."
+    },
+    {
+      "id": "api_post_admin_api_auth_login",
+      "name": "POST /admin/api/auth/login",
+      "type": "API_Endpoint",
+      "description": "`POST /admin/api/auth/login`: unchanged request and responses.",
+      "source": "MEMORY\\specs\\P6-14-superuser-totp-and-login-audit.md",
+      "line": 41,
+      "evidence": "`POST /admin/api/auth/login`: unchanged request and responses."
+    },
+    {
+      "id": "sec_incident_runbook",
+      "name": "Incident Runbook",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 1,
+      "evidence": "# Incident Runbook"
+    },
+    {
+      "id": "ent_do_not_delete_data_to_restore_service_",
+      "name": "Do not delete data to restore service.",
+      "type": "Component/Requirement",
+      "description": "Rule M4 of document `09`. Almost",
+      "source": "ops\\RUNBOOK.md",
+      "line": 8,
+      "evidence": "- **Do not delete data to restore service.** Rule M4 of document `09`. Almost"
+    },
+    {
+      "id": "ent_write_down_what_you_are_doing",
+      "name": "Write down what you are doing",
+      "type": "Component/Requirement",
+      "description": "in the incident channel as you do it, not",
+      "source": "ops\\RUNBOOK.md",
+      "line": 13,
+      "evidence": "- **Write down what you are doing** in the incident channel as you do it, not"
+    },
+    {
+      "id": "sec_1_the_application_is_slow_or_hanging",
+      "name": "1. The application is slow or hanging",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 19,
+      "evidence": "## 1. The application is slow or hanging"
+    },
+    {
+      "id": "sec_2_background_jobs_stopped_flagged_punches_never_arrive_email_is_not_sent",
+      "name": "2. Background jobs stopped — flagged punches never arrive, email is not sent",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 72,
+      "evidence": "## 2. Background jobs stopped — flagged punches never arrive, email is not sent"
+    },
+    {
+      "id": "sec_3_tenant_isolation_has_leaked",
+      "name": "3. Tenant isolation has leaked",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 105,
+      "evidence": "## 3. Tenant isolation has leaked"
+    },
+    {
+      "id": "sec_4_a_migration_failed_halfway",
+      "name": "4. A migration failed halfway",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 139,
+      "evidence": "## 4. A migration failed halfway"
+    },
+    {
+      "id": "sec_5_attendance_photos_are_not_deleted_after_their_retention_period",
+      "name": "5. Attendance photos are not deleted after their retention period",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 165,
+      "evidence": "## 5. Attendance photos are not deleted after their retention period"
+    },
+    {
+      "id": "sec_6_restoring_from_backup",
+      "name": "6. Restoring from backup",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 201,
+      "evidence": "## 6. Restoring from backup"
+    },
+    {
+      "id": "sec_taking_a_backup",
+      "name": "Taking a backup",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 206,
+      "evidence": "### Taking a backup"
+    },
+    {
+      "id": "sec_restoring",
+      "name": "Restoring",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 232,
+      "evidence": "### Restoring"
+    },
+    {
+      "id": "sec_scheduling_backups",
+      "name": "Scheduling backups",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 256,
+      "evidence": "### Scheduling backups"
+    },
+    {
+      "id": "sec_a_compose_service_for_a_single_vps_deployment",
+      "name": "A. Compose service — for a single-VPS deployment",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 262,
+      "evidence": "#### A. Compose service — for a single-VPS deployment"
+    },
+    {
+      "id": "sec_b_host_cron_for_schedules_that_must_be_exact",
+      "name": "B. Host cron — for schedules that must be exact",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 289,
+      "evidence": "#### B. Host cron — for schedules that must be exact"
+    },
+    {
+      "id": "sec_every_day_at_02_15_local_time_",
+      "name": "Every day at 02:15 local time.",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 292,
+      "evidence": "# Every day at 02:15 local time."
+    },
+    {
+      "id": "sec_what_must_be_checked_after_a_restore",
+      "name": "What MUST be checked after a restore",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 305,
+      "evidence": "### What MUST be checked after a restore"
+    },
+    {
+      "id": "sec_test_results_28_august_2026",
+      "name": "Test results — 28 August 2026",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 336,
+      "evidence": "### Test results — 28 August 2026"
+    },
+    {
+      "id": "sec_at_realistic_size_500_employees_one_year_of_attendance",
+      "name": "At realistic size — 500 employees, one year of attendance",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 340,
+      "evidence": "#### At realistic size — 500 employees, one year of attendance"
+    },
+    {
+      "id": "sec_on_development_data",
+      "name": "On development data",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 358,
+      "evidence": "#### On development data"
+    },
+    {
+      "id": "sec_its_limitations_stated_plainly",
+      "name": "Its limitations, stated plainly",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 370,
+      "evidence": "### Its limitations, stated plainly"
+    },
+    {
+      "id": "ent_the_compose_schedule_drifts_",
+      "name": "The compose schedule drifts.",
+      "type": "Component/Requirement",
+      "description": "See the note on option A above.",
+      "source": "ops\\RUNBOOK.md",
+      "line": 375,
+      "evidence": "- **The compose schedule drifts.** See the note on option A above."
+    },
+    {
+      "id": "ent_the_scale_test_used_a_single_storage_file_",
+      "name": "The scale test used a single storage file.",
+      "type": "Component/Requirement",
+      "description": "Archiving tens of thousands of",
+      "source": "ops\\RUNBOOK.md",
+      "line": 376,
+      "evidence": "- **The scale test used a single storage file.** Archiving tens of thousands of"
+    },
+    {
+      "id": "sec_7_point_in_time_recovery",
+      "name": "7. Point-in-time recovery",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 382,
+      "evidence": "## 7. Point-in-time recovery"
+    },
+    {
+      "id": "sec_how_it_is_configured",
+      "name": "How it is configured",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 401,
+      "evidence": "### How it is configured"
+    },
+    {
+      "id": "sec_checking_that_archiving_actually_works",
+      "name": "Checking that archiving actually works",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 414,
+      "evidence": "### Checking that archiving actually works"
+    },
+    {
+      "id": "sec_taking_a_base_backup",
+      "name": "Taking a base backup",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 428,
+      "evidence": "### Taking a base backup"
+    },
+    {
+      "id": "sec_recovering_to_a_point_in_time",
+      "name": "Recovering to a point in time",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 447,
+      "evidence": "### Recovering to a point in time"
+    },
+    {
+      "id": "sec_swapping_the_recovered_instance_into_production",
+      "name": "Swapping the recovered instance into production",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 476,
+      "evidence": "### Swapping the recovered instance into production"
+    },
+    {
+      "id": "sec_verified",
+      "name": "Verified",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 506,
+      "evidence": "### Verified"
+    },
+    {
+      "id": "ent_the_archive_is_on_the_same_host_as_the_database_",
+      "name": "The archive is on the same host as the database.",
+      "type": "Component/Requirement",
+      "description": "A disk failure takes",
+      "source": "ops\\RUNBOOK.md",
+      "line": 523,
+      "evidence": "- **The archive is on the same host as the database.** A disk failure takes"
+    },
+    {
+      "id": "ent_base_backups_are_version_locked_",
+      "name": "Base backups are version-locked.",
+      "type": "Component/Requirement",
+      "description": "They can only be restored by the same",
+      "source": "ops\\RUNBOOK.md",
+      "line": 525,
+      "evidence": "- **Base backups are version-locked.** They can only be restored by the same"
+    },
+    {
+      "id": "ent_the_swap_procedure_above_has_not_been_rehearsed_end_to_end",
+      "name": "The swap procedure above has not been rehearsed end to end",
+      "type": "Component/Requirement",
+      "description": "— only the",
+      "source": "ops\\RUNBOOK.md",
+      "line": 527,
+      "evidence": "- **The swap procedure above has not been rehearsed end to end** — only the"
+    },
+    {
+      "id": "sec_8_rotating_the_pii_encryption_keys",
+      "name": "8. Rotating the PII encryption keys",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 533,
+      "evidence": "## 8. Rotating the PII encryption keys"
+    },
+    {
+      "id": "sec_8_1_how_the_key_ring_works",
+      "name": "8.1 How the key ring works",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 551,
+      "evidence": "### 8.1 How the key ring works"
+    },
+    {
+      "id": "sec_8_2_the_procedure",
+      "name": "8.2 The procedure",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 566,
+      "evidence": "### 8.2 The procedure"
+    },
+    {
+      "id": "sec_8_3_rehearsal_record",
+      "name": "8.3 Rehearsal record",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 630,
+      "evidence": "### 8.3 Rehearsal record"
+    },
+    {
+      "id": "sec_8_4_when_the_job_reports_unreadable",
+      "name": "8.4 When the job reports unreadable",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 647,
+      "evidence": "### 8.4 When the job reports `unreadable`"
+    },
+    {
+      "id": "sec_8_5_rotating_piiindexkey_different_rules",
+      "name": "8.5 Rotating PIIINDEXKEY — different rules",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 660,
+      "evidence": "### 8.5 Rotating `PII_INDEX_KEY` — different rules"
+    },
+    {
+      "id": "sec_8_6_what_this_procedure_does_not_cover",
+      "name": "8.6 What this procedure does not cover",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 685,
+      "evidence": "### 8.6 What this procedure does not cover"
+    },
+    {
+      "id": "ent_the_keys_are_not_versioned_in_the_ciphertext_",
+      "name": "The keys are not versioned in the ciphertext.",
+      "type": "Component/Requirement",
+      "description": "Which key wrote a row cannot",
+      "source": "ops\\RUNBOOK.md",
+      "line": 687,
+      "evidence": "- **The keys are not versioned in the ciphertext.** Which key wrote a row cannot"
+    },
+    {
+      "id": "ent_no_key_management_service_",
+      "name": "No key management service.",
+      "type": "Component/Requirement",
+      "description": "Keys live in the environment. Moving them to a",
+      "source": "ops\\RUNBOOK.md",
+      "line": 689,
+      "evidence": "- **No key management service.** Keys live in the environment. Moving them to a"
+    },
+    {
+      "id": "ent_photo_and_document_files_are_not_encrypted_at_rest_by_these_keys",
+      "name": "Photo and document files are not encrypted at rest by these keys",
+      "type": "Component/Requirement",
+      "description": "— object",
+      "source": "ops\\RUNBOOK.md",
+      "line": 691,
+      "evidence": "- **Photo and document files are not encrypted at rest by these keys** — object"
+    },
+    {
+      "id": "ent_not_rehearsed_at_production_volume_",
+      "name": "Not rehearsed at production volume.",
+      "type": "Component/Requirement",
+      "description": "The job batches 200 employees per",
+      "source": "ops\\RUNBOOK.md",
+      "line": 694,
+      "evidence": "- **Not rehearsed at production volume.** The job batches 200 employees per"
+    },
+    {
+      "id": "sec_8a_sealing_and_rotating_superuser_totp_secrets",
+      "name": "8a. Sealing and rotating superuser TOTP secrets",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 700,
+      "evidence": "## 8a. Sealing and rotating superuser TOTP secrets"
+    },
+    {
+      "id": "sec_9_repairing_punch_working_dates_run_once_before_the_first_release_",
+      "name": "9. Repairing punch working dates (run once, before the first release)",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 718,
+      "evidence": "## 9. Repairing punch working dates (run once, before the first release)"
+    },
+    {
+      "id": "sec_9_1_dayslocked_is_the_number_that_needs_a_person",
+      "name": "9.1 daysLocked is the number that needs a person",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 747,
+      "evidence": "### 9.1 `daysLocked` is the number that needs a person"
+    },
+    {
+      "id": "sec_what_is_not_in_this_runbook",
+      "name": "What is not in this runbook",
+      "type": "Section/Module",
+      "description": "Specification section from ops\\RUNBOOK.md",
+      "source": "ops\\RUNBOOK.md",
+      "line": 768,
+      "evidence": "## What is not in this runbook"
+    },
+    {
+      "id": "ent_billing_incidents",
+      "name": "Billing incidents",
+      "type": "Component/Requirement",
+      "description": "— the module does not exist.",
+      "source": "ops\\RUNBOOK.md",
+      "line": 772,
+      "evidence": "- **Billing incidents** — the module does not exist."
+    },
+    {
+      "id": "ent_payment_gateway_failures",
+      "name": "Payment gateway failures",
+      "type": "Component/Requirement",
+      "description": "— not integrated.",
+      "source": "ops\\RUNBOOK.md",
+      "line": 773,
+      "evidence": "- **Payment gateway failures** — not integrated."
+    },
+    {
+      "id": "ent_off_host_backup_replication",
+      "name": "Off-host backup replication",
+      "type": "Component/Requirement",
+      "description": "— see the limitation in §7.",
+      "source": "ops\\RUNBOOK.md",
+      "line": 774,
+      "evidence": "- **Off-host backup replication** — see the limitation in §7."
+    },
+    {
+      "id": "ent_rotating_the_object_storage_credentials",
+      "name": "Rotating the object-storage credentials",
+      "type": "Component/Requirement",
+      "description": "— see the limit in §8.6.",
+      "source": "ops\\RUNBOOK.md",
+      "line": 775,
+      "evidence": "- **Rotating the object-storage credentials** — see the limit in §8.6."
+    },
+    {
+      "id": "sec_p6_14_superuser_totp_sealed_superuser_logins_audited",
+      "name": "P6-14 — Superuser TOTP sealed; superuser logins audited",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-22-superuser-totp.md",
+      "source": "MEMORY\\records\\2026-10-22-superuser-totp.md",
+      "line": 1,
+      "evidence": "# P6-14 — Superuser TOTP sealed; superuser logins audited"
+    },
+    {
+      "id": "sec_found_along_the_way",
+      "name": "Found Along the Way",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-22-superuser-totp.md",
+      "source": "MEMORY\\records\\2026-10-22-superuser-totp.md",
+      "line": 23,
+      "evidence": "## Found Along the Way"
+    },
+    {
+      "id": "sec_2026_10_22_p6_14_superuser_totp_sealed_superuser_logins_audited",
+      "name": "2026-10-22 — P6-14: Superuser TOTP sealed; superuser logins audited",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — P6-14: Superuser TOTP sealed; superuser logins audited"
+    },
+    {
+      "id": "sec_review_2026_10_22",
+      "name": "Review — 2026-10-22",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-21-security-headers.md",
+      "source": "MEMORY\\records\\2026-10-21-security-headers.md",
+      "line": 19,
+      "evidence": "## Review — 2026-10-22"
+    },
+    {
+      "id": "sec__pg_04_openapi_ts_claims_a_coverage_test_that_does_not_exist_resolved_2026_10_22",
+      "name": "~~PG-04 — openapi.ts claims a coverage test that does not exist~~ — RESOLVED 2026-10-22",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 155,
+      "evidence": "### ~~PG-04 — `openapi.ts` claims a coverage test that does not exist~~ — RESOLVED 2026-10-22"
+    },
+    {
+      "id": "sec_p6_18_2_every_route_documented",
+      "name": "P6-18.2 — Every route documented",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\records\\2026-10-22-api-documentation.md",
+      "source": "MEMORY\\records\\2026-10-22-api-documentation.md",
+      "line": 1,
+      "evidence": "# P6-18.2 — Every route documented"
+    },
+    {
+      "id": "sec_2026_10_22_p6_18_2_and_a_review_of_the_2026_10_21_work",
+      "name": "2026-10-22 — P6-18.2 and a review of the 2026-10-21 work",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — P6-18.2 and a review of the 2026-10-21 work"
+    },
+    {
+      "id": "sec_adr_037_machine_readable_refusal_reasons_in_the_error_contract",
+      "name": "ADR-037 — Machine-readable refusal reasons in the error contract",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 731,
+      "evidence": "## ADR-037 — Machine-readable refusal reasons in the error contract"
+    },
+    {
+      "id": "sec_adr_038_hs256_verification_ends",
+      "name": "ADR-038 — HS256 verification ends",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 751,
+      "evidence": "## ADR-038 — HS256 verification ends"
+    },
+    {
+      "id": "sec_adr_039_node_24_until_a_loader_decision",
+      "name": "ADR-039 — Node 24 until a loader decision",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 769,
+      "evidence": "## ADR-039 — Node 24 until a loader decision"
+    },
+    {
+      "id": "sec__oq_14_hs256_retirement_date_answered_2026_10_22_adr_038_end_it_now",
+      "name": "~~OQ-14 — HS256 retirement date~~ — ANSWERED 2026-10-22 (ADR-038): end it now",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 127,
+      "evidence": "### ~~OQ-14 — HS256 retirement date~~ — ANSWERED 2026-10-22 (ADR-038): end it now"
+    },
+    {
+      "id": "sec__pg_07_node_26_rejects_experimental_transform_types_resolved_2026_10_22_adr_039_node_24_pinned",
+      "name": "~~PG-07 — Node 26 rejects --experimental-transform-types~~ — RESOLVED 2026-10-22 (ADR-039): Node 24 pinned",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\BACKLOG.md",
+      "source": "TASKS\\BACKLOG.md",
+      "line": 167,
+      "evidence": "### ~~PG-07 — Node 26 rejects `--experimental-transform-types`~~ — RESOLVED 2026-10-22 (ADR-039): Node 24 pinned"
+    },
+    {
+      "id": "sec_2026_10_22_decisions_error_reasons_hs256_node_24",
+      "name": "2026-10-22 — Decisions: error reasons, HS256, Node 24",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — Decisions: error reasons, HS256, Node 24"
+    },
+    {
+      "id": "sec_p0_07_interview_five_hr_practitioners",
+      "name": "P0-07 — Interview five HR practitioners",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-0-FOUNDATION.md",
+      "source": "TASKS\\PHASE-0-FOUNDATION.md",
+      "line": 33,
+      "evidence": "### P0-07 — Interview five HR practitioners"
+    },
+    {
+      "id": "sec_p0_08_collect_real_artefacts",
+      "name": "P0-08 — Collect real artefacts",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-0-FOUNDATION.md",
+      "source": "TASKS\\PHASE-0-FOUNDATION.md",
+      "line": 59,
+      "evidence": "### P0-08 — Collect real artefacts"
+    },
+    {
+      "id": "sec_p0_10_staging_environment",
+      "name": "P0-10 — Staging environment",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-0-FOUNDATION.md",
+      "source": "TASKS\\PHASE-0-FOUNDATION.md",
+      "line": 110,
+      "evidence": "### P0-10 — Staging environment"
+    },
+    {
+      "id": "sec_p0_11_spike_s2_excel_import_at_5_000_rows",
+      "name": "P0-11 — Spike S2: Excel import at 5,000 rows",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-0-FOUNDATION.md",
+      "source": "TASKS\\PHASE-0-FOUNDATION.md",
+      "line": 131,
+      "evidence": "### P0-11 — Spike S2: Excel import at 5,000 rows"
+    },
+    {
+      "id": "sec_p0_12_spike_s3_tenant_context_under_100_000_concurrent_transactions",
+      "name": "P0-12 — Spike S3: tenant context under 100,000 concurrent transactions",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-0-FOUNDATION.md",
+      "source": "TASKS\\PHASE-0-FOUNDATION.md",
+      "line": 146,
+      "evidence": "### P0-12 — Spike S3: tenant context under 100,000 concurrent transactions"
+    },
+    {
+      "id": "sec_p0_13_spike_s1_pph_21_ter_against_30_real_payslips",
+      "name": "P0-13 — Spike S1: PPh 21 TER against 30 real payslips",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-0-FOUNDATION.md",
+      "source": "TASKS\\PHASE-0-FOUNDATION.md",
+      "line": 163,
+      "evidence": "### P0-13 — Spike S1: PPh 21 TER against 30 real payslips"
+    },
+    {
+      "id": "sec_p0_14_spike_s4_pwa_punching_on_real_devices_for_24_hours",
+      "name": "P0-14 — Spike S4: PWA punching on real devices for 24 hours",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-0-FOUNDATION.md",
+      "source": "TASKS\\PHASE-0-FOUNDATION.md",
+      "line": 176,
+      "evidence": "### P0-14 — Spike S4: PWA punching on real devices for 24 hours"
+    },
+    {
+      "id": "sec_ps_08_end_the_hs256_window",
+      "name": "PS-08 — End the HS256 window",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "source": "TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "line": 29,
+      "evidence": "### PS-08 — End the HS256 window"
+    },
+    {
+      "id": "sec_ps_09_revoke_hrmsapp_s_read_of_auth_users",
+      "name": "PS-09 — Revoke hrmsapp's read of auth.users",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "source": "TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "line": 56,
+      "evidence": "### PS-09 — Revoke `hrms_app`'s read of `auth.users`"
+    },
+    {
+      "id": "sec_ps_10_service_identity_beyond_a_shared_secret",
+      "name": "PS-10 — Service identity beyond a shared secret",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "source": "TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "line": 73,
+      "evidence": "### PS-10 — Service identity beyond a shared secret"
+    },
+    {
+      "id": "sec_ps_11_stage_8_separate_frontend_and_backend_builds",
+      "name": "PS-11 — Stage 8: separate frontend and backend builds",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "source": "TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "line": 85,
+      "evidence": "### PS-11 — Stage 8: separate frontend and backend builds"
+    },
+    {
+      "id": "sec_ps_12_measure_the_cost_of_remote_authorization",
+      "name": "PS-12 — Measure the cost of remote authorization",
+      "type": "Section/Module",
+      "description": "Specification section from TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "source": "TASKS\\PHASE-S-SERVICE-SPLIT.md",
+      "line": 97,
+      "evidence": "### PS-12 — Measure the cost of remote authorization"
+    },
+    {
+      "id": "sec_4_5_non_functional_requirements_and_dependencies",
+      "name": "4–5. Non-functional requirements and dependencies",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\PS-08-end-hs256.md",
+      "source": "MEMORY\\specs\\PS-08-end-hs256.md",
+      "line": 19,
+      "evidence": "## 4–5. Non-functional requirements and dependencies"
+    },
+    {
+      "id": "sec_6_9_database_api_frontend_backend",
+      "name": "6–9. Database, API, frontend, backend",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\PS-08-end-hs256.md",
+      "source": "MEMORY\\specs\\PS-08-end-hs256.md",
+      "line": 22,
+      "evidence": "## 6–9. Database, API, frontend, backend"
+    },
+    {
+      "id": "sec_10_13_authorization_validation_errors_edge_cases",
+      "name": "10–13. Authorization, validation, errors, edge cases",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\PS-08-end-hs256.md",
+      "source": "MEMORY\\specs\\PS-08-end-hs256.md",
+      "line": 25,
+      "evidence": "## 10–13. Authorization, validation, errors, edge cases"
+    },
+    {
+      "id": "sec_15_16_logging_controls",
+      "name": "15–16. Logging, controls",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\PS-08-end-hs256.md",
+      "source": "MEMORY\\specs\\PS-08-end-hs256.md",
+      "line": 31,
+      "evidence": "## 15–16. Logging, controls"
+    },
+    {
+      "id": "sec_17_19_testing_acceptance_dod",
+      "name": "17–19. Testing, acceptance, DoD",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\PS-08-end-hs256.md",
+      "source": "MEMORY\\specs\\PS-08-end-hs256.md",
+      "line": 34,
+      "evidence": "## 17–19. Testing, acceptance, DoD"
+    },
+    {
+      "id": "sec_20_22_sequence_rollback_risks",
+      "name": "20–22. Sequence, rollback, risks",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\PS-08-end-hs256.md",
+      "source": "MEMORY\\specs\\PS-08-end-hs256.md",
+      "line": 37,
+      "evidence": "## 20–22. Sequence, rollback, risks"
+    },
+    {
+      "id": "sec_2026_10_22_ps_08_hs256_removed",
+      "name": "2026-10-22 — PS-08: HS256 removed",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — PS-08: HS256 removed"
+    },
+    {
+      "id": "sec_4_6_non_functional_requirements_dependencies_database",
+      "name": "4–6. Non-functional requirements, dependencies, database",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\P6-24-english-backend-reasons.md",
+      "source": "MEMORY\\specs\\P6-24-english-backend-reasons.md",
+      "line": 36,
+      "evidence": "## 4–6. Non-functional requirements, dependencies, database"
+    },
+    {
+      "id": "sec_10_13_authorization_validation_error_handling_edge_cases",
+      "name": "10–13. Authorization, validation, error handling, edge cases",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\P6-24-english-backend-reasons.md",
+      "source": "MEMORY\\specs\\P6-24-english-backend-reasons.md",
+      "line": 53,
+      "evidence": "## 10–13. Authorization, validation, error handling, edge cases"
+    },
+    {
+      "id": "sec_14_16_abuse_cases_logging_controls",
+      "name": "14–16. Abuse cases, logging, controls",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\P6-24-english-backend-reasons.md",
+      "source": "MEMORY\\specs\\P6-24-english-backend-reasons.md",
+      "line": 56,
+      "evidence": "## 14–16. Abuse cases, logging, controls"
+    },
+    {
+      "id": "sec_18_22_acceptance_dod_sequence_rollback_risks",
+      "name": "18–22. Acceptance, DoD, sequence, rollback, risks",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\specs\\P6-24-english-backend-reasons.md",
+      "source": "MEMORY\\specs\\P6-24-english-backend-reasons.md",
+      "line": 65,
+      "evidence": "## 18–22. Acceptance, DoD, sequence, rollback, risks"
+    },
+    {
+      "id": "sec_adr_040_generated_documents_stay_indonesian",
+      "name": "ADR-040 — Generated documents stay Indonesian",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\DECISIONS.md",
+      "source": "MEMORY\\DECISIONS.md",
+      "line": 785,
+      "evidence": "## ADR-040 — Generated documents stay Indonesian"
+    },
+    {
+      "id": "sec_2026_10_22_p6_24_english_backend_refusal_reasons_indonesian_emails",
+      "name": "2026-10-22 — P6-24: English backend, refusal reasons, Indonesian emails",
+      "type": "Section/Module",
+      "description": "Specification section from MEMORY\\CHANGELOG.md",
+      "source": "MEMORY\\CHANGELOG.md",
+      "line": 13,
+      "evidence": "### 2026-10-22 — P6-24: English backend, refusal reasons, Indonesian emails"
     }
   ],
   "relations": [
@@ -43590,12 +45820,412 @@
       "evidence": "- **Guard erosion** — covered by the full `pnpm verify` suite (including route manifest, menu coverage, frontend boundary, migration lint, etc.).",
       "source_file": "MEMORY\\records\\2026-10-21-ci-pipeline.md",
       "line": 77
+    },
+    {
+      "source": "sec_delivered",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_post_api_employees_bulk",
+      "evidence": "| P2-01 | Employee CRUD, list, and AG Grid bulk edit | `/employees`, `/employees/grid`, `POST /api/employees/bulk` | DONE (retro) |",
+      "source_file": "TASKS\\PHASE-2-EMPLOYEES.md",
+      "line": 23
+    },
+    {
+      "source": "sec_delivered",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_post_api_tenants_register",
+      "evidence": "| P6-01 | Self-service tenant registration with trial | `/register`, `POST /api/tenants/register` (5/hour per address) | DONE (retro) |",
+      "source_file": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 20
+    },
+    {
+      "source": "sec_p6_18_api_documentation_coverage_interactive_page_and_secret_header_access",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_p6_18_1_coverage_test_",
+      "evidence": "- **P6-18.1 — Coverage test.** A test in `apps/web/test/` that fails when a `ROUTE_MANIFEST` entry has no `DOCS` entry, with an explicit allowlist that starts w",
+      "source_file": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 235
+    },
+    {
+      "source": "sec_p6_18_api_documentation_coverage_interactive_page_and_secret_header_access",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_p6_18_2_document_the_remaining_routes_",
+      "evidence": "- **P6-18.2 — Document the remaining routes.** Fill `DOCS` for all 100 routes, module by module, shrinking the allowlist to zero. Summaries and descriptions in ",
+      "source_file": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 236
+    },
+    {
+      "source": "sec_p6_18_api_documentation_coverage_interactive_page_and_secret_header_access",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_p6_18_3_interactive_page_with_secret_header_access_",
+      "evidence": "- **P6-18.3 — Interactive page with secret-header access.** **Size M.**",
+      "source_file": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 237
+    },
+    {
+      "source": "sec_p6_18_api_documentation_coverage_interactive_page_and_secret_header_access",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_get_admin_api_docs_openapi",
+      "evidence": "4. Control-plane routes in `ADMIN_ROUTE_MANIFEST`: `GET /admin/api/docs/openapi.json`, guarded by a superuser session **and** `X-Docs-Key`.",
+      "source_file": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 241
+    },
+    {
+      "source": "sec_p6_18_api_documentation_coverage_interactive_page_and_secret_header_access",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_get_api_openapi",
+      "evidence": "6. Remove the tenant route `GET /api/openapi.json` and its manifest entry.",
+      "source_file": "TASKS\\PHASE-6-COMMERCIALISATION-HARDENING.md",
+      "line": 243
+    },
+    {
+      "source": "sec_3_functional_requirements",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_fr1_ceiling_",
+      "evidence": "- **FR1 — Ceiling.** An actor who does not hold the `TENANT_OWNER` role may confer only permissions they hold. \"Hold\" means steps 1–3 of `docs/PLAN/05` §4: role",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 19
+    },
+    {
+      "source": "sec_3_functional_requirements",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_fr2_what_confers_",
+      "evidence": "- **FR2 — What confers.** Each of these confers permissions and is checked:",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 20
+    },
+    {
+      "source": "sec_3_functional_requirements",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_fr3_removing_access_stays_possible_",
+      "evidence": "- **FR3 — Removing access stays possible.** `setUserGrant` with `DENY`, `removeUserGrant` of a `GRANT`, and removing permissions from a role are not subject to ",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 25
+    },
+    {
+      "source": "sec_3_functional_requirements",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_fr4_owner_protection_",
+      "evidence": "- **FR4 — Owner protection.** A non-owner may not change the `TENANT_OWNER` role's permissions, assign the `TENANT_OWNER` role, or set or remove a grant on a us",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 26
+    },
+    {
+      "source": "sec_3_functional_requirements",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_fr5_owner_",
+      "evidence": "- **FR5 — Owner.** A holder of `TENANT_OWNER` is not subject to FR1–FR4.",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 27
+    },
+    {
+      "source": "sec_3_functional_requirements",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_fr6_distinct_refusal_",
+      "evidence": "- **FR6 — Distinct refusal.** A refusal is `403` with code `PERMISSION_CEILING`, and `details.permissions` listing the permissions the actor lacks, or `details.",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 28
+    },
+    {
+      "source": "sec_7_api_contract",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_put_api_roles_",
+      "evidence": "| `PUT /api/roles/[id]/permissions` | 403 `PERMISSION_CEILING` |",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 48
+    },
+    {
+      "source": "sec_7_api_contract",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_put_api_users_",
+      "evidence": "| `PUT /api/users/[id]/grants` | 403 `PERMISSION_CEILING` |",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 49
+    },
+    {
+      "source": "sec_7_api_contract",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_delete_api_users_",
+      "evidence": "| `DELETE /api/users/[id]/grants` | 403 `PERMISSION_CEILING` |",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 50
+    },
+    {
+      "source": "sec_7_api_contract",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_post_api_users",
+      "evidence": "| `POST /api/users` | 403 `PERMISSION_CEILING` |",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 51
+    },
+    {
+      "source": "sec_7_api_contract",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_post_api_users_from_employees",
+      "evidence": "| `POST /api/users/from-employees` | 403 `PERMISSION_CEILING` |",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 52
+    },
+    {
+      "source": "sec_13_edge_cases",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_subscription_",
+      "evidence": "- **Subscription.** The ceiling compares against held permissions before the subscription filter. A delegate whose role contains `payroll.payslip.read.own` whil",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 81
+    },
+    {
+      "source": "sec_13_edge_cases",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_expired_grant_",
+      "evidence": "- **Expired grant.** An expired GRANT is not held.",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 82
+    },
+    {
+      "source": "sec_13_edge_cases",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_self_deny_",
+      "evidence": "- **Self-DENY.** An actor holding a DENY on a permission does not hold it, so cannot lift their own DENY.",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 83
+    },
+    {
+      "source": "sec_13_edge_cases",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_self_grant_of_a_held_permission_",
+      "evidence": "- **Self-grant of a held permission.** Allowed and audited; it confers nothing new. Refusing it outright (card step 3) was considered and not done: it adds a ru",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 84
+    },
+    {
+      "source": "sec_13_edge_cases",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_editing_one_s_own_role_",
+      "evidence": "- **Editing one's own role.** Covered by FR1 — no special case.",
+      "source_file": "MEMORY\\specs\\P6-13-permission-ceiling.md",
+      "line": 85
+    },
+    {
+      "source": "sec_adr_031_api_documentation_behind_a_superuser_session_and_a_hashed_docs_key",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_get_api_openapi",
+      "evidence": "**Decision** — one platform-wide secret generated by `ops/scripts/set-docs-key.mjs`, shown once, stored as an **Argon2id hash** in `platform.api_docs_keys`, two",
+      "source_file": "MEMORY\\DECISIONS.md",
+      "line": 612
+    },
+    {
+      "source": "sec_backlog_open_questions_plan_gaps_deviations_deferrals",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_open_questions_oq_",
+      "evidence": "- **Open Questions (OQ)** — decisions the documents do not contain. **Raised with the user, never resolved unilaterally.** Each carries a recommendation so the ",
+      "source_file": "TASKS\\BACKLOG.md",
+      "line": 5
+    },
+    {
+      "source": "sec_backlog_open_questions_plan_gaps_deviations_deferrals",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_plan_gaps_pg_",
+      "evidence": "- **Plan Gaps (PG)** — something the plan implies but does not specify, or states wrongly. Each needs a plan amendment or a documented decision.",
+      "source_file": "TASKS\\BACKLOG.md",
+      "line": 6
+    },
+    {
+      "source": "sec_backlog_open_questions_plan_gaps_deviations_deferrals",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_deviations_dv_",
+      "evidence": "- **Deviations (DV)** — where the built system differs from the plan. Each has an ADR.",
+      "source_file": "TASKS\\BACKLOG.md",
+      "line": 7
+    },
+    {
+      "source": "sec_backlog_open_questions_plan_gaps_deviations_deferrals",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_deferred_df_",
+      "evidence": "- **Deferred (DF)** — explicitly out of scope now, recorded so the decision is not quietly reversed.",
+      "source_file": "TASKS\\BACKLOG.md",
+      "line": 8
+    },
+    {
+      "source": "sec__oq_01_language_of_api_error_messages_answered_2026_09_14",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_the_frontend_never_renders_a_server_message_",
+      "evidence": "- **The frontend never renders a server `message`.** It maps the error `code` — and a finer-grained reason where one code covers several refusals — to Indonesia",
+      "source_file": "TASKS\\BACKLOG.md",
+      "line": 25
+    },
+    {
+      "source": "sec__oq_01_language_of_api_error_messages_answered_2026_09_14",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_interpretation_stated_so_it_can_be_corrected",
+      "evidence": "- **Interpretation, stated so it can be corrected**: data the frontend displays — seeded menu labels, leave-type names, holiday names — counts as frontend conte",
+      "source_file": "TASKS\\BACKLOG.md",
+      "line": 27
+    },
+    {
+      "source": "sec__oq_11_api_documentation_access_the_secret_header_answered_2026_09_14",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_get_api_openapi",
+      "evidence": "6. **Access requires a platform superuser session and the header** — the documentation moves to the control plane; the tenant route `GET /api/openapi.json` is r",
+      "source_file": "TASKS\\BACKLOG.md",
+      "line": 114
+    },
+    {
+      "source": "sec_3_functional_requirements",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_fr6",
+      "evidence": "- **FR6** The response to every failure is unchanged: one `401 INVALID_CREDENTIALS`.",
+      "source_file": "MEMORY\\specs\\P6-14-superuser-totp-and-login-audit.md",
+      "line": 24
+    },
+    {
+      "source": "sec_3_functional_requirements",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_fr7",
+      "evidence": "- **FR7** An unknown email pays the same argon2 cost as a known one.",
+      "source_file": "MEMORY\\specs\\P6-14-superuser-totp-and-login-audit.md",
+      "line": 25
+    },
+    {
+      "source": "sec_7_api_contract",
+      "relation": "EXPOSES_ENDPOINT",
+      "target": "api_post_admin_api_auth_login",
+      "evidence": "`POST /admin/api/auth/login`: unchanged request and responses.",
+      "source_file": "MEMORY\\specs\\P6-14-superuser-totp-and-login-audit.md",
+      "line": 41
+    },
+    {
+      "source": "sec_incident_runbook",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_do_not_delete_data_to_restore_service_",
+      "evidence": "- **Do not delete data to restore service.** Rule M4 of document `09`. Almost",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 8
+    },
+    {
+      "source": "sec_incident_runbook",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_write_down_what_you_are_doing",
+      "evidence": "- **Write down what you are doing** in the incident channel as you do it, not",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 13
+    },
+    {
+      "source": "sec_its_limitations_stated_plainly",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_not_tested_above_160_mb_",
+      "evidence": "- **Not tested above 160 MB.** The numbers above are linear across the tested",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 372
+    },
+    {
+      "source": "sec_its_limitations_stated_plainly",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_the_compose_schedule_drifts_",
+      "evidence": "- **The compose schedule drifts.** See the note on option A above.",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 375
+    },
+    {
+      "source": "sec_its_limitations_stated_plainly",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_the_scale_test_used_a_single_storage_file_",
+      "evidence": "- **The scale test used a single storage file.** Archiving tens of thousands of",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 376
+    },
+    {
+      "source": "sec_its_limitations_stated_plainly",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_the_archive_is_on_the_same_host_as_the_database_",
+      "evidence": "- **The archive is on the same host as the database.** A disk failure takes",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 523
+    },
+    {
+      "source": "sec_its_limitations_stated_plainly",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_base_backups_are_version_locked_",
+      "evidence": "- **Base backups are version-locked.** They can only be restored by the same",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 525
+    },
+    {
+      "source": "sec_its_limitations_stated_plainly",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_the_swap_procedure_above_has_not_been_rehearsed_end_to_end",
+      "evidence": "- **The swap procedure above has not been rehearsed end to end** — only the",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 527
+    },
+    {
+      "source": "sec_8_6_what_this_procedure_does_not_cover",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_the_keys_are_not_versioned_in_the_ciphertext_",
+      "evidence": "- **The keys are not versioned in the ciphertext.** Which key wrote a row cannot",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 687
+    },
+    {
+      "source": "sec_8_6_what_this_procedure_does_not_cover",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_no_key_management_service_",
+      "evidence": "- **No key management service.** Keys live in the environment. Moving them to a",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 689
+    },
+    {
+      "source": "sec_8_6_what_this_procedure_does_not_cover",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_photo_and_document_files_are_not_encrypted_at_rest_by_these_keys",
+      "evidence": "- **Photo and document files are not encrypted at rest by these keys** — object",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 691
+    },
+    {
+      "source": "sec_8_6_what_this_procedure_does_not_cover",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_not_rehearsed_at_production_volume_",
+      "evidence": "- **Not rehearsed at production volume.** The job batches 200 employees per",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 694
+    },
+    {
+      "source": "sec_what_is_not_in_this_runbook",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_billing_incidents",
+      "evidence": "- **Billing incidents** — the module does not exist.",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 772
+    },
+    {
+      "source": "sec_what_is_not_in_this_runbook",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_payment_gateway_failures",
+      "evidence": "- **Payment gateway failures** — not integrated.",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 773
+    },
+    {
+      "source": "sec_what_is_not_in_this_runbook",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_off_host_backup_replication",
+      "evidence": "- **Off-host backup replication** — see the limitation in §7.",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 774
+    },
+    {
+      "source": "sec_what_is_not_in_this_runbook",
+      "relation": "DEFINES_REQUIREMENT",
+      "target": "ent_rotating_the_object_storage_credentials",
+      "evidence": "- **Rotating the object-storage credentials** — see the limit in §8.6.",
+      "source_file": "ops\\RUNBOOK.md",
+      "line": 775
     }
   ],
   "stats": {
-    "total_sources": 1884,
-    "total_entities": 4149,
-    "total_relations": 545,
+    "total_sources": 1909,
+    "total_entities": 4394,
+    "total_relations": 595,
     "token_savings_estimate": "85-95%"
   }
 }
