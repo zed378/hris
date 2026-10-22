@@ -1016,6 +1016,9 @@ Found by trying it, not by reading the code.
     escape hatch is a hole waiting for its condition to be met. The accepted
     limit: a company with only one user cannot use the leave flow at all, and
     must use an HR balance adjustment instead.
+
+    Both, and the stand-in path, are covered by `apps/web/test/leave-approval-controls.test.ts`
+    through the real handlers (P4-08, 2026-10-22); each test fails with its check removed.
 - ~~**Working days other than Monday–Friday**~~ — **done.** `countWorkingDays`
   now reads `attendance.schedules`, the same source the attendance module uses to
   decide `DAY_OFF` status — so attendance and leave cannot disagree about which

@@ -36,7 +36,7 @@
 
 | | |
 |---|---|
-| **Status** | TODO |
+| **Status** | DONE — 2026-10-22 (`apps/web/test/leave-approval-controls.test.ts`) |
 | **Priority** | P1 |
 | **Depends on** | — |
 | **Plan refs** | `docs/PLAN/13` §5 "Two control failures", `docs/SECURITY/02` §5(b)(c), `docs/PLAN/16` §1 |

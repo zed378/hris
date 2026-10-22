@@ -10,6 +10,14 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — P4-08: Leave approval control tests
+
+**Tests**
+- `apps/web/test/leave-approval-controls.test.ts`: self-approval refused as manager, HR administrator, and `TENANT_OWNER`, with balance, status, and audit unchanged; a request addressed to a non-approver refused at creation; the named approver and an HR stand-in may decide. Each test fails with its check disabled.
+
+**Fixed**
+- The decision route answered a refused self-approval with 409; it is now 403, as the submit route already answered. The three leave routes share one `LeaveError` mapping (`apps/web/src/lib/leave-error.ts`), and a 403 now carries `PERMISSION_DENIED` instead of `CONFLICT`.
+
 ### 2026-10-22 — P6-15: Constant-time internal secret
 
 **Security**

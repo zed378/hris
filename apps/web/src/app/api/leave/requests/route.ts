@@ -3,30 +3,13 @@ import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
 import { submitRequest, listRequests, LeaveError } from '@hrms/core/leave';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { leaveErrorResponse } from '@/lib/leave-error.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const READ_ALL = 'leave.request.read.all';
 const READ_TEAM = 'leave.request.read.team';
-
-/** Memetakan kind galat cuti ke kode HTTP yang berarti bagi klien. */
-function statusFor(kind: LeaveError['kind']): number {
-  switch (kind) {
-    case 'not_found':
-      return 404;
-    case 'forbidden':
-      return 403;
-    // 409, bukan 400: permintaannya sah, keadaan sistem yang menolaknya. HR
-    // yang melihat 400 akan mencari kesalahan pada formulirnya.
-    case 'insufficient_balance':
-    case 'overlap':
-    case 'invalid_state':
-      return 409;
-    case 'not_entitled':
-      return 403;
-  }
-}
 
 export const GET = defineRoute('GET /api/leave/requests', async (req, ctx) => {
   const url = new URL(req.url);
@@ -127,14 +110,7 @@ export const POST = defineRoute('POST /api/leave/requests', async (req, ctx) => 
     );
     return NextResponse.json(request, { status: 201 });
   } catch (error) {
-    if (error instanceof LeaveError) {
-      return apiError(
-        statusFor(error.kind),
-        error.kind === 'not_found' ? ErrorCode.NOT_FOUND : ErrorCode.CONFLICT,
-        error.message,
-        ctx.correlationId,
-      );
-    }
+    if (error instanceof LeaveError) return leaveErrorResponse(error, ctx.correlationId);
     throw error;
   }
 });

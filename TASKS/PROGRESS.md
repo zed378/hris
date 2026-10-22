@@ -2,8 +2,8 @@
 
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
-**Last updated**: 2026-10-22 — `P6-15` DONE (constant-time internal secret)
-**Overall**: 80 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 3 since
+**Last updated**: 2026-10-22 — `P4-08` DONE (leave approval control tests)
+**Overall**: 81 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 4 since
 **Gates**: A untested · B untested · C not met · D not reached
 
 > **Read this first.** Phases 0–6 and service-split stages 1–7 were built between 2026-08-18 and 2026-09-01, before
@@ -142,11 +142,11 @@ In order. Each is unblocked today.
 | P4-01 | Types and accrual | — | — | DONE (retro) | — |
 | P4-02 | Working-day counting | — | — | DONE (retro) | — |
 | P4-03 | Submission and approval | — | — | DONE (retro) | — |
-| P4-04 | Self-approval and approver checks | — | — | DONE (retro) | untested: P4-08 |
+| P4-04 | Self-approval and approver checks | — | — | DONE (retro) | tested: P4-08 |
 | P4-05 | Ledger and row lock | — | — | DONE (retro) | — |
 | P4-06 | Carry-over job | — | — | DONE (retro) | — |
 | P4-07 | Team calendar | — | — | DONE (retro) | — |
-| P4-08 | Tests for approval controls | S | P1 | TODO | — |
+| P4-08 | Tests for approval controls | S | P1 | DONE | — |
 | P4-09 | Leave in attendance recap | — | — | DONE (retro) | — |
 | P4-10 | Leave decision push | — | — | DONE (retro) | — |
 | P4-11 | Tiered approval | L | P3 | BLOCKED | `DF-01` |

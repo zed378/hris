@@ -89,7 +89,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Mitigation | (a) a permission ceiling (ADR-035, `packages/core/src/iam/ceiling.ts`): nobody but a `TENANT_OWNER` holder confers a permission they do not hold — role additions, GRANTs, lifting a DENY, invitations into a role — or changes the owner role or an owner's grants; refused `403 PERMISSION_CEILING`. (b) self-approval refused without exception, including for HR administrators. (c) the approver must actually hold the permission. (d) DENY beats roles in `resolveEffectiveAccess`. Every role and grant change bumps the access version |
 | Detection | Audit rows on role, grant, and approval changes. No alert on them |
 | Response | Revoke; review the audit trail for everything the escalated access touched |
-| Status | (c)(d) **Mitigated** (`leave-approver.test.ts`, `gateway.test.ts` DENY precedence). (b) **Mitigated** in code — no automated test of self-approval refusal. (a) **Mitigated** — 2026-10-22 (`P6-13`): `apps/web/test/permission-ceiling.test.ts` drives each abuse case, including the owner lockout, through the real route handlers |
+| Status | (c)(d) **Mitigated** (`leave-approver.test.ts`, `gateway.test.ts` DENY precedence). (b) **Mitigated** — `leave-approval-controls.test.ts` (P4-08) refuses self-approval as a manager, an HR administrator, and `TENANT_OWNER`, through the real handlers. (a) **Mitigated** — 2026-10-22 (`P6-13`): `apps/web/test/permission-ceiling.test.ts` drives each abuse case, including the owner lockout, through the real route handlers |
 
 ## 6. Subscription Bypass
 
@@ -357,7 +357,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | 2 | Authentication attacks | Partial — no MFA |
 | 3 | Tokens and sessions | Mitigated · HS256 still verifies |
 | **4** | **`X-Forwarded-For` spoofing** | **Open** |
-| 5 | Privilege escalation, self-approval | Mitigated (ceiling) · Partial — self-approval untested |
+| 5 | Privilege escalation, self-approval | Mitigated |
 | 6 | Subscription bypass | Mitigated |
 | 7 | Attendance evidence fraud | Partial by design |
 | 8 | Personal data exposure | Mitigated · **unmask views not audited** |

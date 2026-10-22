@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
 import { readBalances, adjustBalance, readLedger, LeaveError } from '@hrms/core/leave';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { leaveErrorResponse } from '@/lib/leave-error.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -81,14 +82,7 @@ export const POST = defineRoute('POST /api/leave/balances', async (req, ctx) => 
   try {
     return NextResponse.json(await adjustBalance(ctx.tx, ctx.tenantId, parsed.data, ctx.userId));
   } catch (error) {
-    if (error instanceof LeaveError) {
-      return apiError(
-        error.kind === 'not_found' ? 404 : 409,
-        error.kind === 'not_found' ? ErrorCode.NOT_FOUND : ErrorCode.CONFLICT,
-        error.message,
-        ctx.correlationId,
-      );
-    }
+    if (error instanceof LeaveError) return leaveErrorResponse(error, ctx.correlationId);
     throw error;
   }
 });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
 import { decideRequest, cancelRequest, LeaveError } from '@hrms/core/leave';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { leaveErrorResponse } from '@/lib/leave-error.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,14 +47,7 @@ export const POST = defineRoute('POST /api/leave/requests/[id]/decision', async 
     );
     return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof LeaveError) {
-      return apiError(
-        error.kind === 'not_found' ? 404 : 409,
-        error.kind === 'not_found' ? ErrorCode.NOT_FOUND : ErrorCode.CONFLICT,
-        error.message,
-        ctx.correlationId,
-      );
-    }
+    if (error instanceof LeaveError) return leaveErrorResponse(error, ctx.correlationId);
     throw error;
   }
 });
@@ -77,14 +71,7 @@ export const DELETE = defineRoute('DELETE /api/leave/requests/[id]/decision', as
     await cancelRequest(ctx.tx, ctx.tenantId, requestId, me.id, ctx.userId);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    if (error instanceof LeaveError) {
-      return apiError(
-        error.kind === 'not_found' ? 404 : error.kind === 'forbidden' ? 403 : 409,
-        error.kind === 'forbidden' ? ErrorCode.PERMISSION_DENIED : ErrorCode.CONFLICT,
-        error.message,
-        ctx.correlationId,
-      );
-    }
+    if (error instanceof LeaveError) return leaveErrorResponse(error, ctx.correlationId);
     throw error;
   }
 });
