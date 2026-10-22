@@ -10,6 +10,12 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — PF-02: Mobile navigation
+
+**Added** — ([record](./records/2026-10-22-mobile-navigation.md))
+- Below `md`: a bottom bar (Beranda, Absen, Presensi Saya, Cuti, Slip Gaji, Lainnya) and a drawer with the full menu tree, both from `bootstrap.menu`; the tenant name links home. Closes risk F6; release gate R1 met in Chromium.
+- `apps/web/test/mobile-menu.test.ts` — reachability of every menu leaf, and a guard against a second menu list in `src/components` or `src/lib`.
+
 ### 2026-10-22 — P6-13: Permission ceiling
 
 **Security** — ([record](./records/2026-10-22-permission-ceiling.md), ADR-035)

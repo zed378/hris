@@ -32,7 +32,7 @@ A change that touches only a backend endpoint still owns the refused and error s
 
 | # | Criterion | Verified by |
 |---|---|---|
-| M1 | Reachable from every other pocket page without the browser's back button | Navigate on a phone-width viewport — **fails today (`09` §2)** |
+| M1 | Reachable from every other pocket page without the browser's back button | Navigate on a phone-width viewport — passes in Chromium at 360 px (`PF-02`, 2026-10-22); real device pending (`P3-15`) |
 | M2 | Primary action full-width and ≥ 44 px tall below `sm` | Measure |
 | M3 | Usable on a throttled "Slow 4G" profile with a mid-range CPU | DevTools throttling |
 | M4 | Nothing sensitive cached on the device | `service-worker.test.ts`; inspect Cache Storage after use |
@@ -54,7 +54,7 @@ Checked before Gate A pilots (`../PLAN/21-ACCEPTANCE-CRITERIA.md` §2).
 
 | # | Criterion | State on 2026-09-13 |
 |---|---|---|
-| R1 | Mobile navigation exists (`09` §3) | **Not met** |
+| R1 | Mobile navigation exists (`09` §3) | **Met** in Chromium (`PF-02`); device and WebKit check pending (`P3-15`) |
 | R2 | Refused state renders on every page (`11` §5) | **Not met** |
 | R3 | Lighthouse mobile: Performance ≥ 90, PWA 100, Accessibility ≥ 90 | **Not run** |
 | R4 | Accessibility gaps A-1 to A-7 closed (`10` §3) | **Not met** |

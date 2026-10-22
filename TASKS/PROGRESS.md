@@ -2,8 +2,8 @@
 
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
-**Last updated**: 2026-10-22 — `P6-13` DONE (permission ceiling; ADR-035)
-**Overall**: 78 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 1 since
+**Last updated**: 2026-10-22 — `PF-02` DONE (mobile navigation; device check stays with `P3-15`)
+**Overall**: 79 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 2 since
 **Gates**: A untested · B untested · C not met · D not reached
 
 > **Read this first.** Phases 0–6 and service-split stages 1–7 were built between 2026-08-18 and 2026-09-01, before
@@ -231,7 +231,7 @@ In order. Each is unblocked today.
 | ID | Task | Size | Priority | Status | Depends / blocked |
 |---|---|---|---|---|---|
 | PF-01 | Extract UI components | M | **P0** | TODO | — |
-| PF-02 | Mobile navigation | M | **P0** | TODO | PF-01 |
+| PF-02 | Mobile navigation | M | **P0** | DONE | PF-01 |
 | PF-03 | Tables that scroll | S | P1 | TODO | PF-01 |
 | PF-04 | Refused state for 402/403 | M | **P0** | TODO | PF-01 |
 | PF-05 | Offline state beyond punch | S | P2 | TODO | PF-01 |

@@ -16,6 +16,10 @@ export const viewport = {
   // aplikasi tidak dapat dipakai sebagian penggunanya.
   width: 'device-width',
   initialScale: 1,
+  // Lets the installed PWA draw under the home indicator. Without it
+  // `env(safe-area-inset-bottom)` is always 0 and the mobile bottom bar sits
+  // under the gesture area on iPhones (docs/UI-UX/09 §3 item 7).
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

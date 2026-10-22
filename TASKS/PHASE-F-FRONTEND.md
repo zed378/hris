@@ -39,7 +39,7 @@ The pages and components are listed in `docs/UI-UX/07-PAGE-INVENTORY.md` and `06
 
 | | |
 |---|---|
-| **Status** | TODO |
+| **Status** | DONE — 2026-10-22 ([record](../MEMORY/records/2026-10-22-mobile-navigation.md)); §3 item 10 (real device, WebKit) remains with `P3-15` |
 | **Priority** | **P0** — release gate R1 |
 | **Depends on** | PF-01 |
 | **Plan refs** | `docs/UI-UX/09` §3, `docs/UI-UX/03` §3–4, risk F6 |

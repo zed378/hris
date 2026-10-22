@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { MenuNode } from '@hrms/contracts';
 import { useSession } from '@/lib/session.tsx';
+import { overflowItems } from '@/lib/mobile-menu.ts';
+import { MobileNav } from './mobile-nav.tsx';
 
 /**
  * Kerangka aplikasi: penjagaan rute, sidebar dinamis, dan menu pengguna.
@@ -20,6 +22,13 @@ import { useSession } from '@/lib/session.tsx';
 export function AppShell({ children }: { children: ReactNode }) {
   const { status, bootstrap, logout } = useSession();
   const router = useRouter();
+  // Lifted here because two controls open the mobile drawer: the header "Menu"
+  // button and the bottom bar's "Lainnya". Stable callbacks, because
+  // `MobileNav` keys its focus-trap effect on them.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (status === 'anonymous') router.replace('/login');
@@ -38,6 +47,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     tenant.trialEndsAt !== null
       ? Math.ceil((new Date(tenant.trialEndsAt).getTime() - Date.now()) / 86_400_000)
       : null;
+  const hasOverflow = overflowItems(menu).length > 0;
 
   return (
     <div className="flex min-h-screen">
@@ -57,28 +67,54 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-900">
+        <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2 md:px-6 md:py-3 dark:border-slate-800 dark:bg-slate-900">
+          {/* Below md the sidebar is hidden, so the tenant name moves here and is
+              the way home (docs/UI-UX/09 §3 item 6). */}
+          <Link href="/" prefetch={false} className="min-w-0 truncate font-semibold md:hidden">
+            {tenant.name}
+          </Link>
           {trialDaysLeft !== null && trialDaysLeft >= 0 ? (
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+            <span className="hidden rounded-full bg-amber-100 px-3 py-1 text-xs font-medium sm:inline text-amber-800 dark:bg-amber-950 dark:text-amber-300">
               Uji coba — sisa {trialDaysLeft} hari
             </span>
           ) : (
-            <span />
+            <span className="hidden md:inline" />
           )}
 
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-slate-600 dark:text-slate-300">{user.fullName}</span>
+          <div className="flex shrink-0 items-center gap-2 text-sm md:gap-3">
+            <span className="hidden text-slate-600 sm:inline dark:text-slate-300">{user.fullName}</span>
             <button
               onClick={() => void logout()}
               className="rounded-md border border-slate-300 px-3 py-1 text-xs transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
             >
               Keluar
             </button>
+            {hasOverflow && (
+              <button
+                ref={menuButtonRef}
+                type="button"
+                onClick={openDrawer}
+                aria-expanded={drawerOpen}
+                aria-controls="mobile-drawer"
+                className="min-h-11 rounded-md border border-slate-300 px-3 text-xs md:hidden dark:border-slate-700"
+              >
+                Menu
+              </button>
+            )}
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 p-6">{children}</main>
+        {/* Bottom padding below md so the fixed bar never covers the last row. */}
+        <main className="min-w-0 flex-1 p-4 pb-24 md:p-6">{children}</main>
       </div>
+
+      <MobileNav
+        menu={menu}
+        drawerOpen={drawerOpen}
+        onOpenDrawer={openDrawer}
+        onCloseDrawer={closeDrawer}
+        drawerTriggerRef={menuButtonRef}
+      />
     </div>
   );
 }

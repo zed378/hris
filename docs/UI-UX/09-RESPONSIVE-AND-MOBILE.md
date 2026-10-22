@@ -19,24 +19,24 @@ Tailwind defaults.
 
 ## 2. The Current State at Phone Width
 
+As of 2026-10-22 (`PF-02`). The table before that change is in git history; the gap it described was risk `F6`.
+
 | Element | Below 768 px |
 |---|---|
 | Sidebar | **Hidden** (`hidden … md:block`) |
-| Replacement navigation | **None** |
-| Header | Visible: trial badge, user name, "Keluar" |
-| Link back to home | **None** — the tenant name lives in the hidden sidebar |
+| Replacement navigation | Bottom bar (pocket destinations + "Lainnya") and a drawer holding the full menu tree — `apps/web/src/components/mobile-nav.tsx` |
+| Header | Tenant name (links home), "Keluar", and "Menu" when the user has destinations beyond the bar; trial badge and user name from `sm` up |
+| Link back to home | The tenant name in the header, and "Beranda" in the bar |
 | Home dashboard | Cards stack; cards link onward to punch, my leave, my payslip, approvals, and more depending on role and data |
 | Tables | 13 of 17 scroll horizontally in `overflow-x-auto`; **4 do not** and can overflow the page |
-| Main padding | `p-6` (24 px) — generous at 360 px, leaving 312 px of content |
+| Main padding | `p-4` with `pb-24` so the fixed bar never covers the last row; `p-6` from `md` |
 | Punch page | Usable; the most mobile-considered page |
 
-**Consequence:** from any page other than home, an employee on a phone has only the browser's back button. `/attendance/me`, `/attendance/consent`, and every settings page have no path at all except the PWA shortcut (for `/attendance/me`) or a typed URL.
-
-This is risk `F6` in `../PLAN/22-RISK-REGISTER.md` and the top frontend task in `TASKS/`.
+Verified in Chromium at 360 × 740 for the seeded `EMPLOYEE` and `HR_ADMIN`: every menu leaf is in the bar or the drawer, `Esc` closes the drawer, `Tab` stays inside it, focus returns to the control that opened it, navigating closes it, and nothing scrolls horizontally. Not yet checked on a real Android device or in WebKit (§3 item 10, `P3-15`). Tables (`PF-03`) are unchanged.
 
 ## 3. Mobile Navigation — Specification
 
-To be built. Requirements, not a visual design:
+Built 2026-10-22 (`PF-02`); item 10 is outstanding. Requirements, not a visual design:
 
 1. **Visible on every authenticated page below `md`.** The desktop sidebar is unchanged.
 2. **Rendered from the same `bootstrap.menu`.** No second menu list in the frontend (`03` rule).
