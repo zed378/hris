@@ -152,9 +152,9 @@ Recorded as ADR-034 — the one exception to ADR-030's "the backend is English":
 
 Last updated 28 August 2026; says "there is no PITR yet" while `ops/RUNBOOK.md` §7 records PITR as configured and verified. **Action**: a pass over `PLAN/13` §5 to strike what later commits closed. Not done in the documentation work of 2026-09-13 so that `PLAN/13` stays the build's own record.
 
-### PG-04 — `openapi.ts` claims a coverage test that does not exist
+### ~~PG-04 — `openapi.ts` claims a coverage test that does not exist~~ — RESOLVED 2026-10-22
 
-The comment in `apps/web/src/lib/openapi.ts` describes a CI test refusing an undocumented route. None exists; 14 of 100 routes are documented. **Resolved by**: `P6-18.1`.
+The comment in `apps/web/src/lib/openapi.ts` describes a test refusing an undocumented route. It now exists (`apps/web/test/openapi-coverage.test.ts`, `P6-18.1`) and passes: every manifest route is documented (`P6-18.2`).
 
 ### PG-05 — `docs/PLAN/01` and `04` do not say they are superseded
 

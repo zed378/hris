@@ -36,7 +36,7 @@
 
 | | |
 |---|---|
-| **Status** | TODO |
+| **Status** | DONE |
 | **Priority** | **P0** |
 | **Depends on** | — |
 | **Plan refs** | `docs/PLAN/12` Phase 2 DoD, `docs/PLAN/00` §3.2 P5, `docs/PLAN/17` §9, `docs/SECURITY/02` §8(e), risk F11 |

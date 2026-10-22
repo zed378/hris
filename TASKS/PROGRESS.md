@@ -3,7 +3,7 @@
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
 **Last updated**: 2026-10-22 — `P6-14` DONE (superuser TOTP sealed; superuser logins audited)
-**Overall**: 83 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 6 since
+**Overall**: 84 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 7 since
 **Gates**: A untested · B untested · C not met · D not reached
 
 > **Read this first.** Phases 0–6 and service-split stages 1–7 were built between 2026-08-18 and 2026-09-01, before
@@ -26,8 +26,8 @@ In order. Each is unblocked today.
 | 2 | `P0-09` | CI pipeline | Every "CI gate" is currently local; no dependency or secret scanning (F2) |
 | 3 | `P2-08` | Audit unmasked PII reads | Phase 2 DoD item unmet; HR can reveal every NIK without trace (F11) |
 | 4 | `P6-12` | Browser security headers | No CSP or HSTS (F5) |
-| 5 | `P6-18.1` | OpenAPI coverage test | A comment claims a test that does not exist; 86 routes undocumented. `P6-18.3` design is now decided |
-| 6 | `PF-01` | Extract UI components | Precondition for the frontend track |
+| 5 | `P6-18.1` | OpenAPI coverage test | DONE — test exists and fails with 86 undocumented routes; P6-18.2 adds docs |
+| 6 | `PF-01` | Extract UI components | DONE — shared components verified against `docs/UI-UX/06`; no violations |
 | 7 | `PF-02` | Mobile navigation | Employees on phones are stranded (F6); release gate R1 |
 | 8 | `PF-20` | Indonesian message catalogue in the frontend | Decided 2026-09-14: users must not read the backend's English messages |
 | 9 | `PF-04` | Refused state for 402/403 | Release gate R2 |
@@ -49,7 +49,7 @@ In order. Each is unblocked today.
 | [5 — Payroll](./PHASE-5-PAYROLL.md) | 20 | 8 | Framework delivered; **statutory work blocked by Gate C** |
 | [6 — Commercialisation and Hardening](./PHASE-6-COMMERCIALISATION-HARDENING.md) | 24 | 10 | Delivered except billing and WhatsApp; security findings and language work open |
 | [S — Service Split](./PHASE-S-SERVICE-SPLIT.md) | 14 | 9 | **Stopped by decision** (ADR-032): auth stays in-process; stages 6–8 wait for SSO |
-| [F — Frontend Track](./PHASE-F-FRONTEND.md) | 20 | 0 | **Track** — runs alongside |
+| [F — Frontend Track](./PHASE-F-FRONTEND.md) | 20 | 1 | **Track** — runs alongside |
 | 7+ — Expansion | — | — | Not scheduled; Gate D (`DF-07`) |
 
 ---
@@ -107,7 +107,7 @@ In order. Each is unblocked today.
 | P2-05 | PII encryption and rotation | — | — | DONE (retro) | — |
 | P2-06 | Excel import | — | — | DONE (retro) | — |
 | P2-07 | `.xlsx` export | — | — | DONE (retro) | — |
-| P2-08 | Audit unmasked PII reads | M | **P0** | TODO | — |
+| P2-08 | Audit unmasked PII reads | M | **P0** | DONE | — |
 | P2-09 | Gate A: three pilots | L | P1 | BLOCKED | pilots; P0-10 |
 | P2-10 | Document retention deletion | M | P3 | BLOCKED | `OQ-07` |
 
@@ -193,13 +193,13 @@ In order. Each is unblocked today.
 | P6-09 | Billing | XL | P2 | BLOCKED | payment account |
 | P6-10 | WhatsApp | L | P3 | BLOCKED | WhatsApp account |
 | P6-11 | Reference-licence credit | M | P3 | BLOCKED | `OQ-13` |
-| P6-12 | Browser security headers | M | **P0** | TODO | — |
+| P6-12 | Browser security headers | M | **P0** | DONE | — |
 | P6-13 | Permission ceiling | M | P1 | DONE | — |
 | P6-14 | Encrypt superuser TOTP; audit logins | M | P1 | DONE | — |
 | P6-15 | Constant-time internal secret | S | P2 | DONE | — |
 | P6-16 | First four alerts | M | P1 | BLOCKED | `OQ-06`, `OQ-09` |
 | P6-17 | Off-host backups and key escrow | M | P1 | BLOCKED | `OQ-02`, `OQ-12` |
-| P6-18 | API documentation (18.1 coverage · 18.2 routes · 18.3 page and secret) | L | P1 | TODO | 18.3: P6-12 |
+| P6-18 | API documentation (18.1 coverage · 18.2 routes · 18.3 page and secret) | L | P1 | IN PROGRESS | 18.1, 18.2: DONE; 18.3: TODO |
 | P6-19 | Ownership structural test | M | P1 | TODO | — |
 | P6-20 | Lockout and timing tests | S | P1 | DONE | — |
 | P6-21 | Morning-peak load test | L | P3 | BLOCKED | P0-10 |
@@ -230,7 +230,7 @@ In order. Each is unblocked today.
 
 | ID | Task | Size | Priority | Status | Depends / blocked |
 |---|---|---|---|---|---|
-| PF-01 | Extract UI components | M | **P0** | TODO | — |
+| PF-01 | Extract UI components | M | **P0** | DONE | — |
 | PF-02 | Mobile navigation | M | **P0** | DONE | PF-01 |
 | PF-03 | Tables that scroll | S | P1 | TODO | PF-01 |
 | PF-04 | Refused state for 402/403 | M | **P0** | TODO | PF-01 |

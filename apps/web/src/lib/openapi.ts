@@ -151,6 +151,203 @@ export const DOCS: Partial<Record<RouteId, EndpointDoc>> = {
     summary: 'Tren bulanan enam bulan terakhir',
     query: [{ name: 'months', description: 'Jumlah bulan, 1–24. Default 6.' }],
   },
+
+  // --- Added by P6-18.2 (2026-10-22). English per ADR-030; the entries above
+  // move to English in P6-24. Each summary was written from the handler, not the path.
+  'GET /api/users': { summary: 'Lists the tenant\'s users with their roles and last login' },
+  'POST /api/users': {
+    summary: 'Invites a user by email; they set their own password',
+    description: 'The user, the invitation token, and the event that sends the email are written in one transaction. The assigned role is subject to the permission ceiling (403 PERMISSION_CEILING, ADR-035).',
+  },
+  'POST /api/users/from-employees': {
+    summary: 'Invites employees who have no account yet, in bulk',
+    description: 'Employees without an email are reported, not failed; those with an account already are skipped. Up to 500 per call. The role is subject to the permission ceiling, checked once for the whole call.',
+  },
+  'PUT /api/users/[id]/grants': {
+    summary: 'Grants or denies one permission to one user, outside their roles',
+    description: 'DENY always wins over roles and GRANTs. A reason of at least 8 characters is required. A GRANT is subject to the permission ceiling; nobody but the owner may change an owner\'s grants.',
+  },
+  'DELETE /api/users/[id]/grants': {
+    summary: 'Removes a per-user GRANT or DENY',
+    description: 'Lifting a DENY restores the permission, so it is subject to the permission ceiling.',
+  },
+  'GET /api/roles': { summary: 'Lists roles with their permissions, and the permission catalogue' },
+  'GET /api/audit': { summary: 'Reads the tenant audit trail' },
+  'PUT /api/roles/[id]/permissions': {
+    summary: 'Replaces a role\'s whole permission set',
+    description: 'PUT, not PATCH: the role matrix is saved whole. Added permissions are subject to the permission ceiling; only the owner may change TENANT_OWNER. Every holder\'s access version is bumped in the same transaction.',
+  },
+  'GET /api/employees': {
+    summary: 'Lists employees; identifiers are masked unless the caller may unmask them',
+    description: 'An unmasked read writes an `employee.pii.unmasked` audit row.',
+  },
+  'POST /api/employees': { summary: 'Creates an employee' },
+  'GET /api/employees/[id]': {
+    summary: 'Reads one employee; identifiers are masked unless the caller may unmask them',
+    description: 'An unmasked read writes an `employee.pii.unmasked` audit row.',
+  },
+  'PATCH /api/employees/[id]': { summary: 'Updates an employee' },
+  'PATCH /api/employees/bulk': {
+    summary: 'Saves many employee edits from the grid, each row in its own transaction',
+    description: 'One invalid row does not discard the others; the response reports each row\'s outcome.',
+  },
+  'GET /api/employees/[id]/documents': { summary: 'Lists an employee\'s documents' },
+  'POST /api/employees/[id]/documents': {
+    summary: 'Uploads an employee document',
+    description: 'The file type is decided from the file\'s contents, not its declared content type.',
+  },
+  'GET /api/documents/[docId]': {
+    summary: 'Serves a document\'s contents',
+    description: 'An employee may read their own documents; reading another\'s requires `employee.document.read`.',
+  },
+  'DELETE /api/documents/[docId]': {
+    summary: 'Archives a document',
+    description: 'The file is removed; the database row is kept as the record that it existed.',
+  },
+  'GET /api/employees/template': { summary: 'Downloads the .xlsx import template with example rows' },
+  'GET /api/employees/export': {
+    summary: 'Exports employees as .xlsx with the on-screen filters',
+    description: 'Identifiers are masked unless the caller may unmask them; every export is audited.',
+  },
+  'GET /api/contracts/expiring': {
+    summary: 'Lists contracts ending soon, including those already past',
+    description: 'Past contracts carry a negative `daysLeft`.',
+  },
+  'POST /api/contracts': { summary: 'Records an employment contract' },
+  'POST /api/employees/import': { summary: 'Uploads an import file and returns a preview; saves nothing' },
+  'GET /api/employees/import/[id]': { summary: 'Reads an import preview and its row errors' },
+  'POST /api/employees/import/[id]/commit': {
+    summary: 'Saves the valid rows of an import preview',
+    description: 'Idempotent: a preview already committed is refused.',
+  },
+  'GET /api/org/departments': { summary: 'Lists departments' },
+  'POST /api/org/departments': { summary: 'Creates a department' },
+  'GET /api/org/positions': { summary: 'Lists positions' },
+  'POST /api/org/positions': { summary: 'Creates a position' },
+  'POST /api/org/placements': {
+    summary: 'Places or transfers an employee',
+    description: 'History is never overwritten (P13): the current period is closed the day before and a new one begins.',
+  },
+  'POST /api/attendance/punch': {
+    summary: 'Records the caller\'s own punch with its evidence',
+    description: 'The employee is derived from the session, never the body. Evidence is scored, never auto-rejected (P14); a low score routes the punch to review.',
+  },
+  'GET /api/attendance/me': { summary: 'Reads the caller\'s own attendance, with all its evidence' },
+  'POST /api/attendance/photo': {
+    summary: 'Uploads a punch photo through the server',
+    description: 'EXIF metadata, including location, is stripped on the server before storage.',
+  },
+  'GET /api/attendance/photo/[key]': {
+    summary: 'Serves a punch photo',
+    description: 'An employee may see their own; others require `attendance.review.handle`. Every access is logged.',
+  },
+  'GET /api/attendance/review': { summary: 'Lists flagged punches awaiting review' },
+  'POST /api/attendance/review': { summary: 'Accepts or rejects a flagged punch' },
+  'GET /api/subscription': { summary: 'Reads the tenant\'s plan and enabled modules' },
+  'GET /api/tenant/export': {
+    summary: 'Exports all of the tenant\'s data (portability)',
+    description: 'Identifiers are included unmasked only for a caller holding `employee.pii.unmask`.',
+  },
+  'POST /api/subscription': { summary: 'Enables or disables a module within the tenant\'s plan' },
+  'GET /api/payroll/components': { summary: 'Lists salary components with the variables and functions formulas may use' },
+  'POST /api/payroll/components': { summary: 'Creates or updates a salary component' },
+  'PUT /api/payroll/components': { summary: 'Validates a formula without saving it' },
+  'GET /api/payroll/salary': { summary: 'Reads an employee\'s salary structure with its full history' },
+  'POST /api/payroll/salary': {
+    summary: 'Starts a new salary structure period',
+    description: 'Structures are period-based; a new one closes the previous period rather than changing it (P13).',
+  },
+  'GET /api/payroll/runs': { summary: 'Lists payroll runs' },
+  'GET /api/payroll/runs/export': {
+    summary: 'Exports one run\'s payslips as .xlsx for bank bulk transfer',
+    description: 'Account numbers are masked unless the caller may unmask them.',
+  },
+  'POST /api/payroll/runs': {
+    summary: 'Creates a payroll run for a period',
+    description: 'A duplicate run for the same period is refused by a partial unique index.',
+  },
+  'GET /api/payroll/runs/[id]': { summary: 'Reads one payroll run and its payslips' },
+  'POST /api/payroll/runs/[id]': {
+    summary: 'Calculates, approves, or cancels a run',
+    description: 'Calculation skips payslips that already exist, so an interrupted run resumes.',
+  },
+  'GET /api/payroll/payslips': {
+    summary: 'Reads payslips with their calculation trace',
+    description: 'An employee sees their own; others require `payroll.payslip.read.all`.',
+  },
+  'GET /api/notifications/subscriptions': { summary: 'Lists the caller\'s Web Push subscriptions' },
+  'POST /api/notifications/subscriptions': { summary: 'Registers a Web Push subscription for the caller' },
+  'DELETE /api/notifications/subscriptions': { summary: 'Removes one of the caller\'s Web Push subscriptions' },
+  'GET /api/leave/types': { summary: 'Lists active leave types' },
+  'POST /api/leave/types': { summary: 'Creates or updates a leave type' },
+  'GET /api/leave/approvers': {
+    summary: 'Lists who may be nominated to approve the caller\'s leave',
+    description: 'Only holders of `leave.request.approve`, excluding the caller.',
+  },
+  'GET /api/leave/requests': { summary: 'Lists leave requests in the caller\'s scope (own, team, or all)' },
+  'GET /api/leave/requests/export': { summary: 'Exports a year\'s leave requests as .xlsx' },
+  'POST /api/leave/requests': {
+    summary: 'Requests leave for oneself and holds the balance',
+    description: 'The employee is derived from the session. The nominated approver must hold `leave.request.approve` (409 otherwise).',
+  },
+  'POST /api/leave/requests/[id]/decision': {
+    summary: 'Approves or rejects a leave request',
+    description: 'Self-approval is refused without exception (403). Someone other than the nominated approver may decide, and that substitution is recorded.',
+  },
+  'DELETE /api/leave/requests/[id]/decision': { summary: 'Cancels one\'s own undecided request' },
+  'POST /api/leave/attachments': {
+    summary: 'Uploads a leave attachment such as a doctor\'s note',
+    description: 'Health data: stored on the caller\'s own behalf, and claimable by one request only.',
+  },
+  'GET /api/leave/attachments/[key]': {
+    summary: 'Serves a leave attachment',
+    description: 'Health data: the requester and holders of `leave.request.read.all` only; anyone else gets 404, so its existence is not disclosed. Every access is audited.',
+  },
+  'GET /api/leave/balances': { summary: 'Reads leave balances, the caller\'s own unless `employeeId` is given' },
+  'POST /api/leave/balances': {
+    summary: 'Adjusts a leave balance manually',
+    description: 'Always written to the ledger and audited.',
+  },
+  'GET /api/attendance/live': {
+    summary: 'Streams who is in, late, or absent today (Server-Sent Events)',
+    description: 'No coordinates appear on team views (P15).',
+  },
+  'GET /api/attendance/consent': { summary: 'Reads the caller\'s location and photo consent' },
+  'POST /api/attendance/consent': { summary: 'Grants or withdraws the caller\'s location or photo consent' },
+  'POST /api/attendance/device-import': {
+    summary: 'Imports punches from an attendance machine export',
+    description: '`commit=false` parses and previews; `commit=true` saves.',
+  },
+  'POST /api/attendance/manual-punch': {
+    summary: 'Records a punch entered by HR on an employee\'s behalf',
+    description: 'Always audited, with the reason.',
+  },
+  'GET /api/attendance/records': { summary: 'Reads all employees\' attendance over a date range' },
+  'GET /api/reports/attendance-monthly': { summary: 'Monthly attendance summary, one row per employee' },
+  'GET /api/attendance/records/export': {
+    summary: 'Exports attendance as .xlsx for an explicit date range',
+    description: 'There is no default range covering everything.',
+  },
+  'POST /api/attendance/records': { summary: 'Recalculates a day or closes an attendance period' },
+  'GET /api/attendance/work-sites': { summary: 'Lists work sites' },
+  'POST /api/attendance/work-sites': { summary: 'Creates a work site with its geofence' },
+  'PATCH /api/attendance/work-sites/[id]': { summary: 'Updates a work site' },
+  'GET /api/attendance/policy': {
+    summary: 'Reads the tenant\'s attendance policy',
+    description: 'Readable by anyone who may punch: the punch screen needs it to know which evidence to ask for.',
+  },
+  'PUT /api/attendance/policy': { summary: 'Updates the tenant\'s attendance policy' },
+  'GET /api/attendance/holidays': { summary: 'Lists public holidays and joint leave days' },
+  'POST /api/attendance/holidays': { summary: 'Adds a holiday' },
+  'DELETE /api/attendance/holidays': { summary: 'Removes a holiday' },
+  'GET /api/attendance/schedules': { summary: 'Reads work schedules over a date range' },
+  'POST /api/attendance/schedules': { summary: 'Assigns schedules to employees' },
+  'GET /api/attendance/shifts': { summary: 'Lists shifts' },
+  'POST /api/attendance/shifts': { summary: 'Creates a shift' },
+  'GET /api/me/bootstrap': {
+    summary: 'Returns the caller\'s user, tenant, permissions, and menu',
+    description: 'The frontend\'s only source for its navigation and route guards. Convenience, not authorization: the gateway checks every endpoint independently (P9).',
+  },
 };
 
 /** The schema shared by every error this API returns. */

@@ -13,15 +13,21 @@ import { listEmployees, getEmployee } from '../src/employee/employees.ts';
 import { encryptPii } from '../src/employee/pii.ts';
 
 /**
- * Regression test for P2-08: unmasked PII reads must be audited.
+ * P2-08: an unmasked PII read must leave a trace.
  *
- * The abuse case (SECURITY/02 §8(e)): an HR insider opens the employee list
- * or detail with `employee.pii.unmask` and reads every national ID. Before
- * this fix, only exports were audited; screen reads left no trace.
+ * The abuse case (`docs/SECURITY/02` §8(e)): an HR insider with
+ * `employee.pii.unmask` opens the employee list or detail and reads every
+ * national ID. Before this fix only EXPORTS were audited — "no export" read
+ * as "nothing happened" while every NIK was on screen.
  *
- * These tests run against real PostgreSQL under real RLS. The audit row must
- * contain the actor, tenant, employee ids, field names, IP, and correlation
- * id — never a PII value.
+ * Against real PostgreSQL under real RLS, through the same domain functions
+ * the route handlers call (`listEmployees`, `getEmployee`) — not a stub. The
+ * audit row records the actor, tenant, employee ids, field names, IP, and
+ * correlation id, and must never contain a PII value.
+ *
+ * The audit table is append-only (a trigger rejects UPDATE and DELETE even
+ * for the table owner), so the rows cannot be cleared between tests. Each test
+ * therefore measures the rows it caused rather than the rows in the table.
  */
 
 const NIK = '3201123456789012';
@@ -31,28 +37,36 @@ const REK = '123456789012';
 const TENANT = randomUUID();
 const suffix = TENANT.slice(0, 8);
 
-const ADMIN_USER = `user-admin-${suffix}`;
-const STAFF_USER = `user-staff-${suffix}`;
-const EMP_ID = `emp-${suffix}`;
+const ADMIN_USER = randomUUID();
+const STAFF_USER = randomUUID();
+const EMP_ID = randomUUID();
+
+const ACTOR_CTX = {
+    actorUserId: ADMIN_USER,
+    ip: '10.0.0.1',
+    userAgent: 'pii-audit-test',
+    correlationId: 'corr-unmask',
+} as const;
+
+const STAFF_CTX = {
+    actorUserId: STAFF_USER,
+    ip: '10.0.0.2',
+    userAgent: 'pii-audit-test',
+    correlationId: 'corr-masked',
+} as const;
 
 const owner = new PrismaClient({
     adapter: new PrismaPg({ connectionString: process.env['DATABASE_URL']! }),
 });
 
 beforeAll(async () => {
-    await owner.plan.upsert({
-        where: { code: 'core' },
-        create: { code: 'core', name: 'Core', sortOrder: 0 },
-        update: {},
-    });
-
     await owner.tenant.create({
         data: {
             id: TENANT,
             code: `t-pii-${suffix}`,
             name: 'PII Audit Test',
             status: 'ACTIVE',
-            planCode: 'core',
+            planCode: 'basic',
         },
     });
 
@@ -60,42 +74,24 @@ beforeAll(async () => {
         data: { tenantId: TENANT, moduleCode: 'employee', status: 'ENABLED' },
     });
 
-    const adminRole = await owner.role.create({
-        data: {
-            tenantId: TENANT,
-            code: `role-admin-${suffix}`,
-            name: 'Admin',
-            permissions: {
-                create: [{ tenantId: TENANT, permissionCode: 'employee.pii.unmask' }],
-            },
-        },
-    });
-
     await owner.user.createMany({
         data: [
             {
                 id: ADMIN_USER,
                 tenantId: TENANT,
-                email: `admin-${suffix}@test.local`,
-                fullName: 'Admin User',
+                email: `admin-${suffix}@pii-audit.test`,
+                fullName: 'Admin PII',
                 passwordHash: 'x',
                 status: 'ACTIVE',
             },
             {
                 id: STAFF_USER,
                 tenantId: TENANT,
-                email: `staff-${suffix}@test.local`,
-                fullName: 'Staff User',
+                email: `staff-${suffix}@pii-audit.test`,
+                fullName: 'Staf PII',
                 passwordHash: 'x',
                 status: 'ACTIVE',
             },
-        ],
-    });
-
-    await owner.userRole.createMany({
-        data: [
-            { tenantId: TENANT, userId: ADMIN_USER, roleId: adminRole.id },
-            { tenantId: TENANT, userId: STAFF_USER, roleId: adminRole.id },
         ],
     });
 
@@ -105,14 +101,12 @@ beforeAll(async () => {
             tenantId: TENANT,
             employeeNumber: `E1-${suffix}`,
             fullName: 'Budi Setiawan',
-            email: `budi-${suffix}@test.local`,
+            email: `budi-${suffix}@pii-audit.test`,
             joinDate: new Date('2024-01-01'),
             nationalIdEncrypted: encryptPii(NIK),
             nationalIdMasked: '3201********9012',
-            nationalIdIndex: 'x',
             taxIdEncrypted: encryptPii(NPWP),
-            taxIdMasked: '***********000',
-            taxIdIndex: 'x',
+            taxIdMasked: '*************000',
             bankAccountEncrypted: encryptPii(REK),
             bankAccountMasked: '******9012',
         },
@@ -126,132 +120,113 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+    // Every query above ran outside a tenant context; a pooled connection that
+    // kept one would make RLS hide rows from the next test.
     await disconnectAll();
 });
 
-describe('listEmployees', () => {
-    it('records an audit row when canUnmask is true', async () => {
+/** The unmasked-read audit rows, read through the tenant context as a reader would. */
+const unmaskRows = () =>
+    withTenant(TENANT, (tx) =>
+        tx.auditLog.findMany({
+            where: { tenantId: TENANT, action: 'employee.pii.unmasked' },
+            orderBy: { id: 'asc' },
+        }),
+    );
+
+/** How many unmasked-read rows exist right now — the baseline for one test. */
+const baseline = async (): Promise<number> => (await unmaskRows()).length;
+
+describe('listEmployees — jejak audit saat membaca PII tanpa masking', () => {
+    it('mencatat satu baris jejak ketika canUnmask true', async () => {
+        const before = await baseline();
+
         await withTenant(TENANT, (tx) =>
-            listEmployees(tx, TENANT, {
-                canUnmask: true,
-                ctx: {
-                    actorUserId: ADMIN_USER,
-                    ip: '10.0.0.1',
-                    userAgent: 'test-agent',
-                    correlationId: 'corr-list-unmask',
-                },
-            }),
+            listEmployees(tx, TENANT, { canUnmask: true, ctx: ACTOR_CTX }),
         );
 
-        const audit = await owner.auditLog.findFirst({
-            where: { tenantId: TENANT, action: 'employee.pii.unmasked' },
-            orderBy: { createdAt: 'desc' },
-        });
+        const rows = await unmaskRows();
+        expect(rows).toHaveLength(before + 1);
 
-        expect(audit).toBeDefined();
-        expect(audit!.actorUserId).toBe(ADMIN_USER);
-        expect(audit!.entityType).toBe('employee');
-        expect(audit!.after).toEqual(
+        const row = rows[before]!;
+        expect(row.tenantId).toBe(TENANT);
+        expect(row.actorUserId).toBe(ADMIN_USER);
+        expect(row.entityType).toBe('employee');
+        expect(row.after).toEqual(
             expect.objectContaining({
                 employeeIds: [EMP_ID],
-                fields: expect.arrayContaining(['nationalId', 'taxId', 'bankAccount']),
+                fields: ['nationalId', 'taxId', 'bankAccount'],
             }),
         );
-        expect(audit!.ip).toBe('10.0.0.1');
-        expect(audit!.correlationId).toBe('corr-list-unmask');
+        expect(row.ip).toBe('10.0.0.1');
+        expect(row.correlationId).toBe('corr-unmask');
     });
 
-    it('does NOT record an audit row when canUnmask is false', async () => {
+    it('TIDAK mencatat apa pun ketika data tersamar (canUnmask false)', async () => {
+        const before = await baseline();
+
         await withTenant(TENANT, (tx) =>
-            listEmployees(tx, TENANT, {
-                canUnmask: false,
-                ctx: {
-                    actorUserId: STAFF_USER,
-                    ip: '10.0.0.2',
-                    userAgent: 'test-agent',
-                    correlationId: 'corr-list-masked',
-                },
-            }),
+            listEmployees(tx, TENANT, { canUnmask: false, ctx: STAFF_CTX }),
         );
 
-        const count = await owner.auditLog.count({
-            where: { tenantId: TENANT, action: 'employee.pii.unmasked' },
-        });
-
-        expect(count).toBe(0);
+        expect((await unmaskRows()).length).toBe(before);
     });
 });
 
-describe('getEmployee', () => {
-    it('records an audit row when canUnmask is true', async () => {
+describe('getEmployee — jejak audit saat membaca PII tanpa masking', () => {
+    it('mencatat satu baris jejak dengan id karyawan ketika canUnmask true', async () => {
+        const before = await baseline();
+
         await withTenant(TENANT, (tx) =>
-            getEmployee(tx, TENANT, EMP_ID, true, {
-                actorUserId: ADMIN_USER,
-                ip: '10.0.0.1',
-                userAgent: 'test-agent',
-                correlationId: 'corr-detail-unmask',
-            }),
+            getEmployee(tx, TENANT, EMP_ID, true, ACTOR_CTX),
         );
 
-        const audit = await owner.auditLog.findFirst({
-            where: { tenantId: TENANT, action: 'employee.pii.unmasked', entityId: EMP_ID },
-            orderBy: { createdAt: 'desc' },
-        });
+        const rows = await unmaskRows();
+        expect(rows).toHaveLength(before + 1);
 
-        expect(audit).toBeDefined();
-        expect(audit!.actorUserId).toBe(ADMIN_USER);
-        expect(audit!.entityId).toBe(EMP_ID);
-        expect(audit!.after).toEqual(
+        const row = rows[before]!;
+        expect(row.actorUserId).toBe(ADMIN_USER);
+        expect(row.entityId).toBe(EMP_ID);
+        expect(row.after).toEqual(
             expect.objectContaining({
                 employeeIds: [EMP_ID],
-                fields: expect.arrayContaining(['nationalId', 'taxId', 'bankAccount']),
+                fields: ['nationalId', 'taxId', 'bankAccount'],
             }),
         );
-        expect(audit!.ip).toBe('10.0.0.1');
-        expect(audit!.correlationId).toBe('corr-detail-unmask');
+        expect(row.ip).toBe('10.0.0.1');
+        expect(row.correlationId).toBe('corr-unmask');
     });
 
-    it('does NOT record an audit row when canUnmask is false', async () => {
+    it('TIDAK mencatat apa pun ketika data tersamar (canUnmask false)', async () => {
+        const before = await baseline();
+
         await withTenant(TENANT, (tx) =>
-            getEmployee(tx, TENANT, EMP_ID, false, {
-                actorUserId: STAFF_USER,
-                ip: '10.0.0.2',
-                userAgent: 'test-agent',
-                correlationId: 'corr-detail-masked',
-            }),
+            getEmployee(tx, TENANT, EMP_ID, false, STAFF_CTX),
         );
 
-        const count = await owner.auditLog.count({
-            where: { tenantId: TENANT, action: 'employee.pii.unmasked' },
-        });
-
-        expect(count).toBe(0);
+        expect((await unmaskRows()).length).toBe(before);
     });
 });
 
-describe('audit row content', () => {
-    it('contains no PII values', async () => {
+describe('isi baris jejak', () => {
+    it('tidak memuat satu pun nilai PII', async () => {
+        const before = await baseline();
+
         await withTenant(TENANT, (tx) =>
-            listEmployees(tx, TENANT, {
-                canUnmask: true,
-                ctx: {
-                    actorUserId: ADMIN_USER,
-                    ip: '10.0.0.1',
-                    userAgent: 'test-agent',
-                    correlationId: 'corr-no-pii',
-                },
-            }),
+            listEmployees(tx, TENANT, { canUnmask: true, ctx: ACTOR_CTX }),
         );
 
-        const audit = await owner.auditLog.findFirst({
-            where: { tenantId: TENANT, action: 'employee.pii.unmasked' },
-            orderBy: { createdAt: 'desc' },
-        });
+        const rows = await unmaskRows();
+        const json = JSON.stringify(rows.slice(before), (_key, value) =>
+            typeof value === 'bigint' ? value.toString() : value,
+        );
 
-        expect(audit).toBeDefined();
-        const json = JSON.stringify(audit);
-        expect(json).not.toContain(NIK);
-        expect(json).not.toContain(NPWP);
-        expect(json).not.toContain(REK);
+        // The row must say THAT a read happened, WHICH fields, and BY WHOM —
+        // never WHAT was read. A 16-digit NIK in the audit table would put the
+        // value in the one place kept for seven years and read by the widest
+        // set of roles.
+        for (const value of [NIK, NPWP, REK]) {
+            expect(json.includes(value), `${value} bocor ke jejak audit`).toBe(false);
+        }
     });
 });

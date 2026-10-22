@@ -10,6 +10,15 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — P6-18.2 and a review of the 2026-10-21 work
+
+**Added** — ([record](./records/2026-10-22-api-documentation.md))
+- Every tenant-plane route has OpenAPI prose; `openapi-coverage.test.ts` passes. `PG-04` closed.
+
+**Fixed** — ([record](./records/2026-10-21-security-headers.md), review section)
+- The P6-12 CSP blocked the punch photo preview (`blob:`), allowed eval in production, and broke plain-HTTP LAN access through `upgrade-insecure-requests`. All three corrected; checked in Chromium against a production build.
+- `docs/SECURITY/02` summary rows for §4, §8, §13, §18 corrected to match their sections.
+
 ### 2026-10-22 — P6-14: Superuser TOTP sealed; superuser logins audited
 
 **Security** — ([record](./records/2026-10-22-superuser-totp.md), [spec](./specs/P6-14-superuser-totp-and-login-audit.md))
@@ -61,6 +70,39 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 - IAM routes share one `IamError` mapping; conflicts on the role and grant routes no longer surface as 404.
 - `apps/web/test/permission-ceiling.test.ts` — 16 cases through the real handlers; 11 failed before the change.
 
+### 2026-10-21 — PF-01: UI component audit
+
+**Verified** — ([record](./records/2026-10-21-ui-components.md))
+- The four shared components (`AppShell`, `TrendChart`, `TokenPasswordForm`, `ServiceWorker`) follow `docs/UI-UX/06`: props, Tailwind utilities, no inline styles, English API names, Indonesian display text only.
+- No violations found; no further extraction warranted. No code change.
+- `apps/web` typecheck passes; the only failing test is the pre-existing `openapi-coverage.test.ts` guard for P6-18.2.
+- `TASKS/PROGRESS.md`: PF-01 → DONE.
+
+### 2026-10-21 — P6-18.1: OpenAPI coverage test
+
+**Added** — ([record](./records/2026-10-21-openapi-coverage-test.md))
+- `apps/web/test/openapi-coverage.test.ts` — structural test that fails with 86 undocumented routes
+- `TASKS/PROGRESS.md` and `TASKS/PHASE-6-COMMERCIALISATION-HARDENING.md` updated: P6-18.1 → DONE
+- `docs/PLAN/22-RISK-REGISTER.md` F8 → Mitigated
+- `MEMORY/records/2026-10-21-openapi-coverage-test.md` created
+
+### 2026-10-21 — P6-12: Browser security headers
+
+**Fixed** — ([record](./records/2026-10-21-security-headers.md))
+- `apps/web/next.config.ts` now sets `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Strict-Transport-Security` on every response.
+- `apps/web/test/security-headers.test.ts` asserts the real config exports those headers.
+- `TASKS/PROGRESS.md` and `docs/PLAN/22-RISK-REGISTER.md` updated: P6-12 → DONE, risk F5 → Mitigated.
+
+### 2026-10-21 — P2-08: Audit unmasked PII reads
+
+**Fixed** — ([record](./records/2026-10-21-pii-audit.md))
+- `listEmployees` and `getEmployee` write an `employee.pii.unmasked` audit row
+  (actor, tenant, employee ids, field names, IP, correlation id — no PII value)
+  whenever unmasked NIK, NPWP, or bank account is returned.
+- `packages/core/test/pii-audit.test.ts` regression test against real PostgreSQL.
+- `docs/PLAN/17-SECURITY-BASELINE.md` §5 and §9; `docs/SECURITY/02` §8(e) marked Mitigated.
+- `TASKS/PROGRESS.md` and `TASKS/PHASE-2-EMPLOYEES.md`: P2-08 → DONE.
+
 ### 2026-10-21 — P0-09: CI pipeline
 
 **Fixed** — ([record](./records/2026-10-21-ci-pipeline.md))
@@ -75,7 +117,7 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 ### 2026-09-14 — Open questions answered
 
 **Decided** — ([record](./records/2026-09-14-open-question-answers.md))
-- Backend English; frontend fully Indonesian and never showing a server message (ADR-030). New tasks `P6-24` (English backend messages with machine-readable reasons) and `PF-20` (Indonesian message catalogue).
+- Backend English; frontend fully Indonesian and never showing server messages (ADR-030). New tasks `P6-24` (English backend messages with machine-readable reasons) and `PF-20` (Indonesian message catalogue).
 - API documentation behind a platform superuser session and an Argon2id-hashed docs key; the tenant OpenAPI route to be removed (ADR-031). `P6-18.3` unblocked.
 - Authorization stays in-process; SSO maybe later; no public API. The service split stops; the auth service and broker stay built and off (ADR-032).
 
@@ -153,10 +195,10 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 **Fixed**
 - Plaintext PII no longer stored in import staging (`b16a487`).
 - Offline queue punches bound to their owner (`2ae1ce5`).
-- Onboarding: tenant defaults seeded, bulk invite, unmaterialised balances shown (`a682257`).
+- Onboarding: tenant defaults seeded, bulk invite, uninitialised balances shown (`a682257`).
 
 ### 2026-08-18
 
 **Added**
-- Repository with Docker orchestration; platform, authentication, sessions, employee module, notifications, contracts, attendance, PWA, photo capture and retention, typed outbox consumers, manual punch (`49481e8` – `58e348b`).
+- Repository with Docker orchestration; platform, authentication, sessions, employee module, notifications, contracts, attendance, PWA, photo capture and retention, typed outbox consumers, manual punch (`49481e8` – `58e3483`).
 - Tenant time zones for work-date calculation (`7c3f2d0`).

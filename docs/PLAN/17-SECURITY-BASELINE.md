@@ -69,6 +69,7 @@ Written 2026-09-13 against the code. A control listed here was verified to exist
 | Equality lookup through a blind index, never through plaintext | `nationalIdIndex` |
 | Masked by default; unmasking requires `employee.pii.unmask` | Employee list, detail, and export endpoints |
 | An export records whether it was unmasked | `employee.exported` audit row, `packages/core/src/employee/export.ts` |
+| A list or detail read with unmasking is audited | `employee.pii.unmasked` audit row, `packages/core/src/employee/employees.ts` |
 | Plaintext PII never stored in the import staging table | Import pipeline (`13` §4) |
 | Logs redact national IDs, bank accounts, passwords, and bearer tokens | `packages/observability/src/logger.ts`; `logger.test.ts` |
 | The portability export omits ciphertext and password hashes | `packages/core/src/tenant/data-export.ts` |
@@ -114,10 +115,10 @@ Controls a reader might reasonably assume exist, and which do not. Each is track
 | Gap | Consequence | Severity |
 |---|---|---|
 | **The client address is the first `X-Forwarded-For` entry, which the client controls** | Per-address rate limits and office-network verification can be bypassed | **High** |
-| No `Content-Security-Policy`, `Strict-Transport-Security`, or frame-ancestors headers | XSS impact is not contained by the browser | High |
+| ~~No `Content-Security-Policy`, `Strict-Transport-Security`, or frame-ancestors headers~~ | **Closed by P6-12** — `apps/web/next.config.ts` sets CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy | — |
 | No MFA for tenant users — only superusers have TOTP | One leaked password opens a tenant's HR data (R18); `12` Phase 5 DoD item unmet | High |
 | `JWT_SECRET` still configured, so HS256 tokens still verify | Anything holding the secret can still mint tokens | Medium |
-| **Viewing unmasked PII in the employee list or detail is not audited** — only exports are | An HR insider can read every national ID with no trace; `12` Phase 2 DoD requires unmasking to be audited | High |
+| ~~Viewing unmasked PII in the employee list or detail is not audited — only exports are~~ | **Closed by P2-08** — `employee.pii.unmasked` audit row now records every unmasked read | — |
 | ~~Superuser TOTP secrets stored in plaintext~~ | **Closed by P6-14** | — |
 | No permission ceiling for role and grant administrators | A holder of `iam.role.manage` or `iam.grant.manage` can confer any permission, including on themselves | Medium |
 | `hrms_app` can still read `auth.users` | The backend can read credential rows it no longer needs (`14` §10.5) | Medium |

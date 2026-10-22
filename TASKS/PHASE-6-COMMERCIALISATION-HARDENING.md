@@ -78,7 +78,7 @@
 
 | | |
 |---|---|
-| **Status** | TODO |
+| **Status** | DONE |
 | **Priority** | **P0** |
 | **Depends on** | — |
 | **Plan refs** | `docs/SECURITY/02` §13, `docs/PLAN/17` §9, risk F5 |
@@ -101,6 +101,15 @@
 - `docs/PLAN/17` §9, `docs/SECURITY/02` §13, risk F5 updated.
 
 **Abuse cases to test** — `SECURITY/02` §13 stored XSS in a free-text field viewed by HR; clickjacking by framing the approval page.
+
+**Implemented** (2026-10-21; reviewed and corrected 2026-10-22)
+- `apps/web/next.config.ts` sets CSP, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security: max-age=31536000; includeSubDomains`. The reasoning for each directive is in the config's comment.
+- The review fixed three defects in the first version: `img-src` lacked `blob:`, which blocked the punch photo preview; `'unsafe-eval'` was allowed in production builds; `upgrade-insecure-requests` broke plain-HTTP LAN access. `https:` sources were removed — the app loads nothing from another origin.
+- `apps/web/test/security-headers.test.ts` asserts the real config, including each of the three fixes.
+
+**Verification**
+- A production build in Chromium (Playwright): no CSP violations on the pocket pages; a `blob:` image loads; the service worker registers.
+- Known limit: `script-src 'unsafe-inline'` remains, because the App Router streams inline scripts. Removing it needs per-request nonces; risk F5 stays partly open in `docs/SECURITY/02` §13.
 
 ### P6-13 — Permission ceiling for role and grant administrators
 
@@ -202,7 +211,7 @@
 
 | | |
 |---|---|
-| **Status** | TODO — design decided 2026-09-14 (`OQ-11`, ADR-031) |
+| **Status** | IN PROGRESS — 18.1 DONE; 18.2 DONE (2026-10-22); 18.3 TODO |
 | **Priority** | P1 — requested by the user |
 | **Depends on** | `P6-12` for `P6-18.3` (the page must load under the CSP) |
 | **Blocked by** | — |
