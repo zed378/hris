@@ -1,5 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ErrorCode, ApiError } from '@hrms/contracts';
 import { clientAddress, forwardedClientAddress } from '@hrms/observability';
@@ -43,13 +42,15 @@ export interface RequestContext {
  * guards `/internal/*`, and its job is to be unguessable even to anything that
  * can reach this port.
  */
-function internalSecretValid(presented: string | string[] | undefined): boolean {
+export function internalSecretValid(presented: string | string[] | undefined): boolean {
   const expected = process.env['AUTH_INTERNAL_SECRET'];
   if (!expected || typeof presented !== 'string') return false;
 
-  const a = Buffer.from(presented);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
+  // Hashed first, so both buffers are 32 bytes whatever was presented:
+  // `timingSafeEqual` throws on unequal lengths, and a length check in front
+  // of it would answer "how long is the secret?" (P6-15).
+  const digest = (value: string): Buffer => createHash('sha256').update(value).digest();
+  return timingSafeEqual(digest(presented), digest(expected));
 }
 
 export function contextFrom(req: IncomingMessage): RequestContext {

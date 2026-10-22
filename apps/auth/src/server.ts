@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { ErrorCode } from '@hrms/contracts';
 import { log, runWithContext } from '@hrms/observability';
 import { consumeRateLimit } from '@hrms/cache';
-import { contextFrom, fail, send } from './http.ts';
+import { contextFrom, fail, internalSecretValid, send } from './http.ts';
 import { ROUTES } from './routes.ts';
 
 /**
@@ -57,10 +57,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
    * it must be replaced before they are on different ones.
    */
   if (rule.internal) {
-    const expected = process.env['AUTH_INTERNAL_SECRET'];
-    const presented = req.headers['x-internal-secret'];
-
-    if (!expected || presented !== expected) {
+    // Constant-time, through the same helper that decides whether to trust
+    // `x-forwarded-client-ip` (P6-15).
+    if (!internalSecretValid(req.headers['x-internal-secret'])) {
       send(
         res,
         fail(404, ErrorCode.NOT_FOUND, 'Not found', ctx.correlationId),

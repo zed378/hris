@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
@@ -359,6 +360,31 @@ describe('the authorize RPC', () => {
   it('is invisible with the wrong internal secret', async () => {
     const response = await authorize({ token: 'x', module: 'leave', permission: null }, 'wrong');
     expect(response.status).toBe(404);
+  });
+
+  /**
+   * P6-15. Same length and longer than the real secret: `timingSafeEqual`
+   * throws on buffers of unequal length, so a comparison that forgot to hash
+   * first would answer a longer guess with a 500 — and a length check in front
+   * of it would tell the caller how long the secret is.
+   */
+  it.each([
+    ['of the same length', 'x'.repeat(SECRET.length)],
+    ['longer than the real one', `${SECRET}${SECRET}`],
+  ])('is invisible with a wrong secret %s', async (_case, secret) => {
+    const response = await authorize({ token: 'x', module: 'leave', permission: null }, secret);
+    expect(response.status).toBe(404);
+  });
+
+  /**
+   * Timing cannot be asserted from a test, so the property is held
+   * structurally: the router decides on the internal secret only through the
+   * one constant-time helper (`http.ts`), never with `===` or `!==`.
+   */
+  it('compares the internal secret only through the constant-time helper', () => {
+    const server = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/server.ts'), 'utf8');
+    expect(server).toMatch(/internalSecretValid\(/);
+    expect(server).not.toMatch(/[!=]==\s*expected|expected\s*[!=]==/);
   });
 
   it('allows a held permission and returns the identity with it', async () => {

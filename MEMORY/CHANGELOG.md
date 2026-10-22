@@ -10,6 +10,12 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — P6-15: Constant-time internal secret
+
+**Security**
+- `/internal/*` on the auth service compared `x-internal-secret` with `!==`. Both checks now go through `internalSecretValid` (`apps/auth/src/http.ts`), which hashes both values before `timingSafeEqual`, so a guess of any length neither throws nor reveals the secret's length.
+- `apps/auth/test/service.test.ts`: wrong secrets of the same and of greater length return 404; a structural test holds `server.ts` to the helper (seen to fail before the change).
+
 ### 2026-10-22 — PF-02: Mobile navigation
 
 **Added** — ([record](./records/2026-10-22-mobile-navigation.md))

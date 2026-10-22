@@ -157,7 +157,7 @@
 
 | | |
 |---|---|
-| **Status** | TODO |
+| **Status** | DONE — 2026-10-22 |
 | **Priority** | P2 |
 | **Plan refs** | `docs/SECURITY/02` §10(b), `apps/auth/src/server.ts` |
 | **Spec required** | No |
