@@ -19,7 +19,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "platform:seal-totp": "node --experimental-transform-types scripts/seal-totp-secrets.ts"
   },
   "dependencies": {
     "@hrms/cache": "workspace:*",

@@ -31,6 +31,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.4",
     "dotenv": "^17.4.2",
+    "otplib": "^13.4.1",
     "vitest": "^4.1.10"
   }
 }

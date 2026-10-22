@@ -1,6 +1,7 @@
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import { platformClient } from '@hrms/db';
-import { verifyPassword, signJwt, verifyJwt } from '../auth/index.ts';
+import { burnTimingBudget, verifyPassword, signJwt, verifyJwt } from '../auth/index.ts';
+import { needsSealing, readTotpSecret, sealTotpSecret } from './totp-secret.ts';
 
 /**
  * Autentikasi superuser — control plane.
@@ -65,11 +66,14 @@ export interface SuperuserClaims {
  * minta TOTP) memberi tahu penyerang bahwa kata sandinya benar — dan bagi akun
  * yang memegang kunci ke seluruh platform, informasi itu tidak perlu diberikan.
  */
-export async function superuserLogin(input: {
-  email: string;
-  password: string;
-  totp: string;
-}): Promise<{ token: string; expiresIn: number }> {
+export async function superuserLogin(
+  input: {
+    email: string;
+    password: string;
+    totp: string;
+  },
+  ctx: { ip?: string | undefined } = {},
+): Promise<{ token: string; expiresIn: number }> {
   const db = platformClient();
 
   const superuser = await db.superuser.findUnique({
@@ -83,8 +87,12 @@ export async function superuserLogin(input: {
     },
   });
 
-  const passwordOk =
-    superuser !== null && (await verifyPassword(input.password, superuser.passwordHash));
+  // An unknown email pays the same argon2 cost as a known one. Without it the
+  // unknown-email path answered without hashing anything, and latency told a
+  // guesser which superuser addresses exist (found in P6-14).
+  let passwordOk = false;
+  if (superuser) passwordOk = await verifyPassword(input.password, superuser.passwordHash);
+  else await burnTimingBudget(input.password);
 
   // TOTP tetap diverifikasi meski kata sandi salah, agar waktu respons kedua
   // jalur setara.
@@ -97,19 +105,34 @@ export async function superuserLogin(input: {
     superuser?.totpSecret != null &&
     verifySync({
       token: input.totp,
-      secret: superuser.totpSecret,
+      secret: readTotpSecret(superuser.totpSecret),
       strategy: 'totp',
       epochTolerance: 1,
     }).valid;
 
   if (!superuser?.isActive || !passwordOk || !totpOk) {
+    // Recorded with the reason, which the caller never sees: the response stays
+    // one indistinguishable refusal, while the trail can tell a guessed password
+    // from a missing second factor. An unknown email is recorded WITHOUT the
+    // address typed — that field is where a superuser pastes a password by
+    // mistake, and the audit trail must not become where it is kept.
+    const reason = !superuser ? 'unknown_email' : !superuser.isActive ? 'inactive' : !passwordOk ? 'password' : 'totp';
+    await auditLogin(superuser?.id ?? null, 'superuser.login.failed', { reason }, ctx.ip);
     throw new SuperuserAuthError('Kredensial tidak sah');
   }
 
+  // Seal a secret still in plaintext, or re-seal one under a demoted key, now
+  // that it has just been proven correct. `sealTotpSecrets` does the same for
+  // superusers who do not log in.
+  const totpSecret = superuser.totpSecret!;
   await db.superuser.update({
     where: { id: superuser.id },
-    data: { lastLoginAt: new Date() },
+    data: {
+      lastLoginAt: new Date(),
+      ...(needsSealing(totpSecret) ? { totpSecret: sealTotpSecret(readTotpSecret(totpSecret)) } : {}),
+    },
   });
+  await auditLogin(superuser.id, 'superuser.login.succeeded', null, ctx.ip);
 
   const token = await signJwt(
     { email: superuser.email },
@@ -122,6 +145,25 @@ export async function superuserLogin(input: {
   );
 
   return { token, expiresIn: ADMIN_TOKEN_TTL_SECONDS };
+}
+
+/**
+ * Every superuser login, success and failure, in the platform trail (P6-14).
+ *
+ * Its own statement, not part of a transaction with the login: a refusal must
+ * leave its row even though the request then fails.
+ */
+async function auditLogin(
+  superuserId: string | null,
+  action: 'superuser.login.succeeded' | 'superuser.login.failed',
+  detail: Record<string, string> | null,
+  ip: string | undefined,
+): Promise<void> {
+  await platformClient().$executeRaw`
+    INSERT INTO platform.platform_audit_logs (superuser_id, action, target_type, target_id, detail, ip)
+    VALUES (${superuserId}::uuid, ${action}, 'superuser', ${superuserId},
+            ${detail === null ? null : JSON.stringify(detail)}::jsonb, ${ip ?? null})
+  `;
 }
 
 export async function verifySuperuserToken(token: string): Promise<SuperuserClaims> {

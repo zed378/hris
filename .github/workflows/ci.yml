@@ -82,10 +82,12 @@ jobs:
             const publicJwk = { ...(await exportJWK(publicKey)), alg: 'EdDSA', kid, use: 'sig' };
             const piiEnc = randomBytes(32).toString('base64url');
             const piiIdx = randomBytes(32).toString('base64url');
+            const platformEnc = randomBytes(32).toString('base64url');
             console.log(`jwt_private_jwk=${JSON.stringify(privateJwk)}`);
             console.log(`jwt_public_jwks=${JSON.stringify({ keys: [publicJwk] })}`);
             console.log(`pii_enc=${piiEnc}`);
             console.log(`pii_idx=${piiIdx}`);
+            console.log(`platform_enc=${platformEnc}`);
           })();
           NODE
 
@@ -121,6 +123,7 @@ jobs:
           JWT_PUBLIC_JWKS: ${{ steps.keys.outputs.jwt_public_jwks }}
           PII_ENCRYPTION_KEY: ${{ steps.keys.outputs.pii_enc }}
           PII_INDEX_KEY: ${{ steps.keys.outputs.pii_idx }}
+          PLATFORM_ENCRYPTION_KEY: ${{ steps.keys.outputs.platform_enc }}
         run: pnpm verify
 
   # -- broker -----------------------------------------------------------------

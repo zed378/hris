@@ -6,6 +6,7 @@ export {
   ADMIN_AUDIENCE,
   type SuperuserClaims,
 } from './superuser-auth.ts';
+export { sealTotpSecrets, sealTotpSecret, readTotpSecret } from './totp-secret.ts';
 export {
   listTenants,
   platformOverview,

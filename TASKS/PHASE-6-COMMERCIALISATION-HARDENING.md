@@ -132,7 +132,7 @@
 
 | | |
 |---|---|
-| **Status** | TODO |
+| **Status** | DONE — 2026-10-22 ([record](../MEMORY/records/2026-10-22-superuser-totp.md)) |
 | **Priority** | P1 |
 | **Depends on** | — |
 | **Plan refs** | `docs/SECURITY/02` §9(c), `docs/SECURITY/03` D-8, `docs/PLAN/06`, risk F13 |

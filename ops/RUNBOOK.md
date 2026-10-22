@@ -697,6 +697,24 @@ say which key was exposed.
 
 ---
 
+## 8a. Sealing and rotating superuser TOTP secrets
+
+Superuser TOTP secrets are encrypted under `PLATFORM_ENCRYPTION_KEY`, a ring separate from the PII keys (P6-14).
+
+**First deploy after P6-14.** Set `PLATFORM_ENCRYPTION_KEY` (32 random bytes, base64) on the web container and wherever the command below runs, then:
+
+```bash
+pnpm --filter @hrms/core platform:seal-totp
+```
+
+It prints `{"sealed":N,"total":M}`. Run it again: it must print `"sealed":0`. Until it runs, plaintext secrets still work and are sealed on each superuser's next login.
+
+**Rotation.** Same three steps as §8: set the new key as `PLATFORM_ENCRYPTION_KEY` and the old one in `PLATFORM_ENCRYPTION_KEYS_OLD`; run the command above; remove the old key.
+
+**Losing the key** locks every superuser out. Recovery is re-enrolling TOTP for each superuser directly in `platform.superusers`. The key belongs in the same escrow as the PII keys (`P6-17`).
+
+---
+
 ## 9. Repairing punch working dates (run once, before the first release)
 
 `punch_logs.work_date` decides which day a punch belongs to. Rows written before

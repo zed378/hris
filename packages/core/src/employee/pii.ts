@@ -1,4 +1,5 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { keyFrom, keyRing, open, seal, sealedWithPrimary, UndecryptableError } from '../crypto/index.ts';
 
 /**
  * Personal data encryption and masking.
@@ -20,160 +21,31 @@ import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEq
  * database itself can be read.
  */
 
-const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12;
-
-const KEY_HINT =
-  'Bangkitkan dengan: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"';
-
-function parseKey(raw: string, name: string): Buffer {
-  const key = Buffer.from(raw.trim(), 'base64');
-  if (key.length !== 32) {
-    throw new Error(`${name} harus 32 byte dalam base64 (saat ini ${key.length} byte).`);
-  }
-  return key;
-}
-
-function keyFrom(name: string): Buffer {
-  const raw = process.env[name];
-  if (!raw) throw new Error(`${name} belum dipasang. ${KEY_HINT}`);
-  return parseKey(raw, name);
-}
-
 /**
- * The key ring: one key that writes, several that may read.
+ * The key ring and the cipher live in `../crypto` (shared with the control
+ * plane's TOTP secrets since P6-14); this module names its keys.
  *
- * Rotation was possible in principle from the start — the ciphertext carries a
- * `v1.` prefix, so a later format could always be told apart — but "possible in
- * principle" is not a procedure, and what actually prevented it was simpler than
- * the format. `PII_ENCRYPTION_KEY` held exactly one key, so the moment it
- * changed, every row already written became unreadable. Rotation would have had
- * to be atomic across the entire database, which is another way of saying it
- * could not happen at all.
- *
- * A ring fixes that without touching the stored format. `PII_ENCRYPTION_KEY` is
- * the only key that ENCRYPTS. `PII_ENCRYPTION_KEYS_OLD` is a comma-separated list
- * that may only DECRYPT. Rotation becomes three ordinary deploys:
- *
- *   1. The new key becomes primary, the old one moves to `..._KEYS_OLD`. Nothing
- *      is rewritten yet: old rows still read, new writes use the new key.
- *   2. `ops/scripts/rotate-pii-keys.mjs` rewrites every row. Interruptible and
- *      resumable — it re-encrypts whatever it is given, so a second run over an
- *      already-rotated row is harmless.
- *   3. `..._KEYS_OLD` is removed. Any row still readable only by the old key now
- *      fails LOUDLY, which is the entire point: a fallback with no end date is
- *      how a "rotated" system keeps a decade-old key alive in production, and
- *      nobody finds out until the key is what leaks.
- *
- * ## Why trying keys in turn is sound here, and would not be under CBC
- *
- * AES-GCM is authenticated. Decryption with the wrong key does not yield
- * plausible garbage — it fails the authentication tag, essentially always. So
- * "try the next key" is a decision made by the cipher rather than a guess made by
- * this code.
- *
- * Under CBC the same loop would be a padding oracle and a source of silent
- * corruption. Choosing GCM in `encryptPii` is what makes this shape legal, and
- * that is worth stating because the loop below looks reckless without it.
- */
-function decryptionRing(primaryName: string, oldName: string): Buffer[] {
-  const ring = [keyFrom(primaryName)];
-
-  for (const raw of (process.env[oldName] ?? '').split(',')) {
-    if (raw.trim() === '') continue;
-    ring.push(parseKey(raw, oldName));
-  }
-
-  return ring;
-}
-
-/**
- * AES-256-GCM encryption.
+ * `PII_ENCRYPTION_KEY` is the only key that ENCRYPTS; `PII_ENCRYPTION_KEYS_OLD`
+ * may only DECRYPT. Rotation: promote the new key and demote the old one; rewrite
+ * every row whose `isEncryptedWithPrimaryKey` is false
+ * (`pnpm --filter @hrms/worker pii:rotate`, runbook §8); remove the old key.
  *
  * GCM rather than CBC: it is authenticated, so altered ciphertext fails to
  * decrypt instead of yielding garbage plaintext that reaches a payroll report.
- *
- * The result is formatted `v1.<iv>.<tag>.<ciphertext>`, all base64url. The
- * version prefix is there from the start because key rotation always arrives
- * later, and without a version marker rotation means guessing each old row's format.
- *
- * Note that the envelope carries no key IDENTIFIER, only a format version. That
- * was a real constraint on the design of rotation: which key wrote a given row
- * cannot be read off the row, so `decryptPii` establishes it by trying the ring.
- * A key id would be cheaper, and adding one would change the format for every
- * row ever written — the trial costs one failed GCM tag check per stale row, and
- * only until the rotation job catches up.
  */
 export function encryptPii(plain: string): string {
-  const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, keyFrom('PII_ENCRYPTION_KEY'), iv);
-  const ciphertext = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
-  const tag = cipher.getAuthTag();
-
-  return [
-    'v1',
-    iv.toString('base64url'),
-    tag.toString('base64url'),
-    ciphertext.toString('base64url'),
-  ].join('.');
+  return seal(plain, 'PII_ENCRYPTION_KEY');
 }
 
-/** Thrown when no key on the ring can read a value. */
-export class UndecryptableError extends Error {
-  constructor(readonly keysTried: number) {
-    super(
-      `Data terenkripsi tidak dapat dibaca oleh ${keysTried} kunci yang terpasang. ` +
-        'Kemungkinan PII_ENCRYPTION_KEYS_OLD dicabut sebelum rotasi selesai, ' +
-        'atau baris ini berasal dari basis data lain.',
-    );
-    this.name = 'UndecryptableError';
-  }
-}
+export { UndecryptableError };
 
 export function decryptPii(encoded: string): string {
-  const [version, ivPart, tagPart, dataPart] = encoded.split('.');
-  if (version !== 'v1' || !ivPart || !tagPart || !dataPart) {
-    throw new Error('Format data terenkripsi tidak dikenal');
-  }
-
-  const iv = Buffer.from(ivPart, 'base64url');
-  const tag = Buffer.from(tagPart, 'base64url');
-  const data = Buffer.from(dataPart, 'base64url');
-  const ring = decryptionRing('PII_ENCRYPTION_KEY', 'PII_ENCRYPTION_KEYS_OLD');
-
-  for (const key of ring) {
-    try {
-      const decipher = createDecipheriv(ALGORITHM, key, iv);
-      decipher.setAuthTag(tag);
-      return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
-    } catch {
-      // The GCM tag rejected this key. Nothing to log per attempt — a stale row
-      // during a rotation window is expected, and only exhausting the ring is a
-      // fact worth reporting.
-    }
-  }
-
-  throw new UndecryptableError(ring.length);
+  return open(encoded, 'PII_ENCRYPTION_KEY', 'PII_ENCRYPTION_KEYS_OLD');
 }
 
 /** True when the value was written by the PRIMARY key and needs no rewrite. */
 export function isEncryptedWithPrimaryKey(encoded: string): boolean {
-  const [version, ivPart, tagPart, dataPart] = encoded.split('.');
-  if (version !== 'v1' || !ivPart || !tagPart || !dataPart) return false;
-
-  try {
-    const decipher = createDecipheriv(
-      ALGORITHM,
-      keyFrom('PII_ENCRYPTION_KEY'),
-      Buffer.from(ivPart, 'base64url'),
-    );
-    decipher.setAuthTag(Buffer.from(tagPart, 'base64url'));
-    decipher.update(Buffer.from(dataPart, 'base64url'));
-    decipher.final();
-    return true;
-  } catch {
-    return false;
-  }
+  return sealedWithPrimary(encoded, 'PII_ENCRYPTION_KEY');
 }
 
 /**
@@ -230,7 +102,7 @@ export function blindIndex(value: string): string {
 export function blindIndexCandidates(value: string): string[] {
   const normalized = normalizeIdentifier(value);
 
-  return decryptionRing('PII_INDEX_KEY', 'PII_INDEX_KEYS_OLD').map((key) =>
+  return keyRing('PII_INDEX_KEY', 'PII_INDEX_KEYS_OLD').map((key) =>
     createHmac('sha256', key).update(normalized).digest('base64url'),
   );
 }

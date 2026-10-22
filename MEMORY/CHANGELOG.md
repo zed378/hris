@@ -10,6 +10,17 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — P6-14: Superuser TOTP sealed; superuser logins audited
+
+**Security** — ([record](./records/2026-10-22-superuser-totp.md), [spec](./specs/P6-14-superuser-totp-and-login-audit.md))
+- `platform.superusers.totp_secret` is AES-256-GCM-sealed under `PLATFORM_ENCRYPTION_KEY`. Plaintext secrets still verify and are sealed on login or by `pnpm --filter @hrms/core platform:seal-totp` (runbook §8a). Closes risk F13.
+- Every superuser login writes `superuser.login.succeeded` or `superuser.login.failed` (with reason) to `platform_audit_logs`; `superuser_id` became nullable for unknown-email failures.
+- An unknown superuser email now pays the argon2 cost; it used to answer immediately, revealing which addresses exist.
+- The key ring and cipher moved from `employee/pii.ts` to `packages/core/src/crypto/`, shared by both rings.
+
+**Fixed**
+- `ops/docker-compose.yml` gave the web and worker containers no PII keys, so a Compose deployment could not read or write an employee's NIK, NPWP or bank account. Both now require them; web also requires `PLATFORM_ENCRYPTION_KEY`.
+
 ### 2026-10-22 — P6-20: Lockout and login timing
 
 **Security** — (ADR-036)

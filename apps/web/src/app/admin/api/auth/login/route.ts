@@ -22,7 +22,7 @@ export const POST = definePublicAdminRoute('POST /admin/api/auth/login', async (
   }
 
   try {
-    return NextResponse.json(await superuserLogin(parsed.data));
+    return NextResponse.json(await superuserLogin(parsed.data, { ip: ctx.ip }));
   } catch (error) {
     if (error instanceof SuperuserAuthError) {
       return adminError(401, ErrorCode.INVALID_CREDENTIALS, error.message, ctx.correlationId);

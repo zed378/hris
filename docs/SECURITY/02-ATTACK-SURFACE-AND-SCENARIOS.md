@@ -151,9 +151,9 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Impact | (a) every tenant's data. (b)(c) control-plane takeover: suspend, change plans |
 | Likelihood | Low |
 | Mitigation | (a) `hrms_platform` has no grant on `auth.users`, `iam.*`, `audit.*`, or tenant module schemas — tested; a separate audience and key realm. (b) TOTP mandatory, enforced by a `CHECK` constraint; 8-hour sessions |
-| Detection | `platform_audit_logs` records tenant status and plan changes; **superuser logins are not recorded** |
+| Detection | `platform_audit_logs` records tenant status and plan changes, and every superuser login — `superuser.login.succeeded`, `superuser.login.failed` with its reason (P6-14) |
 | Response | Rotate `ADMIN_JWT_*`; re-enrol TOTP |
-| Status | (a)(b) **Mitigated**. (c) **Open** — `totp_secret` is stored in plaintext |
+| Status | (a)(b)(c) **Mitigated** — (c) since 2026-10-22 (`P6-14`): `totp_secret` is AES-256-GCM-sealed under `PLATFORM_ENCRYPTION_KEY`, a ring separate from the PII keys; `superuser-login.test.ts` reads the column as `hrms_owner` |
 
 ## 10. Internal Service Boundary
 
@@ -361,7 +361,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | 6 | Subscription bypass | Mitigated |
 | 7 | Attendance evidence fraud | Partial by design |
 | 8 | Personal data exposure | Mitigated · **unmask views not audited** |
-| 9 | Control plane | Mitigated · TOTP secrets plaintext |
+| 9 | Control plane | Mitigated |
 | 10 | Internal service boundary | Mitigated |
 | 11 | File upload | Mitigated |
 | 12 | Enumeration | Mitigated · tenant codes accepted |

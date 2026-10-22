@@ -10,6 +10,7 @@ Add a line here when writing a record — an unindexed record is a record nobody
 
 | Date | Task | Record | Hook |
 |---|---|---|---|
+| 2026-10-22 | P6-14 | [Superuser TOTP and login audit](./records/2026-10-22-superuser-totp.md) | TOTP secrets sealed under a control-plane key ring; every superuser login audited, unknown emails without the address typed. Found: superuser email enumeration by latency, and a Compose file with no PII keys at all |
 | 2026-10-22 | PF-02 | [Mobile navigation](./records/2026-10-22-mobile-navigation.md) | Bottom bar plus drawer below `md`, chosen by menu code, never by path. Replaced a draft that hard-coded five paths and whose "Keluar" did not log out. Checked in Chromium at 360 px; real device still pending |
 | 2026-10-22 | P6-13 | [Permission ceiling](./records/2026-10-22-permission-ceiling.md) | A delegate holding `iam.role.manage` could add any permission to their own role, or empty `TENANT_OWNER` and lock the owner out — the test proved the lockout. Now only the owner confers beyond what they hold; ADR-035 |
 | 2026-09-14 | — | [Answers to OQ-01, OQ-03, OQ-11](./records/2026-09-14-open-question-answers.md) | Backend English, frontend Indonesian and never showing server messages; API docs behind a superuser and a hashed key; the auth split stops. Two new tasks, one new question (emails and push), and the capacity question rewritten because it was unclear |

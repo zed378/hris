@@ -56,6 +56,7 @@ Written 2026-09-13 against the code. A control listed here was verified to exist
 |---|---|
 | Separate audience (`hrms-admin`), separate key realm, 8-hour sessions | `superuser-auth.ts` |
 | TOTP mandatory for superusers, enforced by a database constraint | `platform.superusers` |
+| Superuser TOTP secrets sealed at rest; every superuser login audited | `packages/core/src/platform/totp-secret.ts`, `platform_audit_logs` (P6-14) |
 | `hrms_platform` has no grant on `auth.users`, `iam.*`, or `audit.*` | `rls-coverage.test.ts` |
 | Superuser tenant status and plan changes go to a separate platform audit trail (logins are not recorded) | `platform.platform_audit_logs` |
 
@@ -117,7 +118,7 @@ Controls a reader might reasonably assume exist, and which do not. Each is track
 | No MFA for tenant users — only superusers have TOTP | One leaked password opens a tenant's HR data (R18); `12` Phase 5 DoD item unmet | High |
 | `JWT_SECRET` still configured, so HS256 tokens still verify | Anything holding the secret can still mint tokens | Medium |
 | **Viewing unmasked PII in the employee list or detail is not audited** — only exports are | An HR insider can read every national ID with no trace; `12` Phase 2 DoD requires unmasking to be audited | High |
-| Superuser TOTP secrets stored in plaintext | A database read defeats the control plane's second factor | Medium |
+| ~~Superuser TOTP secrets stored in plaintext~~ | **Closed by P6-14** | — |
 | No permission ceiling for role and grant administrators | A holder of `iam.role.manage` or `iam.grant.manage` can confer any permission, including on themselves | Medium |
 | `hrms_app` can still read `auth.users` | The backend can read credential rows it no longer needs (`14` §10.5) | Medium |
 | Service-to-service authentication is a shared secret, not mTLS | As strong as the environment holding it — **only relevant if the auth service is enabled, which is not planned** (ADR-032) | Low |

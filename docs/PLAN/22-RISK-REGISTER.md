@@ -40,7 +40,7 @@ Assessed 2026-09-13.
 | R26 | Breadth before depth | High | High | Five-module shortlist | Four modules built with no design-partner usage recorded in this repository | `12` §4 |
 | **F11** | **Viewing unmasked PII in the employee list or detail is not audited** — only exports are | Medium | High | Permission required; export audited | Audit row per unmasked read; `12` Phase 2 DoD | `SECURITY/02` §8 |
 | **F12** | **No permission ceiling: role and grant administrators can confer any permission, including on themselves** | Low | High | Audited; access version bumps | **Mitigated** — `packages/core/src/iam/ceiling.ts` (ADR-035); `apps/web/test/permission-ceiling.test.ts` | `SECURITY/02` §5 |
-| **F13** | **Superuser TOTP secrets stored in plaintext; superuser logins not audited** | Low | High | `hrms_platform` has no tenant-data grant | Encrypt with the key ring; audit logins | `SECURITY/02` §9 |
+| **F13** | **Superuser TOTP secrets stored in plaintext; superuser logins not audited** | Low | High | `hrms_platform` has no tenant-data grant | **Mitigated** — sealed under `PLATFORM_ENCRYPTION_KEY`; logins in `platform_audit_logs` (P6-14) | `SECURITY/02` §9 |
 | **F10** | **Users see English server messages** — backend English by decision, frontend not yet mapping codes | High | Low | — | `P6-24`, `PF-20` (ADR-030) | `15` §11 |
 | R2 | Tax and BPJS regulations change | High | Medium | `statutory_configs` versioned by date range | Tables exist; components do not | `02`, `12` Phase 5 |
 | R6 | The UI feels harder than Excel | High | High | AG Grid, `.xlsx` export, import pipeline | No usability testing | `UI-UX/` |

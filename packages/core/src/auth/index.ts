@@ -1,5 +1,5 @@
 export { login, refresh, logout, AuthError, type LoginResult, type LoginContext } from './login.ts';
-export { hashPassword, verifyPassword } from './password.ts';
+export { hashPassword, verifyPassword, burnTimingBudget } from './password.ts';
 export {
   issueAccessToken,
   verifyAccessToken,

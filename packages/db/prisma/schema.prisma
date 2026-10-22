@@ -482,7 +482,8 @@ model Superuser {
 /// dan metadata. Sama seperti seluruh schema ini (docs/PLAN/07 §2).
 model PlatformAuditLog {
   id          BigInt   @id @default(autoincrement())
-  superuserId String   @map("superuser_id") @db.Uuid
+  /// Null only for a failed login whose email matched no superuser (P6-14).
+  superuserId String?  @map("superuser_id") @db.Uuid
   action      String
   targetType  String   @map("target_type")
   targetId    String?  @map("target_id")

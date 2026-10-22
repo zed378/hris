@@ -382,6 +382,17 @@ services:
       # working deployment. Setting it moves authorization to the auth service.
       AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-}
       AUTH_INTERNAL_SECRET: ${AUTH_INTERNAL_SECRET:-}
+      # Personal data keys. Required: without them every employee read or write
+      # touching NIK, NPWP or a bank account fails. They were missing here until
+      # 2026-10-22, so a Compose deployment could not open an employee record.
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?PII_ENCRYPTION_KEY wajib dipasang}
+      PII_INDEX_KEY: ${PII_INDEX_KEY:?PII_INDEX_KEY wajib dipasang}
+      PII_ENCRYPTION_KEYS_OLD: ${PII_ENCRYPTION_KEYS_OLD:-}
+      PII_INDEX_KEYS_OLD: ${PII_INDEX_KEYS_OLD:-}
+      # Control-plane secrets (superuser TOTP, P6-14). A separate ring from the PII
+      # keys, so one leaked key does not open both planes.
+      PLATFORM_ENCRYPTION_KEY: ${PLATFORM_ENCRYPTION_KEY:?PLATFORM_ENCRYPTION_KEY wajib dipasang}
+      PLATFORM_ENCRYPTION_KEYS_OLD: ${PLATFORM_ENCRYPTION_KEYS_OLD:-}
     ports:
       - '${WEB_PORT:-3000}:3000'
 
@@ -419,6 +430,11 @@ services:
       DATABASE_URL: postgresql://hrms_owner:${POSTGRES_PASSWORD:-hrms_dev_password}@postgres:5432/${POSTGRES_DB:-hrms}
       DATABASE_URL_APP: postgresql://hrms_app:${APP_DB_PASSWORD:-hrms_app_password}@postgres:5432/${POSTGRES_DB:-hrms}
       DATABASE_URL_WORKER: postgresql://hrms_worker:${WORKER_DB_PASSWORD:-hrms_worker_password}@postgres:5432/${POSTGRES_DB:-hrms}
+      # Contract reminders decrypt employee data, and `pii:rotate` runs here.
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?PII_ENCRYPTION_KEY wajib dipasang}
+      PII_INDEX_KEY: ${PII_INDEX_KEY:?PII_INDEX_KEY wajib dipasang}
+      PII_ENCRYPTION_KEYS_OLD: ${PII_ENCRYPTION_KEYS_OLD:-}
+      PII_INDEX_KEYS_OLD: ${PII_INDEX_KEYS_OLD:-}
 
   # ---------------------------------------------------------------------------
   # Scheduled backups

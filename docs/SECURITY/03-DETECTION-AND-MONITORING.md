@@ -33,7 +33,7 @@ Consolidated from the Detection rows of `02-ATTACK-SURFACE-AND-SCENARIOS.md`. No
 | D-5 | Readiness reports `rateLimit: in-process` with > 1 replica | `/api/ready` | `02` §14 | Ticket |
 | D-6 | Bulk PII unmask | > N unmasked employee reads by one actor in an hour — **the audit row does not exist yet**; requires `02` §8(e) first | `02` §8 | Ticket to the tenant's owner |
 | D-7 | Role or grant change conferring an `iam.*` or `payroll.*` permission | `iam.role.permissions_changed`, grant audit rows | `02` §5 | Notify the tenant's owner |
-| D-8 | Superuser login, any | **No signal yet** — `platform_audit_logs` records tenant status and plan changes, not logins | `02` §9 | Notify all superusers |
+| D-8 | Superuser login, any | `superuser.login.succeeded` and `superuser.login.failed` (with `detail.reason`) in `platform_audit_logs` since P6-14; no alert wired yet (`P6-16`) | `02` §9 | Notify all superusers |
 | D-9 | Auth service unreachable | `503` rate on authenticated routes; auth-client error log | `02` §10 | Page |
 | D-10 | `X-Forwarded-For` first entry differs from last on an office-verified punch | New log field — requires the §4 fix's instrumentation | `02` §4 | Ticket |
 | D-11 | Photo access by one HR user above a threshold | `photo_access_logs` | `02` §15 | Notify the tenant's owner |
