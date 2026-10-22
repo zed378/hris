@@ -10,6 +10,10 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — Decisions: error reasons, HS256, Node 24
+
+**Decided** — ADR-037 (`error.reason` in the error contract; unblocks P6-24, PF-20, PF-04), ADR-038 (HS256 verification ends; answers OQ-14), ADR-039 (Node 24 pinned through `engines` and `.nvmrc`; resolves PG-07).
+
 ### 2026-10-22 — P6-18.2 and a review of the 2026-10-21 work
 
 **Added** — ([record](./records/2026-10-22-api-documentation.md))

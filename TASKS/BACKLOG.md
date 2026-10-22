@@ -124,7 +124,7 @@ Recorded as ADR-031; spec `MEMORY/specs/P6-18-api-documentation-access.md` updat
 
 **Blocks**: `P6-11`. **Source**: `docs/PLAN/12` §6 Phase 6, `docs/PLAN/04` §13. Commercial terms, not engineering.
 
-### OQ-14 — HS256 retirement date
+### ~~OQ-14 — HS256 retirement date~~ — ANSWERED 2026-10-22 (ADR-038): end it now
 
 **Blocks**: `PS-08`. **Source**: `docs/PLAN/14` §6, §10.1.
 
@@ -164,7 +164,7 @@ Both describe a 16-service Kubernetes architecture. `docs/PLAN/12` §3 replaced 
 
 `docs/PLAN/12` Phase 0 and 1 name CI, staging, managed PostgreSQL, Sentry, and an uptime check. None exists. Recorded as `DV-09`; the work is `P0-09`, `P0-10`, `P1-13`, `P1-14`.
 
-### PG-07 — Node 26 rejects `--experimental-transform-types`
+### ~~PG-07 — Node 26 rejects `--experimental-transform-types`~~ — RESOLVED 2026-10-22 (ADR-039): Node 24 pinned
 
 Found 2026-10-22. `package.json` allows `node >=24`, and on Node 26 `node --experimental-transform-types` exits with `bad option`, so `pnpm db:seed`, the worker, and the auth service cannot start locally (Vitest is unaffected; the Docker images pin `node:24` and are unaffected). The code needs transforms, not only type stripping — classes such as `AuthError` use parameter properties. **Recommendation:** pin `engines.node` to `>=24 <26` and add an `.nvmrc` of `24` now; decide on a loader (`tsx`) or removing parameter properties before moving to Node 26. Needs a decision from the user.
 

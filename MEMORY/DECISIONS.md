@@ -728,6 +728,60 @@ Numbers are sequential and permanent. A superseded ADR stays, with its status up
 
 ---
 
+## ADR-037 — Machine-readable refusal reasons in the error contract
+
+| | |
+|---|---|
+| **Date** | 2026-10-22 |
+| **Status** | Accepted |
+| **Task** | P6-24, PF-20, PF-04 |
+| **Deciders** | The user |
+| **Reconstructed** | No |
+
+**Context** — ADR-030 made the backend English and forbids the frontend from rendering a server `message`. The frontend therefore needs to know *which* refusal it got, and `code` is too coarse: `CONFLICT` covers an insufficient leave balance, an overlap, and a decided request alike.
+
+**Decision** — the user chose the recommendation on the P6-24 card. Error bodies gain an optional `error.reason`, in `SCREAMING_SNAKE` (e.g. `LEAVE_SELF_APPROVAL`). It refines `code` and never replaces it. Parameters go in `error.details`. Validation `details` are keyed by field and carry Zod issue codes and bounds, not sentences. Reasons are defined once in `packages/contracts` so the frontend can import the list. Login failures carry no reason (`docs/SECURITY/02` §12).
+
+**Alternatives considered** — more `ErrorCode` values: rejected — `code` is the coarse contract clients branch on, and splitting it breaks every existing branch.
+
+**Plan impact** — `docs/PLAN/15` §6 lists the reasons as they are added.
+
+---
+
+## ADR-038 — HS256 verification ends
+
+| | |
+|---|---|
+| **Date** | 2026-10-22 |
+| **Status** | Accepted — answers `OQ-14` |
+| **Task** | PS-08 |
+| **Deciders** | The user |
+| **Reconstructed** | No |
+
+**Context** — tokens are signed with EdDSA and published through JWKS (stage 1). HS256 still verifies while `JWT_SECRET` is set, a migration window with no remaining purpose once no HS256 token can be unexpired (15 minutes).
+
+**Decision** — the user: end it now in code. Verification accepts EdDSA only; `JWT_SECRET` and `ADMIN_JWT_SECRET` are removed from the configuration. A deployment still signing with HS256 must deploy EdDSA keys before taking this version.
+
+**Consequences** — a leaked `JWT_SECRET` can no longer mint tokens. Deployments without `JWT_PRIVATE_JWK` / `ADMIN_JWT_PRIVATE_JWK` refuse to sign.
+
+---
+
+## ADR-039 — Node 24 until a loader decision
+
+| | |
+|---|---|
+| **Date** | 2026-10-22 |
+| **Status** | Accepted — resolves `PG-07` |
+| **Task** | — |
+| **Deciders** | The user |
+| **Reconstructed** | No |
+
+**Context** — Node 26 rejects `--experimental-transform-types`, on which the seed, the worker, the auth service, and the ops scripts run. The code needs transforms (parameter properties), not only type stripping.
+
+**Decision** — the user: pin Node 24. `engines.node` is `>=24.0.0 <26` and `.nvmrc` is `24`. `engine-strict` is not set: pnpm warns on Node 26 rather than refusing, so a machine on 26 can still run the tests while it switches. Before moving to Node 26, choose a loader (`tsx`) or remove the parameter properties.
+
+---
+
 ## Decisions Pending
 
 Each moves into the log when decided. The open question holds the detail and a recommendation. Answered on 2026-09-14: `OQ-01` → ADR-030, `OQ-11` → ADR-031, `OQ-03` → ADR-032 (making `OQ-04` and `OQ-10` unnecessary), `OQ-05` → ADR-033, `OQ-15` → ADR-034.
@@ -741,7 +795,4 @@ Each moves into the log when decided. The open question holds the detail and a r
 | `OQ-09` | Log and error-tracking destination | `P1-16`, `P6-16` |
 | `OQ-12` | RPO and RTO | `P6-17` |
 | `OQ-13` | Reference-licence subscription credit | `P6-11` |
-| `OQ-14` | HS256 retirement date | `PS-08` |
-| `P6-24` spec | The shape of `reason` and of validation `details` | `P6-24`, `PF-20` |
-| `P3-12` spec | Trusted-hop count versus `X-Real-IP`; what to do with punches already marked `OFFICE_IP_VERIFIED` | `P3-12` |
 | `P2-08` spec | Whether unmasking becomes opt-in per request | `P2-08` |
