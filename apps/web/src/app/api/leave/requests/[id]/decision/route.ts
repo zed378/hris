@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { decideRequest, cancelRequest, LeaveError } from '@hrms/core/leave';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 import { leaveErrorResponse } from '@/lib/leave-error.ts';
@@ -25,7 +25,7 @@ const schema = z.object({
 export const POST = defineRoute('POST /api/leave/requests/[id]/decision', async (req, ctx) => {
   const requestId = ctx.params['id'];
   if (!requestId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id pengajuan tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing request id', ctx.correlationId);
   }
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
@@ -33,7 +33,7 @@ export const POST = defineRoute('POST /api/leave/requests/[id]/decision', async 
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Keputusan wajib menyertakan komentar minimal 4 karakter.',
+      'A decision needs a comment of at least 4 characters.',
       ctx.correlationId,
     );
   }
@@ -56,7 +56,7 @@ export const POST = defineRoute('POST /api/leave/requests/[id]/decision', async 
 export const DELETE = defineRoute('DELETE /api/leave/requests/[id]/decision', async (_req, ctx) => {
   const requestId = ctx.params['id'];
   if (!requestId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id pengajuan tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing request id', ctx.correlationId);
   }
 
   const me = await ctx.tx.employee.findFirst({
@@ -64,7 +64,14 @@ export const DELETE = defineRoute('DELETE /api/leave/requests/[id]/decision', as
     select: { id: true },
   });
   if (!me) {
-    return apiError(404, ErrorCode.NOT_FOUND, 'Akun belum terhubung ke karyawan', ctx.correlationId);
+    return apiError(
+      404,
+      ErrorCode.NOT_FOUND,
+      'This account is not linked to an employee record',
+      ctx.correlationId,
+      undefined,
+      ErrorReason.ACCOUNT_NOT_LINKED,
+    );
   }
 
   try {

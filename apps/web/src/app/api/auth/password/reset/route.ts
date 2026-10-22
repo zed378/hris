@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode, passwordSchema } from '@hrms/contracts';
+import { ErrorCode, passwordSchema, ErrorReason } from '@hrms/contracts';
 import { completePasswordReset, ActionTokenError } from '@hrms/core/auth';
 import { definePublicRoute, apiError } from '@/lib/define-route.ts';
 
@@ -15,7 +15,7 @@ export const POST = definePublicRoute('POST /api/auth/password/reset', async (re
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data tidak lengkap atau kata sandi kurang dari 12 karakter',
+      'Incomplete data, or a password shorter than 12 characters',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -26,7 +26,14 @@ export const POST = definePublicRoute('POST /api/auth/password/reset', async (re
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof ActionTokenError) {
-      return apiError(400, ErrorCode.TOKEN_INVALID, error.message, ctx.correlationId);
+      return apiError(
+        400,
+        ErrorCode.TOKEN_INVALID,
+        error.message,
+        ctx.correlationId,
+        undefined,
+        ErrorReason.ACTION_TOKEN_INVALID,
+      );
     }
     throw error;
   }

@@ -27,7 +27,7 @@ export const GET = defineRoute('GET /api/attendance/schedules', async (req, ctx)
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Sebutkan rentang tanggal: from=YYYY-MM-DD&to=YYYY-MM-DD',
+      'Give a date range: from=YYYY-MM-DD&to=YYYY-MM-DD',
       ctx.correlationId,
     );
   }
@@ -88,7 +88,7 @@ export const POST = defineRoute('POST /api/attendance/schedules', async (req, ct
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data pembangkitan jadwal tidak sah',
+      'Invalid schedule generation data',
       ctx.correlationId,
     );
   }

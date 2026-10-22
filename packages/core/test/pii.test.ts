@@ -53,7 +53,7 @@ describe('enkripsi', () => {
   });
 
   it('menolak format yang tidak dikenal', () => {
-    expect(() => decryptPii('bukan-format-yang-benar')).toThrow(/tidak dikenal/i);
+    expect(() => decryptPii('bukan-format-yang-benar')).toThrow(/Unknown encrypted data format/);
   });
 });
 

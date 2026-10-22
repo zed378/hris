@@ -112,7 +112,7 @@ describe('penguraian tanggal', () => {
   });
 
   it('menolak tanggal yang tidak ada dalam kalender', () => {
-    expect(parseExcelDate('31/02/2024').error).toMatch(/tidak ada dalam kalender/i);
+    expect(parseExcelDate('31/02/2024').error).toMatch(/No such calendar date/i);
     expect(parseExcelDate('32/13/2024').error).toBeTruthy();
   });
 
@@ -176,8 +176,8 @@ describe('validasi baris', () => {
     // Pesannya harus menjelaskan penyebab dan jalan keluarnya. Aturan panjang
     // digit sebenarnya sudah menolak nilai ini, tetapi pesannya berbunyi
     // "16 digit angka (ditemukan 16 karakter)" — terbaca seperti kontradiksi.
-    expect(nik!.message).toMatch(/tersamar/i);
-    expect(nik!.message).toMatch(/kosongkan|ekspor ulang/i);
+    expect(nik!.message).toMatch(/masked/i);
+    expect(nik!.message).toMatch(/leave the column empty|export it again/i);
   });
 
   it('nilai tersamar terdeteksi pada NPWP dan rekening juga', () => {

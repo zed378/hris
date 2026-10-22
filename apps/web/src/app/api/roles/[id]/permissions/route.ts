@@ -21,12 +21,12 @@ const schema = z.object({ permissions: z.array(z.string().min(3).max(128)).max(5
 export const PUT = defineRoute('PUT /api/roles/[id]/permissions', async (req, ctx) => {
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Daftar permission tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid permission list', ctx.correlationId);
   }
 
   const roleId = ctx.params['id'];
   if (!roleId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id peran tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing role id', ctx.correlationId);
   }
 
   try {

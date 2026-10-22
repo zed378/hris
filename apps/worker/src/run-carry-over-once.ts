@@ -24,10 +24,10 @@ import { runLeaveCarryOver } from './leave-carry-over.ts';
 const year = Number(process.argv[2]);
 
 if (!Number.isInteger(year) || year < 2000 || year > 2100) {
-  console.error('Sebutkan tahun yang akan ditutup, mis.: pnpm --filter @hrms/worker carry-over 2026');
+  console.error('Name the year to close, e.g.: pnpm --filter @hrms/worker carry-over 2026');
   process.exit(1);
 }
 
 const summary = await runLeaveCarryOver(year);
-console.log(`Penutupan tahun ${year}:`, JSON.stringify(summary));
+console.log(`Year-end close ${year}:`, JSON.stringify(summary));
 await disconnectAll();

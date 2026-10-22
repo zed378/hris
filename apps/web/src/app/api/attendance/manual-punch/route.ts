@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
 import { recordPunch, recalculateEmployeeDate, PunchError } from '@hrms/core/attendance';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { punchErrorResponse } from '@/lib/punch-error.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,7 @@ export const POST = defineRoute('POST /api/attendance/manual-punch', async (req,
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Entri manual wajib menyertakan karyawan, waktu, dan alasan minimal 4 karakter',
+      'A manual entry needs an employee, a time, and a reason of at least 4 characters',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -80,15 +81,10 @@ export const POST = defineRoute('POST /api/attendance/manual-punch', async (req,
     );
   } catch (error) {
     if (error instanceof PunchError) {
-      if (error.kind === 'locked') {
-        // 409, bukan 400. Permintaannya sah; keadaan sistemlah yang menolaknya,
-        // dan HR perlu tahu bedanya supaya tidak mencoba memperbaiki formulirnya.
-        return apiError(409, ErrorCode.CONFLICT, error.message, ctx.correlationId);
-      }
       if (error.kind === 'duplicate') {
         return NextResponse.json({ duplicate: true }, { status: 200 });
       }
-      return apiError(404, ErrorCode.NOT_FOUND, error.message, ctx.correlationId);
+      return punchErrorResponse(error, ctx.correlationId);
     }
     throw error;
   }

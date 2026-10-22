@@ -27,7 +27,7 @@ const schema = z.object({
 export const POST = defineRoute('POST /api/org/placements', async (req, ctx) => {
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Data penempatan tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid placement data', ctx.correlationId);
   }
 
   try {

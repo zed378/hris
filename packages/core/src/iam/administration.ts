@@ -111,7 +111,7 @@ export async function findAssignableRole(
     where: { tenantId_code: { tenantId, code: roleCode } },
     select: { id: true, permissions: { select: { permissionCode: true } } },
   });
-  if (!role) throw new IamError(`Peran "${roleCode}" tidak ditemukan`, 'not_found');
+  if (!role) throw new IamError(`Role "${roleCode}" not found`, 'not_found');
 
   await assertCanConfer(tx, tenantId, actorUserId, {
     permissions: role.permissions.map((p) => p.permissionCode),
@@ -132,7 +132,7 @@ export async function createInvitedUser(
     where: { tenantId_email: { tenantId, email: input.email } },
     select: { id: true },
   });
-  if (existing) throw new IamError('Email ini sudah terdaftar', 'conflict');
+  if (existing) throw new IamError('This email is already registered', 'conflict');
 
   const user = await tx.user.create({
     data: {
@@ -220,7 +220,7 @@ export async function setRolePermissions(
     where: { id: roleId, tenantId },
     select: { id: true, code: true, permissions: { select: { permissionCode: true } } },
   });
-  if (!role) throw new IamError('Peran tidak ditemukan', 'not_found');
+  if (!role) throw new IamError('Role not found', 'not_found');
 
   const requested = [...new Set(permissionCodes)];
   const known = await tx.permission.findMany({
@@ -229,7 +229,7 @@ export async function setRolePermissions(
   });
   const unknown = requested.filter((c) => !known.some((k) => k.code === c));
   if (unknown.length > 0) {
-    throw new IamError(`Permission tidak dikenal: ${unknown.join(', ')}`, 'not_found');
+    throw new IamError(`Unknown permissions: ${unknown.join(', ')}`, 'not_found');
   }
 
   const before = role.permissions.map((p) => p.permissionCode).sort();
@@ -306,8 +306,8 @@ export async function setUserGrant(
     tx.user.findFirst({ where: { id: input.userId, tenantId }, select: { id: true } }),
     tx.permission.findUnique({ where: { code: input.permissionCode }, select: { code: true } }),
   ]);
-  if (!user) throw new IamError('Pengguna tidak ditemukan', 'not_found');
-  if (!permission) throw new IamError('Permission tidak dikenal', 'not_found');
+  if (!user) throw new IamError('User not found', 'not_found');
+  if (!permission) throw new IamError('Unknown permission', 'not_found');
 
   // A DENY confers nothing, so only a GRANT is capped — but the owner check
   // applies to both, since a DENY is exactly how a delegate would lock the
@@ -370,7 +370,7 @@ export async function removeUserGrant(
     where: { tenantId, userId: input.userId, permissionCode: input.permissionCode },
     select: { effect: true },
   });
-  if (!existing) throw new IamError('Hak akses khusus tidak ditemukan', 'not_found');
+  if (!existing) throw new IamError('Per-user grant not found', 'not_found');
 
   // Lifting a DENY restores the permission, so it is capped like a GRANT (P6-13).
   await assertCanConfer(tx, tenantId, ctx.actorUserId, {
@@ -381,7 +381,7 @@ export async function removeUserGrant(
   const removed = await tx.userPermissionGrant.deleteMany({
     where: { tenantId, userId: input.userId, permissionCode: input.permissionCode },
   });
-  if (removed.count === 0) throw new IamError('Hak akses khusus tidak ditemukan', 'not_found');
+  if (removed.count === 0) throw new IamError('Per-user grant not found', 'not_found');
 
   const accessVersion = await bumpAccessVersion(tx, tenantId, input.userId);
 

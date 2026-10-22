@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { listDepartments, createDepartment, OrgError } from '@hrms/core/employee';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 import { Prisma } from '@hrms/db';
@@ -21,7 +21,7 @@ const schema = z.object({
 export const POST = defineRoute('POST /api/org/departments', async (req, ctx) => {
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Data departemen tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid department data', ctx.correlationId);
   }
 
   try {
@@ -35,7 +35,14 @@ export const POST = defineRoute('POST /api/org/departments', async (req, ctx) =>
     );
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return apiError(409, ErrorCode.CONFLICT, 'Kode departemen sudah dipakai', ctx.correlationId);
+      return apiError(
+        409,
+        ErrorCode.CONFLICT,
+        'Department code already in use',
+        ctx.correlationId,
+        { field: ['code'] },
+        ErrorReason.DUPLICATE_VALUE,
+      );
     }
     if (error instanceof OrgError) {
       return apiError(404, ErrorCode.NOT_FOUND, error.message, ctx.correlationId);

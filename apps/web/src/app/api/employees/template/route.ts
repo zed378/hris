@@ -33,7 +33,7 @@ export const GET = defineRoute('GET /api/employees/template', async () => {
       fullName: 'Siti Rahayu',
       nationalId: '3201123456789012',
       taxId: '09.254.294.3-407.000',
-      email: 'siti@perusahaan.co.id',
+      email: 'siti@perusahaan.co.id', // lang: id — example row of the import template (ADR-040)
       phone: '081234567890',
       joinDate: '01/03/2024',
       birthDate: '15/08/1995',
@@ -55,6 +55,7 @@ export const GET = defineRoute('GET /api/employees/template', async () => {
     EMPLOYEE_COLUMNS.map((column, index) => ({
       value:
         index === 0
+          // lang: id — instruction row of the import template HR fills in (ADR-040)
           ? 'HAPUS BARIS INI — Kolom bertanda * wajib diisi. Tanggal: hari/bulan/tahun (01/03/2024). Jenis kelamin: L atau P.'
           : '',
       type: String,
@@ -63,6 +64,7 @@ export const GET = defineRoute('GET /api/employees/template', async () => {
   ];
 
   const buffer = await writeXlsxFile(rows as never, {
+    // lang: id — spreadsheet sheet name (ADR-040)
     sheet: 'Data Karyawan',
     columns: EMPLOYEE_COLUMNS.map((column) => ({
       width: column.field === 'address' ? 40 : column.field === 'fullName' ? 24 : 18,
@@ -72,6 +74,7 @@ export const GET = defineRoute('GET /api/employees/template', async () => {
   return new Response(new Uint8Array(buffer), {
     headers: {
       'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      // lang: id — spreadsheet file name (ADR-040)
       'content-disposition': 'attachment; filename="templat-impor-karyawan.xlsx"',
       // Templat berubah bersama daftar kolom, dan daftar kolom berubah bersama
       // deploy. Tidak di-cache agar pelanggan tidak mengunduh templat versi lama

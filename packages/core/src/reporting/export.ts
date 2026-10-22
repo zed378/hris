@@ -77,9 +77,10 @@ export interface AttendanceExportOptions {
   employeeId?: string | undefined;
 }
 
+// lang: id-begin — spreadsheet column headers (ADR-040)
 export const ATTENDANCE_HEADERS = [
-  'Tanggal',
-  'Nomor Karyawan',
+  'Tanggal', // lang: id — spreadsheet content (ADR-040)
+  'Nomor Karyawan', // lang: id — spreadsheet content (ADR-040)
   'Nama',
   'Status',
   'Jam Masuk',
@@ -90,6 +91,7 @@ export const ATTENDANCE_HEADERS = [
   'Lembur (menit)',
   'Terkunci',
 ] as const;
+// lang: id-end
 
 export async function buildAttendanceExport(
   tx: TenantClient,
@@ -131,7 +133,7 @@ export async function buildAttendanceExport(
     rows.push([
       day.workDate.toISOString().slice(0, 10),
       employee?.employeeNumber ?? '',
-      employee?.fullName ?? '(karyawan terhapus)',
+      employee?.fullName ?? '(karyawan terhapus)', // lang: id — spreadsheet content (ADR-040)
       day.status,
       // Times are written as HH:MM, not ISO. Excel treats an ISO string as text
       // and displays it thirty characters long, and whoever reads it is the
@@ -191,20 +193,22 @@ export interface LeaveExportOptions {
   status?: string | undefined;
 }
 
+// lang: id-begin — spreadsheet column headers (ADR-040)
 export const LEAVE_HEADERS = [
-  'Nomor Pengajuan',
-  'Nomor Karyawan',
+  'Nomor Pengajuan', // lang: id — spreadsheet content (ADR-040)
+  'Nomor Karyawan', // lang: id — spreadsheet content (ADR-040)
   'Nama',
-  'Jenis Cuti',
+  'Jenis Cuti', // lang: id — spreadsheet content (ADR-040)
   'Mulai',
   'Selesai',
   'Jumlah Hari',
   'Status',
-  'Alasan',
+  'Alasan', // lang: id — spreadsheet content (ADR-040)
   'Diputuskan Oleh',
-  'Tanggal Keputusan',
-  'Catatan Keputusan',
+  'Tanggal Keputusan', // lang: id — spreadsheet content (ADR-040)
+  'Catatan Keputusan', // lang: id — spreadsheet content (ADR-040)
 ] as const;
+// lang: id-end
 
 export async function buildLeaveExport(
   tx: TenantClient,
@@ -281,14 +285,14 @@ export async function buildLeaveExport(
     rows.push([
       request.requestNumber,
       employee?.employeeNumber ?? '',
-      employee?.fullName ?? '(karyawan terhapus)',
-      typeById.get(request.leaveTypeId) ?? '(jenis terhapus)',
+      employee?.fullName ?? '(karyawan terhapus)', // lang: id — spreadsheet content (ADR-040)
+      typeById.get(request.leaveTypeId) ?? '(jenis terhapus)', // lang: id — spreadsheet content (ADR-040)
       request.startDate.toISOString().slice(0, 10),
       request.endDate.toISOString().slice(0, 10),
       String(Number(request.totalDays)),
       request.status,
       request.reason,
-      decision ? (deciderById.get(decision.approverId) ?? '(pengguna terhapus)') : '',
+      decision ? (deciderById.get(decision.approverId) ?? '(pengguna terhapus)') : '', // lang: id — spreadsheet content (ADR-040)
       request.decidedAt?.toISOString().slice(0, 10) ?? '',
       decision?.comment ?? '',
     ]);
@@ -330,8 +334,9 @@ export interface PayrollExportOptions {
   canUnmask: boolean;
 }
 
+// lang: id-begin — spreadsheet column headers (ADR-040)
 export const PAYROLL_HEADERS = [
-  'Nomor Karyawan',
+  'Nomor Karyawan', // lang: id — spreadsheet content (ADR-040)
   'Nama',
   'Bank',
   'Nomor Rekening',
@@ -340,6 +345,7 @@ export const PAYROLL_HEADERS = [
   'Potongan',
   'Diterima',
 ] as const;
+// lang: id-end
 
 export async function buildPayrollExport(
   tx: TenantClient,
@@ -351,7 +357,7 @@ export async function buildPayrollExport(
     where: { id: options.runId, tenantId },
     select: { id: true, runNumber: true, status: true },
   });
-  if (!run) throw new Error('Run tidak ditemukan');
+  if (!run) throw new Error('Run not found');
 
   const payslips = await tx.payslip.findMany({
     where: { tenantId, runId: run.id },
@@ -379,7 +385,7 @@ export async function buildPayrollExport(
     const employee = byId.get(slip.employeeId);
     rows.push([
       employee?.employeeNumber ?? '',
-      employee?.fullName ?? '(karyawan terhapus)',
+      employee?.fullName ?? '(karyawan terhapus)', // lang: id — spreadsheet content (ADR-040)
       employee?.bankName ?? '',
       // Masked or unmasked, decided by permission — not decided by this file
       // being "for finance".

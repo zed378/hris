@@ -97,7 +97,7 @@ export async function upsertComponent(
       // Refused HERE, not during a run. A bad formula found on the 25th means a
       // thousand payslips held up until somebody fixes it.
       throw new ComponentError(
-        `Formula tidak sah: ${check.error?.message ?? 'tidak dapat dibaca'}`,
+        `Invalid formula: ${check.error?.message ?? 'unreadable'}`,
         'invalid_formula',
       );
     }
@@ -114,7 +114,7 @@ export async function upsertComponent(
     });
     if (!base) {
       throw new ComponentError(
-        `Komponen dasar "${input.baseComponentCode}" tidak ditemukan.`,
+        `Base component "${input.baseComponentCode}" not found.`,
         'not_found',
       );
     }
@@ -196,7 +196,7 @@ export async function assertNoCycles(tx: TenantClient, tenantId: string): Promis
       const cycle = [...trail.slice(trail.indexOf(code)), code].join(' → ');
       throw new ComponentError(
         `Komponen saling bergantung membentuk lingkaran: ${cycle}. ` +
-          'Perhitungannya tidak akan pernah selesai.',
+          'The calculation would never finish.',
         'cycle',
       );
     }
@@ -283,7 +283,7 @@ export async function assignSalary(
     select: { id: true, name: true },
   });
   if (!component) {
-    throw new ComponentError(`Komponen "${input.componentCode}" tidak ditemukan.`, 'not_found');
+    throw new ComponentError(`Component "${input.componentCode}" not found.`, 'not_found');
   }
 
   const open = await tx.salaryStructure.findFirst({
@@ -299,8 +299,8 @@ export async function assignSalary(
   if (open) {
     if (open.effectiveFrom >= input.effectiveFrom) {
       throw new ComponentError(
-        `Sudah ada nilai berlaku sejak ${open.effectiveFrom.toISOString().slice(0, 10)}. ` +
-          'Tanggal berlaku yang baru harus setelahnya.',
+        `A value is already effective from ${open.effectiveFrom.toISOString().slice(0, 10)}. ` +
+          'The new effective date must be after it.',
         'conflict',
       );
     }

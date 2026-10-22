@@ -98,7 +98,7 @@ export function prepareRowPii(
   const fields = [
     { key: 'nationalId', label: 'NIK', value: parsed.nationalId, mask: maskNationalId },
     { key: 'taxId', label: 'NPWP', value: parsed.taxId, mask: maskTaxId },
-    { key: 'bankAccount', label: 'Nomor Rekening', value: parsed.bankAccount, mask: maskBankAccount },
+    { key: 'bankAccount', label: 'Bank account number', value: parsed.bankAccount, mask: maskBankAccount },
   ] as const;
 
   const prepared: Record<string, PreparedPii> = {};

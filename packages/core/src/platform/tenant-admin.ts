@@ -163,9 +163,9 @@ export async function setTenantModule(input: {
     where: { code: input.moduleCode },
     select: { isCore: true },
   });
-  if (!mod) throw new ModuleToggleError(`Modul "${input.moduleCode}" tidak dikenal`);
+  if (!mod) throw new ModuleToggleError(`Unknown module "${input.moduleCode}"`);
   if (mod.isCore && !input.enabled) {
-    throw new ModuleToggleError(`Modul inti "${input.moduleCode}" tidak dapat dinonaktifkan`);
+    throw new ModuleToggleError(`Core module "${input.moduleCode}" cannot be disabled`);
   }
 
   const now = new Date();
@@ -269,10 +269,10 @@ export async function setTenantStatus(input: {
     where: { id: input.tenantId },
     select: { id: true, code: true, status: true },
   });
-  if (!tenant) throw new TenantStatusError('Tenant tidak ditemukan');
+  if (!tenant) throw new TenantStatusError('Tenant not found');
 
   if (tenant.status === input.status) {
-    throw new TenantStatusError(`Tenant sudah berstatus ${input.status}`);
+    throw new TenantStatusError(`Tenant is already ${input.status}`);
   }
 
   const now = new Date();

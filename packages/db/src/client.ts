@@ -20,7 +20,7 @@ function required(name: string): string {
   const value = process.env[name];
   if (!value) {
     throw new Error(
-      `Variabel lingkungan ${name} belum dipasang. Salin .env.example menjadi .env.`,
+      `Environment variable ${name} is not set. Copy .env.example to .env.`,
     );
   }
   return value;

@@ -40,7 +40,7 @@ export const GET = defineRoute('GET /api/attendance/holidays', async (req, ctx) 
   const year = Number(url.searchParams.get('year') ?? new Date().getUTCFullYear());
 
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Tahun tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid year', ctx.correlationId);
   }
 
   const holidays = await ctx.tx.holiday.findMany({
@@ -94,7 +94,7 @@ export const POST = defineRoute('POST /api/attendance/holidays', async (req, ctx
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Daftar hari libur tidak sah',
+      'Invalid holiday list',
       ctx.correlationId,
     );
   }
@@ -162,7 +162,7 @@ const deleteSchema = z.object({ id: z.string().uuid() });
 export const DELETE = defineRoute('DELETE /api/attendance/holidays', async (req, ctx) => {
   const parsed = deleteSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid id', ctx.correlationId);
   }
 
   const holiday = await ctx.tx.holiday.findFirst({
@@ -170,7 +170,7 @@ export const DELETE = defineRoute('DELETE /api/attendance/holidays', async (req,
     select: { id: true, date: true, name: true, isJointLeave: true },
   });
   if (!holiday) {
-    return apiError(404, ErrorCode.NOT_FOUND, 'Hari libur tidak ditemukan', ctx.correlationId);
+    return apiError(404, ErrorCode.NOT_FOUND, 'Holiday not found', ctx.correlationId);
   }
 
   // Returned BEFORE its row is deleted. Once deleted, nothing connects the
@@ -187,7 +187,7 @@ export const DELETE = defineRoute('DELETE /api/attendance/holidays', async (req,
       return apiError(
         409,
         ErrorCode.CONFLICT,
-        'Hari libur ini masih dirujuk data lain dan tidak dapat dihapus.',
+        'This holiday is still referenced by other data and cannot be removed.',
         ctx.correlationId,
       );
     }

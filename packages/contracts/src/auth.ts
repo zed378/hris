@@ -12,7 +12,7 @@ export const tenantCodeSchema = z
   .string()
   .trim()
   .toLowerCase()
-  .regex(/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/, 'Kode tenant tidak sah');
+  .regex(/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/, 'Invalid tenant code');
 
 export const emailSchema = z.string().trim().toLowerCase().email().max(254);
 
@@ -23,7 +23,7 @@ export const emailSchema = z.string().trim().toLowerCase().email().max(254);
  * panjang adalah satu-satunya syarat yang benar-benar berkorelasi dengan
  * ketahanan. Batas atas 128 mencegah DoS lewat argon2 pada masukan raksasa.
  */
-export const passwordSchema = z.string().min(12, 'Kata sandi minimal 12 karakter').max(128);
+export const passwordSchema = z.string().min(12, 'Password must be at least 12 characters').max(128);
 
 export const loginRequestSchema = z.object({
   tenantCode: tenantCodeSchema,

@@ -92,7 +92,7 @@ export function createBlobStore(options: {
   const pathFor = (key: string): string => {
     const match = /^([0-9a-f-]{36})\.([a-z0-9]{1,5})$/.exec(key);
     if (!match || !allowed.has(match[2]!)) {
-      throw new BlobError('Kunci berkas tidak sah', 'invalid_key');
+      throw new BlobError('Invalid file key', 'invalid_key');
     }
     return join(storageRoot(options.envVar, options.fallbackDir), key.slice(0, 2), key);
   };
@@ -101,7 +101,7 @@ export function createBlobStore(options: {
     async put(content, extension) {
       if (content.length > options.maxBytes) {
         throw new BlobError(
-          `Ukuran berkas ${Math.round(content.length / 1024)} KB melebihi batas ${Math.round(options.maxBytes / 1024)} KB`,
+          `File of ${Math.round(content.length / 1024)} KB exceeds the ${Math.round(options.maxBytes / 1024)} KB limit`,
           'too_large',
         );
       }
@@ -124,7 +124,7 @@ export function createBlobStore(options: {
         return await readFile(pathFor(key));
       } catch (error) {
         if (error instanceof BlobError) throw error;
-        throw new BlobError('Berkas tidak ditemukan', 'not_found');
+        throw new BlobError('File not found', 'not_found');
       }
     },
 

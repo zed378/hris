@@ -54,7 +54,7 @@ export const PATCH = defineRoute('PATCH /api/employees/bulk', async (req, ctx) =
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      `Perubahan tidak sah atau melebihi ${MAX_BULK_ROWS} baris sekaligus.`,
+      `Invalid changes, or more than ${MAX_BULK_ROWS} rows at once.`,
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );

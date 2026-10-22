@@ -40,7 +40,7 @@ const schema = z
     isActive: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
-    message: 'Tidak ada perubahan yang dikirim',
+    message: 'No changes were sent',
   });
 
 export const PATCH = defineRoute(
@@ -48,7 +48,7 @@ export const PATCH = defineRoute(
   async (req, ctx) => {
     const id = ctx.params.id;
     if (!id) {
-      return apiError(400, ErrorCode.VALIDATION_FAILED, 'Lokasi tidak disebut', ctx.correlationId);
+      return apiError(400, ErrorCode.VALIDATION_FAILED, 'Work site not specified', ctx.correlationId);
     }
 
     const parsed = schema.safeParse(await req.json().catch(() => null));
@@ -56,7 +56,7 @@ export const PATCH = defineRoute(
       return apiError(
         400,
         ErrorCode.VALIDATION_FAILED,
-        'Perubahan lokasi kerja tidak sah',
+        'Invalid work site change',
         ctx.correlationId,
         parsed.error.flatten().fieldErrors as Record<string, string[]>,
       );
@@ -71,7 +71,7 @@ export const PATCH = defineRoute(
     });
 
     if (!before) {
-      return apiError(404, ErrorCode.NOT_FOUND, 'Lokasi kerja tidak ditemukan', ctx.correlationId);
+      return apiError(404, ErrorCode.NOT_FOUND, 'Work site not found', ctx.correlationId);
     }
 
     const data = parsed.data;

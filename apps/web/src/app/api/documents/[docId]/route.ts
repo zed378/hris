@@ -24,7 +24,7 @@ const MANAGE = 'employee.document.manage';
 export const GET = defineRoute('GET /api/documents/[docId]', async (_req, ctx) => {
   const documentId = ctx.params['docId'];
   if (!documentId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id dokumen tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing document id', ctx.correlationId);
   }
 
   const canReadAll = ctx.access.permissions.includes(READ_ALL);
@@ -42,7 +42,7 @@ export const GET = defineRoute('GET /api/documents/[docId]', async (_req, ctx) =
       select: { employeeId: true },
     });
     if (!peek) {
-      return apiError(404, ErrorCode.NOT_FOUND, 'Dokumen tidak ditemukan', ctx.correlationId);
+      return apiError(404, ErrorCode.NOT_FOUND, 'Document not found', ctx.correlationId);
     }
 
     const isOwner = Boolean(me && me.id === peek.employeeId);
@@ -50,7 +50,7 @@ export const GET = defineRoute('GET /api/documents/[docId]', async (_req, ctx) =
       return apiError(
         403,
         ErrorCode.PERMISSION_DENIED,
-        'Bukan dokumen Anda',
+        'Not your document',
         ctx.correlationId,
       );
     }
@@ -94,10 +94,10 @@ export const GET = defineRoute('GET /api/documents/[docId]', async (_req, ctx) =
 export const DELETE = defineRoute('DELETE /api/documents/[docId]', async (_req, ctx) => {
   const documentId = ctx.params['docId'];
   if (!documentId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id dokumen tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing document id', ctx.correlationId);
   }
   if (!ctx.access.permissions.includes(MANAGE)) {
-    return apiError(403, ErrorCode.PERMISSION_DENIED, 'Tidak berizin', ctx.correlationId);
+    return apiError(403, ErrorCode.PERMISSION_DENIED, 'Not permitted', ctx.correlationId);
   }
 
   try {

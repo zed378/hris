@@ -1,4 +1,5 @@
 import { Prisma, writeAudit, type TenantClient } from '@hrms/db';
+import type { ErrorReason } from '@hrms/contracts';
 import { accruesOverTime, entitlementAsOf, type AccrualMethod } from './accrual.ts';
 
 /**
@@ -35,6 +36,9 @@ export class LeaveError extends Error {
       | 'invalid_state'
       | 'not_entitled'
       | 'forbidden',
+    /** Which refusal, for the frontend's own text (ADR-037). */
+    readonly reason?: ErrorReason,
+    readonly details?: Record<string, string[]>,
   ) {
     super(message);
     this.name = 'LeaveError';
@@ -432,6 +436,8 @@ export async function adjustBalance(
     throw new LeaveError(
       `Adjustment of ${input.days} days would make the balance negative. Available: ${balance.availableDays} days.`,
       'insufficient_balance',
+      'LEAVE_INSUFFICIENT_BALANCE',
+      { available: [String(balance.availableDays)], requested: [String(-input.days)] },
     );
   }
 
@@ -621,7 +627,7 @@ export async function runCarryOver(
         balanceId: row.id,
         entryType: 'EXPIRE',
         days: -carried,
-        note: `Dipindahkan ke tahun ${fromYear + 1}`,
+        note: `Dipindahkan ke tahun ${fromYear + 1}`, // lang: id — ledger note HR reads in the balance history (ADR-040)
         ...(actorUserId ? { actorUserId } : {}),
       });
 

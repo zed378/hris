@@ -1,6 +1,6 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ErrorCode, ApiError } from '@hrms/contracts';
+import type { ErrorCode, ApiError, ErrorReason } from '@hrms/contracts';
 import { clientAddress, forwardedClientAddress } from '@hrms/observability';
 
 /**
@@ -126,8 +126,10 @@ export function fail(
   message: string,
   correlationId: string,
   details?: Record<string, string[]>,
+  reason?: ErrorReason,
 ): Reply {
   const error: ApiError = { error: { code, message, correlationId } };
+  if (reason) error.error.reason = reason;
   if (details) error.error.details = details;
   return { status, body: error };
 }

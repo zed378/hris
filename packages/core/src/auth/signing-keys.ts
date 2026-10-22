@@ -78,7 +78,7 @@ function parseJwks(raw: string, label: string): JWK[] {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error(`${label} bukan JSON yang sah.`);
+    throw new Error(`${label} is not valid JSON.`);
   }
 
   const keys =
@@ -87,8 +87,8 @@ function parseJwks(raw: string, label: string): JWK[] {
     : [parsed as JWK];
 
   for (const key of keys) {
-    if (!key.kid) throw new Error(`${label}: setiap kunci wajib punya "kid".`);
-    if (!key.alg) throw new Error(`${label}: kunci "${key.kid}" tidak menyebut "alg".`);
+    if (!key.kid) throw new Error(`${label}: every key needs a "kid".`);
+    if (!key.alg) throw new Error(`${label}: key "${key.kid}" names no "alg".`);
   }
 
   return keys;
@@ -147,7 +147,7 @@ export async function privateSigningKey(realm: KeyRealm = 'tenant'): Promise<Sig
 
   const keys = await importAll(raw, privateVar);
   const key = keys[0];
-  if (!key) throw new Error(`${privateVar} tidak memuat satu pun kunci.`);
+  if (!key) throw new Error(`${privateVar} contains no key.`);
   return key;
 }
 

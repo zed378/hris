@@ -13,7 +13,7 @@ const UUID_PATTERN =
 
 export class InvalidTenantIdError extends Error {
   constructor(value: string) {
-    super(`tenantId bukan UUID yang sah: ${JSON.stringify(value)}`);
+    super(`tenantId is not a valid UUID: ${JSON.stringify(value)}`);
     this.name = 'InvalidTenantIdError';
   }
 }

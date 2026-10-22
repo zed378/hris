@@ -27,7 +27,7 @@ export const GET = defineRoute('GET /api/attendance/records/export', async (req,
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Sebutkan rentang tanggal: from=YYYY-MM-DD&to=YYYY-MM-DD',
+      'Give a date range: from=YYYY-MM-DD&to=YYYY-MM-DD',
       ctx.correlationId,
     );
   }
@@ -49,8 +49,9 @@ export const GET = defineRoute('GET /api/attendance/records/export', async (req,
   );
 
   return xlsxResponse(result, {
+    // lang: id — spreadsheet sheet and file names (ADR-040)
     sheet: 'Rekap Presensi',
-    fileName: `presensi-${parsed.data.from}-sd-${parsed.data.to}.xlsx`,
+    fileName: `presensi-${parsed.data.from}-sd-${parsed.data.to}.xlsx`, // lang: id — spreadsheet file name (ADR-040)
     columnWidths: [12, 16, 24, 12, 10, 10, 16, 16, 12, 14, 10],
   });
 });

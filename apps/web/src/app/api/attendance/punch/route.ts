@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { recordPunch, PunchError } from '@hrms/core/attendance';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { punchErrorResponse } from '@/lib/punch-error.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +37,7 @@ export const POST = defineRoute('POST /api/attendance/punch', async (req, ctx) =
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data presensi tidak lengkap',
+      'Incomplete punch data',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -54,8 +55,10 @@ export const POST = defineRoute('POST /api/attendance/punch', async (req, ctx) =
     return apiError(
       404,
       ErrorCode.NOT_FOUND,
-      'Akun Anda belum terhubung ke data karyawan. Hubungi admin HR.',
+      'This account is not linked to an employee record',
       ctx.correlationId,
+      undefined,
+      ErrorReason.ACCOUNT_NOT_LINKED,
     );
   }
 
@@ -76,26 +79,7 @@ export const POST = defineRoute('POST /api/attendance/punch', async (req, ctx) =
         return NextResponse.json({ duplicate: true }, { status: 200 });
       }
 
-      /**
-       * Setiap sebab penolakan dijawab kodenya sendiri.
-       *
-       * Sebelumnya seluruhnya menjadi 404 — termasuk periode yang sudah
-       * ditutup, yang bukan "tidak ditemukan" melainkan "tidak boleh diubah
-       * lagi". Klien yang menerima 404 akan mengira ketukannya hilang dan
-       * mencoba lagi; klien yang menerima 409 tahu mencoba lagi tidak akan
-       * mengubah apa pun.
-       *
-       * `blocked` menjadi 400: permintaannya memang kurang lengkap menurut
-       * kebijakan tenant, dan pesannya menyebutkan apa yang kurang beserta
-       * jalan keluarnya.
-       */
-      if (error.kind === 'locked') {
-        return apiError(409, ErrorCode.CONFLICT, error.message, ctx.correlationId);
-      }
-      if (error.kind === 'blocked') {
-        return apiError(400, ErrorCode.VALIDATION_FAILED, error.message, ctx.correlationId);
-      }
-      return apiError(404, ErrorCode.NOT_FOUND, error.message, ctx.correlationId);
+      return punchErrorResponse(error, ctx.correlationId);
     }
     throw error;
   }

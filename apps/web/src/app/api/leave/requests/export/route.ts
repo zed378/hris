@@ -17,7 +17,7 @@ export const GET = defineRoute('GET /api/leave/requests/export', async (req, ctx
   const url = new URL(req.url);
   const parsed = schema.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Sebutkan tahun', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Give a year', ctx.correlationId);
   }
 
   const result = await buildLeaveExport(
@@ -33,8 +33,9 @@ export const GET = defineRoute('GET /api/leave/requests/export', async (req, ctx
   );
 
   return xlsxResponse(result, {
+    // lang: id — spreadsheet sheet and file names (ADR-040)
     sheet: 'Rekap Cuti',
-    fileName: `cuti-${parsed.data.year}.xlsx`,
+    fileName: `cuti-${parsed.data.year}.xlsx`, // lang: id — spreadsheet file name (ADR-040)
     columnWidths: [18, 16, 24, 18, 12, 12, 12, 12, 40, 20, 14, 40],
   });
 });

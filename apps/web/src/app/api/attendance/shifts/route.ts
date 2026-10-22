@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 import { Prisma } from '@hrms/db';
 
@@ -46,7 +46,7 @@ export const POST = defineRoute('POST /api/attendance/shifts', async (req, ctx) 
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data shift tidak sah. Jam selesai harus setelah jam mulai.',
+      'Invalid shift. The end time must be after the start time.',
       ctx.correlationId,
     );
   }
@@ -59,7 +59,14 @@ export const POST = defineRoute('POST /api/attendance/shifts', async (req, ctx) 
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return apiError(409, ErrorCode.CONFLICT, 'Kode shift sudah dipakai', ctx.correlationId);
+      return apiError(
+        409,
+        ErrorCode.CONFLICT,
+        'Shift code already in use',
+        ctx.correlationId,
+        { field: ['code'] },
+        ErrorReason.DUPLICATE_VALUE,
+      );
     }
     throw error;
   }

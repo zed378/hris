@@ -118,7 +118,7 @@ export async function superuserLogin(
     // mistake, and the audit trail must not become where it is kept.
     const reason = !superuser ? 'unknown_email' : !superuser.isActive ? 'inactive' : !passwordOk ? 'password' : 'totp';
     await auditLogin(superuser?.id ?? null, 'superuser.login.failed', { reason }, ctx.ip);
-    throw new SuperuserAuthError('Kredensial tidak sah');
+    throw new SuperuserAuthError('Invalid credentials');
   }
 
   // Seal a secret still in plaintext, or re-seal one under a demoted key, now
@@ -175,7 +175,7 @@ export async function verifySuperuserToken(token: string): Promise<SuperuserClai
       aud: ADMIN_AUDIENCE,
     };
   } catch {
-    throw new SuperuserAuthError('Token admin tidak sah');
+    throw new SuperuserAuthError('Invalid admin token');
   }
 }
 

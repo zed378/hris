@@ -17,7 +17,7 @@ const UNMASK = 'employee.pii.unmask';
 
 export const GET = defineRoute('GET /api/employees/[id]', async (_req, ctx) => {
   const id = ctx.params['id'];
-  if (!id) return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id tidak ada', ctx.correlationId);
+  if (!id) return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing id', ctx.correlationId);
 
   try {
     return NextResponse.json(
@@ -62,7 +62,7 @@ export const PATCH = defineRoute('PATCH /api/employees/[id]', async (req, ctx) =
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data perubahan tidak sah. Sertakan "version" dari data yang Anda baca.',
+      'Invalid change. Include the "version" of the data you read.',
       ctx.correlationId,
     );
   }

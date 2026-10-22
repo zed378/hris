@@ -40,7 +40,7 @@ export const GET = defineRoute('GET /api/audit', async (req, ctx) => {
   const url = new URL(req.url);
   const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Penyaring tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid filter', ctx.correlationId);
   }
 
   const q = parsed.data;
@@ -102,9 +102,13 @@ export const GET = defineRoute('GET /api/audit', async (req, ctx) => {
       // Aktor null berarti tindakan sistem — job terjadwal atau konsumer event.
       // Ditampilkan sebagai "Sistem", bukan dikosongkan: baris tanpa pelaku
       // terbaca seperti data yang hilang.
+      // `kind` rather than a made-up display name: the words "System" and
+      // "deleted user" are the frontend's to choose (ADR-030).
       actor: row.actorUserId
-        ? (byId.get(row.actorUserId) ?? { id: row.actorUserId, fullName: '(pengguna terhapus)', email: '' })
-        : { id: null, fullName: 'Sistem', email: '' },
+        ? byId.has(row.actorUserId)
+          ? { ...byId.get(row.actorUserId)!, kind: 'user' as const }
+          : { id: row.actorUserId, fullName: null, email: '', kind: 'deleted' as const }
+        : { id: null, fullName: null, email: '', kind: 'system' as const },
       action: row.action,
       entityType: row.entityType,
       entityId: row.entityId,

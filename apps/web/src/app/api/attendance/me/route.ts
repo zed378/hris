@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,7 +19,14 @@ export const GET = defineRoute('GET /api/attendance/me', async (req, ctx) => {
     select: { id: true },
   });
   if (!me) {
-    return apiError(404, ErrorCode.NOT_FOUND, 'Akun belum terhubung ke data karyawan', ctx.correlationId);
+    return apiError(
+      404,
+      ErrorCode.NOT_FOUND,
+      'This account is not linked to an employee record',
+      ctx.correlationId,
+      undefined,
+      ErrorReason.ACCOUNT_NOT_LINKED,
+    );
   }
 
   const url = new URL(req.url);

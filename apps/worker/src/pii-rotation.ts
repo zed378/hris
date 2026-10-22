@@ -93,7 +93,7 @@ function reEncrypt(value: string): string | null {
 
   // The read-back. If this throws or disagrees, the update never happens.
   if (decryptPii(rewritten) !== plain) {
-    throw new Error('Verifikasi gagal: nilai hasil enkripsi ulang tidak sama dengan aslinya.');
+    throw new Error('Verification failed: the re-encrypted value does not match the original.');
   }
 
   return rewritten;

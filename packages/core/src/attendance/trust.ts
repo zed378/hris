@@ -121,12 +121,12 @@ export function assessTrust(input: TrustInput): TrustAssessment {
         ? {
             code: 'OFFICE_IP_VERIFIED',
             penalty: 0,
-            message: 'Presensi dari jaringan kantor yang terdaftar',
+            message: 'Punched from a registered office network',
           }
         : {
             code: 'WEB_UNVERIFIED_DEVICE',
             penalty: 15,
-            message: 'Presensi dari peramban — keaslian lokasi tidak dapat diverifikasi',
+            message: 'Punched from a browser — the location cannot be verified as genuine',
           },
     );
   }
@@ -135,7 +135,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     flags.push({
       code: 'MANUAL_ENTRY',
       penalty: 40,
-      message: 'Diinput manual oleh HR, bukan oleh karyawan',
+      message: 'Entered manually by HR, not by the employee',
     });
   }
 
@@ -161,7 +161,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     flags.push({
       code: 'DEVICE_IMPORT_UNVERIFIED',
       penalty: 10,
-      message: 'Dari impor berkas mesin absensi, bukan integrasi langsung',
+      message: 'From an attendance machine file import, not a live integration',
     });
 
     const score = Math.max(0, 100 - flags.reduce((sum, flag) => sum + flag.penalty, 0));
@@ -175,7 +175,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
         ? {
             code: 'LOCATION_CONSENT_WITHHELD',
             penalty: 0,
-            message: 'Tanpa lokasi — persetujuan lokasi tidak diberikan',
+            message: 'No location — location consent not given',
           }
         : {
             code: 'NO_LOCATION',
@@ -184,7 +184,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
             // "no location" indistinguishable from "inside the fence", and that is
             // information lost with nobody asking for it.
             penalty: input.policy?.requireLocation === false ? 0 : 30,
-            message: 'Tanpa data lokasi',
+            message: 'No location data',
           },
     );
   } else if (input.radiusM !== null && input.distanceM > input.radiusM) {
@@ -197,7 +197,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     flags.push({
       code: 'OUTSIDE_GEOFENCE',
       penalty,
-      message: `${formatDistance(input.distanceM)} dari lokasi kerja (radius ${input.radiusM} m)`,
+      message: `${formatDistance(input.distanceM)} from the work site (radius ${input.radiusM} m)`,
     });
   }
 
@@ -212,7 +212,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     flags.push({
       code: 'LOW_GPS_ACCURACY',
       penalty: 15,
-      message: `Akurasi GPS ${input.accuracyM} m (batas ${input.maxAccuracyM} m)`,
+      message: `GPS accuracy ${input.accuracyM} m (limit ${input.maxAccuracyM} m)`,
     });
   }
 
@@ -223,12 +223,12 @@ export function assessTrust(input: TrustInput): TrustAssessment {
         ? {
             code: 'PHOTO_CONSENT_WITHHELD',
             penalty: 0,
-            message: 'Tanpa foto — persetujuan foto tidak diberikan',
+            message: 'No photo — photo consent not given',
           }
         : {
             code: 'NO_PHOTO',
             penalty: input.policy?.requirePhoto === false ? 0 : 20,
-            message: 'Tanpa foto swafoto',
+            message: 'No selfie photo',
           },
     );
   }
@@ -241,7 +241,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     flags.push({
       code: 'CLOCK_SKEW',
       penalty: 35,
-      message: `Jam perangkat meleset ${Math.round(Math.abs(input.clockSkewSeconds) / 60)} menit`,
+      message: `Device clock off by ${Math.round(Math.abs(input.clockSkewSeconds) / 60)} minutes`,
     });
   }
 
@@ -252,7 +252,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     flags.push({
       code: 'MOCK_LOCATION',
       penalty: 70,
-      message: 'Perangkat melaporkan penggunaan lokasi tiruan',
+      message: 'The device reported a mock location',
     });
   }
 

@@ -57,7 +57,7 @@ const schema = z.object({
     // Kode komponen menjadi NAMA VARIABEL di dalam formula, sehingga ia harus
     // berbentuk identifier. Kode "TUNJANGAN-TRANSPOR" akan diurai parser sebagai
     // pengurangan dua variabel.
-    .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Kode hanya boleh huruf, angka, dan garis bawah'),
+    .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Code may contain only letters, digits, and underscores'),
   name: z.string().trim().min(2).max(120),
   type: z.enum(['EARNING', 'DEDUCTION', 'EMPLOYER_CONTRIBUTION', 'INFO']),
   calcMethod: z.enum(['FIXED', 'FORMULA', 'PER_DAY', 'PER_HOUR', 'PERCENTAGE']),
@@ -76,7 +76,7 @@ export const POST = defineRoute('POST /api/payroll/components', async (req, ctx)
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Komponen gaji tidak lengkap.',
+      'Incomplete salary component.',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -110,7 +110,7 @@ const checkSchema = z.object({ expression: z.string().max(1000), code: z.string(
 export const PUT = defineRoute('PUT /api/payroll/components', async (req, ctx) => {
   const parsed = checkSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Ekspresi tidak ada.', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing expression.', ctx.correlationId);
   }
 
   const variables = await availableVariables(ctx.tx, ctx.tenantId, parsed.data.code);

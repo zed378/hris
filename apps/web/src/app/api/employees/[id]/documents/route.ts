@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import {
   listDocuments,
   uploadDocument,
@@ -77,6 +77,8 @@ export const POST = defineRoute('POST /api/employees/[id]/documents', async (req
       ErrorCode.VALIDATION_FAILED,
       `File size exceeds the ${MAX_DOCUMENT_BYTES / 1024 / 1024} MB limit.`,
       ctx.correlationId,
+      { maxBytes: [String(MAX_DOCUMENT_BYTES)] },
+      ErrorReason.FILE_TOO_LARGE,
     );
   }
 

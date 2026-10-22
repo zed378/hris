@@ -35,7 +35,7 @@ const toggleSchema = z.object({
 export const POST = defineAdminRoute('POST /admin/api/tenants', async (req, ctx) => {
   const parsed = toggleSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return adminError(400, ErrorCode.VALIDATION_FAILED, 'Data tidak sah', ctx.correlationId);
+    return adminError(400, ErrorCode.VALIDATION_FAILED, 'Invalid data', ctx.correlationId);
   }
 
   try {

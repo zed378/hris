@@ -31,7 +31,7 @@ export const POST = definePublicRoute('POST /api/tenants/register', async (req, 
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data pendaftaran tidak lengkap atau tidak sah',
+      'Incomplete or invalid registration data',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -51,7 +51,7 @@ export const POST = definePublicRoute('POST /api/tenants/register', async (req, 
   } catch (error) {
     if (error instanceof TenantCodeTakenError) {
       return apiError(409, ErrorCode.CONFLICT, error.message, ctx.correlationId, {
-        tenantCode: ['Kode perusahaan ini sudah dipakai'],
+        tenantCode: ['This company code is already in use'],
       });
     }
     throw error;

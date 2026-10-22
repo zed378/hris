@@ -73,7 +73,7 @@ const actionSchema = z.discriminatedUnion('action', [
 export const POST = defineRoute('POST /api/attendance/records', async (req, ctx) => {
   const parsed = actionSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Aksi tidak dikenal', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Unknown action', ctx.correlationId);
   }
 
   if (parsed.data.action === 'recalculate') {

@@ -60,7 +60,7 @@ const subscribeSchema = z.object({
 export const POST = defineRoute('POST /api/notifications/subscriptions', async (req, ctx) => {
   const parsed = subscribeSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Data langganan tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid subscription data', ctx.correlationId);
   }
 
   const saved = await saveSubscription(ctx.tx, ctx.tenantId, ctx.userId, {
@@ -77,7 +77,7 @@ const unsubscribeSchema = z.object({ endpoint: z.string().url().max(2000) });
 export const DELETE = defineRoute('DELETE /api/notifications/subscriptions', async (req, ctx) => {
   const parsed = unsubscribeSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Endpoint tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid endpoint', ctx.correlationId);
   }
 
   const removed = await removeSubscription(ctx.tx, ctx.tenantId, parsed.data.endpoint);

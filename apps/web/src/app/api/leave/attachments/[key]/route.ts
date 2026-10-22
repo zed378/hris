@@ -28,12 +28,12 @@ const READ_ALL = 'leave.request.read.all';
 export const GET = defineRoute('GET /api/leave/attachments/[key]', async (_req, ctx) => {
   const key = ctx.params['key'];
   if (!key) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Kunci tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing key', ctx.correlationId);
   }
 
   const found = await readAttachment(ctx.tx, ctx.tenantId, key);
   if (!found) {
-    return apiError(404, ErrorCode.NOT_FOUND, 'Lampiran tidak ditemukan', ctx.correlationId);
+    return apiError(404, ErrorCode.NOT_FOUND, 'Attachment not found', ctx.correlationId);
   }
 
   const me = await ctx.tx.employee.findFirst({
@@ -48,7 +48,7 @@ export const GET = defineRoute('GET /api/leave/attachments/[key]', async (_req, 
     // 404, bukan 403. Membedakannya memberi tahu pemanggil bahwa kunci itu ada
     // dan milik orang lain — dan pada data kesehatan, keberadaannya sendiri
     // sudah merupakan keterangan.
-    return apiError(404, ErrorCode.NOT_FOUND, 'Lampiran tidak ditemukan', ctx.correlationId);
+    return apiError(404, ErrorCode.NOT_FOUND, 'Attachment not found', ctx.correlationId);
   }
 
   // Pembacaan milik sendiri tidak dicatat: ia tidak menjawab pertanyaan apa pun,

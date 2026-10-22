@@ -41,7 +41,7 @@ describe('pengenalan kolom', () => {
     // ketukan pun tersimpan.
     const broken = detectDeviceColumns(['PIN', 'Nama', 'Departemen']);
     expect(broken.missing).toHaveLength(1);
-    expect(broken.missing[0]).toContain('waktu');
+    expect(broken.missing[0]).toContain('time');
   });
 
   it('menyebutkan peran yang hilang, bukan sekadar menolak', () => {

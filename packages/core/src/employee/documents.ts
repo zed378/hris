@@ -300,7 +300,7 @@ export async function archiveDocument(
     where: { id: documentId, tenantId },
     select: { id: true, storageKey: true, employeeId: true, title: true, archivedAt: true },
   });
-  if (!row) throw new DocumentError('Dokumen tidak ditemukan', 'not_found');
+  if (!row) throw new DocumentError('Document not found', 'not_found');
   if (row.archivedAt) return;
 
   // The file is deleted first, then its row is marked. The reverse order would

@@ -207,13 +207,14 @@ export async function buildMonthlyAttendance(
   return { periodYear, periodMonth, hariKalender, rows, totals, tanpaData };
 }
 
+// lang: id-begin — spreadsheet column headers (ADR-040)
 export const MONTHLY_ATTENDANCE_HEADERS = [
-  'Nomor Karyawan',
+  'Nomor Karyawan', // lang: id — spreadsheet header (ADR-040)
   'Nama',
   'Hadir',
   'Terlambat',
   'Alfa',
-  'Cuti',
+  'Cuti', // lang: id — spreadsheet header (ADR-040)
   'Libur Nasional',
   'Libur Mingguan',
   'Hari Tercatat',
@@ -221,6 +222,7 @@ export const MONTHLY_ATTENDANCE_HEADERS = [
   'Menit Lembur',
   'Jam Kerja',
 ] as const;
+// lang: id-end
 
 /** The row shape for the .xlsx export. */
 export function monthlyAttendanceRows(report: MonthlyAttendanceReport): string[][] {

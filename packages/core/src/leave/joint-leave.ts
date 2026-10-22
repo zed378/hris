@@ -98,7 +98,7 @@ export async function applyJointLeave(
   });
   if (!leaveType) {
     throw new LeaveError(
-      'Tidak ada jenis cuti berbasis kuota yang dapat dipotong cuti bersama',
+      'No quota-based leave type exists for joint leave to deduct from',
       'not_found',
     );
   }
@@ -163,7 +163,7 @@ export async function applyJointLeave(
         days: -deductible,
         referenceType: 'holiday',
         referenceId: holiday.id,
-        note: `Cuti bersama ${holiday.date.toISOString().slice(0, 10)} — ${holiday.name}`,
+        note: `Cuti bersama ${holiday.date.toISOString().slice(0, 10)} — ${holiday.name}`, // lang: id — ledger note HR reads in the balance history (ADR-040)
         ...(actorUserId ? { actorUserId } : {}),
       });
 
@@ -248,7 +248,7 @@ export async function revertJointLeave(
       days: Number(amount),
       referenceType: 'holiday_reverted',
       referenceId: holidayId,
-      note: 'Pengembalian potongan cuti bersama — tanggalnya dihapus atau tidak lagi ditandai cuti bersama',
+      note: 'Pengembalian potongan cuti bersama — tanggalnya dihapus atau tidak lagi ditandai cuti bersama', // lang: id — ledger note HR reads in the balance history (ADR-040)
       ...(actorUserId ? { actorUserId } : {}),
     });
 

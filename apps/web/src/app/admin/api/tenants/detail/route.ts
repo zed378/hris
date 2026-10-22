@@ -22,12 +22,12 @@ export const GET = defineAdminRoute('GET /admin/api/tenants/detail', async (req,
   const url = new URL(req.url);
   const parsed = schema.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) {
-    return adminError(400, ErrorCode.VALIDATION_FAILED, 'tenantId tidak sah', ctx.correlationId);
+    return adminError(400, ErrorCode.VALIDATION_FAILED, 'Invalid tenantId', ctx.correlationId);
   }
 
   const detail = await tenantDetail(parsed.data.tenantId);
   if (!detail) {
-    return adminError(404, ErrorCode.NOT_FOUND, 'Tenant tidak ditemukan', ctx.correlationId);
+    return adminError(404, ErrorCode.NOT_FOUND, 'Tenant not found', ctx.correlationId);
   }
 
   return NextResponse.json(detail);

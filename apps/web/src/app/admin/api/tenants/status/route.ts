@@ -39,7 +39,7 @@ export const POST = defineAdminRoute('POST /admin/api/tenants/status', async (re
     return adminError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data tidak sah. Alasan wajib diisi, minimal 8 karakter.',
+      'Invalid data. A reason of at least 8 characters is required.',
       ctx.correlationId,
     );
   }

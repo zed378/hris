@@ -21,7 +21,7 @@ import { useSession } from '@/lib/session.tsx';
 interface Entry {
   id: string;
   at: string;
-  actor: { id: string | null; fullName: string; email: string };
+  actor: { id: string | null; fullName: string | null; email: string; kind: 'user' | 'deleted' | 'system' };
   action: string;
   entityType: string;
   entityId: string | null;
@@ -136,7 +136,7 @@ export default function AuditPage() {
                   {entry.at.slice(0, 19).replace('T', ' ')}
                 </span>
                 <span className="font-medium">{entry.action}</span>
-                <span className="text-slate-500">{entry.actor.fullName}</span>
+                <span className="text-slate-500">{actorName(entry.actor)}</span>
                 <span className="ml-auto font-mono text-xs text-slate-400">
                   {entry.entityType}
                   {entry.entityId ? `/${entry.entityId.slice(0, 8)}` : ''}
@@ -194,4 +194,11 @@ export default function AuditPage() {
       )}
     </AppShell>
   );
+}
+
+/** The API sends `kind`, not display words (ADR-030); the words are chosen here. */
+function actorName(actor: Entry['actor']): string {
+  if (actor.kind === 'system') return 'Sistem';
+  if (actor.kind === 'deleted') return '(pengguna terhapus)';
+  return actor.fullName ?? '';
 }

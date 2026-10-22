@@ -31,8 +31,9 @@ export type ConsentType = 'LOCATION' | 'PHOTO' | 'BIOMETRIC';
  * to wording, not to a feature name.
  */
 export const CONSENT_VERSION: Record<ConsentType, string> = {
+  // lang: id — a consent version key stored in rows; changing it would orphan every recorded consent
   LOCATION: '2026-08-lokasi-v1',
-  PHOTO: '2026-08-foto-v1',
+  PHOTO: '2026-08-foto-v1', // lang: id — consent version key stored in rows
   BIOMETRIC: '2026-08-biometrik-v1',
 };
 

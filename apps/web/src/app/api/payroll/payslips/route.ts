@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 
 export const runtime = 'nodejs';
@@ -38,8 +38,10 @@ export const GET = defineRoute('GET /api/payroll/payslips', async (req, ctx) => 
       return apiError(
         404,
         ErrorCode.NOT_FOUND,
-        'Akun Anda belum terhubung ke data karyawan.',
+        'This account is not linked to an employee record',
         ctx.correlationId,
+        undefined,
+        ErrorReason.ACCOUNT_NOT_LINKED,
       );
     }
 
@@ -77,10 +79,10 @@ export const GET = defineRoute('GET /api/payroll/payslips', async (req, ctx) => 
   });
 
   if (!slip) {
-    return apiError(404, ErrorCode.NOT_FOUND, 'Slip tidak ditemukan', ctx.correlationId);
+    return apiError(404, ErrorCode.NOT_FOUND, 'Payslip not found', ctx.correlationId);
   }
   if (!canReadAll && slip.employeeId !== me?.id) {
-    return apiError(403, ErrorCode.PERMISSION_DENIED, 'Bukan slip Anda', ctx.correlationId);
+    return apiError(403, ErrorCode.PERMISSION_DENIED, 'Not your payslip', ctx.correlationId);
   }
 
   const tracesByCode = new Map(slip.traces.map((trace) => [trace.componentCode, trace]));

@@ -2,8 +2,8 @@
 
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
-**Last updated**: 2026-10-22 — `PS-08` DONE (HS256 removed, ADR-038)
-**Overall**: 85 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 8 since
+**Last updated**: 2026-10-22 — `P6-24` DONE (English backend, `error.reason`, Indonesian emails and push)
+**Overall**: 86 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 9 since
 **Gates**: A untested · B untested · C not met · D not reached
 
 > **Read this first.** Phases 0–6 and service-split stages 1–7 were built between 2026-08-18 and 2026-09-01, before
@@ -205,7 +205,7 @@ In order. Each is unblocked today.
 | P6-21 | Morning-peak load test | L | P3 | BLOCKED | P0-10 |
 | P6-22 | Metrics endpoint | — | — | DONE (retro) | — |
 | P6-23 | Generated OpenAPI document | — | — | DONE (retro) | coverage: P6-18 |
-| P6-24 | English backend messages with reasons; Indonesian emails and push | L | P1 | TODO | — |
+| P6-24 | English backend messages with reasons; Indonesian emails and push | L | P1 | DONE | — |
 
 ## Phase S — Service Split
 

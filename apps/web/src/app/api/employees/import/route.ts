@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { parseImportFile, ImportError } from '@hrms/core/employee';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 
@@ -34,8 +34,10 @@ export const POST = defineRoute('POST /api/employees/import', async (req, ctx) =
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Sertakan berkas .xlsx pada field "file"',
+      'Include an .xlsx file in the "file" field',
       ctx.correlationId,
+      undefined,
+      ErrorReason.FILE_MISSING,
     );
   }
 
@@ -43,8 +45,10 @@ export const POST = defineRoute('POST /api/employees/import', async (req, ctx) =
     return apiError(
       413,
       ErrorCode.VALIDATION_FAILED,
-      `Ukuran berkas ${(file.size / 1024 / 1024).toFixed(1)} MB melewati batas 10 MB`,
+      `File of ${(file.size / 1024 / 1024).toFixed(1)} MB exceeds the 10 MB limit`,
       ctx.correlationId,
+      { maxBytes: [String(MAX_FILE_BYTES)] },
+      ErrorReason.FILE_TOO_LARGE,
     );
   }
 

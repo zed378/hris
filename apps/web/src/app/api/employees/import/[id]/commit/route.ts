@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
  */
 export const POST = defineRoute('POST /api/employees/import/[id]/commit', async (_req, ctx) => {
   const id = ctx.params['id'];
-  if (!id) return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id tidak ada', ctx.correlationId);
+  if (!id) return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing id', ctx.correlationId);
 
   try {
     return NextResponse.json(

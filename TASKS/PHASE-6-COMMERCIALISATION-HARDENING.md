@@ -292,7 +292,7 @@
 
 | | |
 |---|---|
-| **Status** | TODO |
+| **Status** | DONE — 2026-10-22 ([spec](../MEMORY/specs/P6-24-english-backend-reasons.md), ADR-037, ADR-040); validation `details` as issue codes moved to `PF-09` |
 | **Priority** | P1 — decided 2026-09-14 (`OQ-01`, ADR-030) |
 | **Depends on** | — |
 | **Blocked by** | — |

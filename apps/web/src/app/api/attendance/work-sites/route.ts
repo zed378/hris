@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 import { ipRangesSchema } from '@/lib/cidr.ts';
 import { Prisma } from '@hrms/db';
@@ -45,7 +45,7 @@ export const POST = defineRoute('POST /api/attendance/work-sites', async (req, c
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data lokasi kerja tidak sah',
+      'Invalid work site data',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -68,7 +68,14 @@ export const POST = defineRoute('POST /api/attendance/work-sites', async (req, c
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return apiError(409, ErrorCode.CONFLICT, 'Kode lokasi sudah dipakai', ctx.correlationId);
+      return apiError(
+        409,
+        ErrorCode.CONFLICT,
+        'Work site code already in use',
+        ctx.correlationId,
+        { field: ['code'] },
+        ErrorReason.DUPLICATE_VALUE,
+      );
     }
     throw error;
   }

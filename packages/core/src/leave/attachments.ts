@@ -87,8 +87,10 @@ export async function uploadAttachment(
 ): Promise<AttachmentView> {
   if (input.content.length > MAX_ATTACHMENT_BYTES) {
     throw new LeaveError(
-      `Ukuran berkas ${Math.round(input.content.length / 1024 / 1024)} MB melebihi batas ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB.`,
+      `File of ${Math.round(input.content.length / 1024 / 1024)} MB exceeds the ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB limit.`,
       'invalid_state',
+      'FILE_TOO_LARGE',
+      { maxBytes: [String(MAX_ATTACHMENT_BYTES)] },
     );
   }
 
@@ -97,9 +99,10 @@ export async function uploadAttachment(
 
   if (!mimeType || !extension) {
     throw new LeaveError(
-      'Jenis berkas tidak diterima. Unggah PDF, JPG, PNG, atau WebP. ' +
-        'Isi berkasnya diperiksa, bukan namanya — mengganti nama tidak mengubah hasilnya.',
+      'File type not accepted. Upload a PDF, JPG, PNG, or WebP. ' +
+        'The contents are checked, not the name — renaming does not change the result.',
       'invalid_state',
+      'FILE_TYPE_NOT_ACCEPTED',
     );
   }
 
@@ -158,7 +161,7 @@ export async function claimAttachment(
 
   if (!row) {
     throw new LeaveError(
-      'Lampiran tidak ditemukan. Unggah berkasnya lebih dulu.',
+      'Attachment not found. Upload the file first.',
       'not_found',
     );
   }
@@ -166,14 +169,15 @@ export async function claimAttachment(
     // Its message is deliberately the same as "not found": distinguishing them
     // tells the caller that the key exists and belongs to someone else.
     throw new LeaveError(
-      'Lampiran tidak ditemukan. Unggah berkasnya lebih dulu.',
+      'Attachment not found. Upload the file first.',
       'not_found',
     );
   }
   if (row.requestId) {
     throw new LeaveError(
-      'Lampiran ini sudah dipakai pengajuan lain. Unggah berkasnya lagi.',
+      'This attachment is already used by another request. Upload the file again.',
       'invalid_state',
+      'LEAVE_ATTACHMENT_IN_USE',
     );
   }
 

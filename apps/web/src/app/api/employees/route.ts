@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import {
   listEmployees,
   createEmployee,
@@ -63,7 +63,7 @@ export const POST = defineRoute('POST /api/employees', async (req, ctx) => {
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data karyawan tidak lengkap atau tidak sah',
+      'Incomplete or invalid employee data',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -85,8 +85,10 @@ export const POST = defineRoute('POST /api/employees', async (req, ctx) => {
       return apiError(
         409,
         ErrorCode.CONFLICT,
-        'Nomor karyawan atau NIK sudah terdaftar',
+        'Employee number or NIK already registered',
         ctx.correlationId,
+        { field: ['employeeNumber'] },
+        ErrorReason.DUPLICATE_VALUE,
       );
     }
     if (error instanceof MaskedValueError || error instanceof InvalidIdentifierError) {

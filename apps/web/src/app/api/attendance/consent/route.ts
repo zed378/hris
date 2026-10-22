@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { readConsents, recordConsent } from '@hrms/core/attendance';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 
@@ -30,12 +30,19 @@ async function resolveSelf(ctx: {
   return me?.id ?? null;
 }
 
-const NOT_LINKED = 'Akun Anda belum terhubung ke data karyawan. Hubungi admin HR.';
+const NOT_LINKED = 'This account is not linked to an employee record';
 
 export const GET = defineRoute('GET /api/attendance/consent', async (_req, ctx) => {
   const employeeId = await resolveSelf(ctx);
   if (!employeeId) {
-    return apiError(404, ErrorCode.NOT_FOUND, NOT_LINKED, ctx.correlationId);
+    return apiError(
+      404,
+      ErrorCode.NOT_FOUND,
+      NOT_LINKED,
+      ctx.correlationId,
+      undefined,
+      ErrorReason.ACCOUNT_NOT_LINKED,
+    );
   }
 
   return NextResponse.json({ consents: await readConsents(ctx.tx, ctx.tenantId, employeeId) });
@@ -52,14 +59,21 @@ export const POST = defineRoute('POST /api/attendance/consent', async (req, ctx)
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Keputusan persetujuan tidak dikenali.',
+      'Unrecognised consent decision.',
       ctx.correlationId,
     );
   }
 
   const employeeId = await resolveSelf(ctx);
   if (!employeeId) {
-    return apiError(404, ErrorCode.NOT_FOUND, NOT_LINKED, ctx.correlationId);
+    return apiError(
+      404,
+      ErrorCode.NOT_FOUND,
+      NOT_LINKED,
+      ctx.correlationId,
+      undefined,
+      ErrorReason.ACCOUNT_NOT_LINKED,
+    );
   }
 
   const consents = await recordConsent(

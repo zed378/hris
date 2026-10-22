@@ -57,14 +57,14 @@ const stuck = await withOutboxPump(
 );
 
 if (stuck.length === 0) {
-  console.log('Tidak ada pesan yang kehabisan percobaan.');
+  console.log('No messages have exhausted their retries.');
 } else if (!arg) {
-  console.log('Pesan yang kehabisan percobaan:\n');
+  console.log('Messages that exhausted their retries:\n');
   for (const row of stuck) {
     console.log(`  ${row.topic}  ×${row.n}`);
-    console.log(`      ${(row.last_error ?? '(tanpa galat tercatat)').split('\n')[0]}\n`);
+    console.log(`      ${(row.last_error ?? '(no error recorded)').split('\n')[0]}\n`);
   }
-  console.log('Perbaiki penyebabnya lebih dulu, lalu ulangi per topik:');
+  console.log('Fix the cause first, then retry per topic:');
   console.log(`  pnpm --filter @hrms/worker outbox:retry ${stuck[0]!.topic}`);
 } else {
   // Percobaan dikembalikan ke nol, bukan dikurangi. Pesan ini akan dicoba dari
@@ -84,8 +84,8 @@ if (stuck.length === 0) {
 
   console.log(
     restored === 0
-      ? `Tidak ada pesan tertahan pada topik "${arg}".`
-      : `${restored} pesan dikembalikan ke antrean. Worker akan memompanya pada putaran berikutnya.`,
+      ? `No held messages on topic "${arg}".`
+      : `${restored} message(s) returned to the queue. The worker pumps them on its next pass.`,
   );
 }
 

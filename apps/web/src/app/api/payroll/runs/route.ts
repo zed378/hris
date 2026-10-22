@@ -55,12 +55,13 @@ export const POST = defineRoute('POST /api/payroll/runs', async (req, ctx) => {
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Periode run tidak sah.',
+      'Invalid run period.',
       ctx.correlationId,
     );
   }
 
   const { periodYear, periodMonth, runType } = parsed.data;
+  // lang: id — run-number prefix stored in data
   const runNumber = `${runType === 'MONTHLY' ? 'GAJI' : runType}-${periodYear}-${String(periodMonth).padStart(2, '0')}`;
 
   try {
@@ -83,8 +84,8 @@ export const POST = defineRoute('POST /api/payroll/runs', async (req, ctx) => {
       return apiError(
         409,
         ErrorCode.CONFLICT,
-        `Run untuk ${String(periodMonth).padStart(2, '0')}/${periodYear} sudah ada. ` +
-          'Buka run yang ada, atau batalkan lebih dulu bila ingin mengulang dari awal.',
+        `A run for ${String(periodMonth).padStart(2, '0')}/${periodYear} already exists. ` +
+          'Open the existing run, or cancel it first to start over.',
         ctx.correlationId,
       );
     }

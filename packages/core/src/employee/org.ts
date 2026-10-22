@@ -99,7 +99,7 @@ export async function createDepartment(
       where: { id: input.parentId, tenantId },
       select: { path: true },
     });
-    if (!parent) throw new OrgError('Departemen induk tidak ditemukan', 'not_found');
+    if (!parent) throw new OrgError('Parent department not found', 'not_found');
     parentPath = parent.path;
   }
 
@@ -225,9 +225,9 @@ export async function placeEmployee(
     tx.position.findFirst({ where: { id: input.positionId, tenantId }, select: { id: true } }),
   ]);
 
-  if (!employee) throw new OrgError('Karyawan tidak ditemukan', 'not_found');
-  if (!department) throw new OrgError('Departemen tidak ditemukan', 'not_found');
-  if (!position) throw new OrgError('Jabatan tidak ditemukan', 'not_found');
+  if (!employee) throw new OrgError('Employee not found', 'not_found');
+  if (!department) throw new OrgError('Department not found', 'not_found');
+  if (!position) throw new OrgError('Position not found', 'not_found');
 
   /**
    * The manager is checked, now that something reads the column.
@@ -247,14 +247,14 @@ export async function placeEmployee(
    */
   if (input.managerId) {
     if (input.managerId === input.employeeId) {
-      throw new OrgError('Karyawan tidak dapat menjadi atasan langsung dirinya sendiri', 'invalid');
+      throw new OrgError('An employee cannot be their own line manager', 'invalid');
     }
 
     const manager = await tx.employee.findFirst({
       where: { id: input.managerId, tenantId },
       select: { id: true },
     });
-    if (!manager) throw new OrgError('Atasan langsung tidak ditemukan', 'not_found');
+    if (!manager) throw new OrgError('Line manager not found', 'not_found');
   }
 
   const current = await tx.employment.findFirst({
@@ -264,7 +264,7 @@ export async function placeEmployee(
 
   if (current && current.effectiveFrom >= input.effectiveFrom) {
     throw new OrgError(
-      'Tanggal mutasi harus setelah tanggal penempatan yang sedang berjalan.',
+      'The transfer date must be after the current placement\'s start date.',
       'invalid',
     );
   }

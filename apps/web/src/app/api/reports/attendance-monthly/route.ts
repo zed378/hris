@@ -33,7 +33,7 @@ export const GET = defineRoute('GET /api/reports/attendance-monthly', async (req
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Sebutkan tahun dan bulan: year=YYYY&month=1..12',
+      'Give a year and month: year=YYYY&month=1..12',
       ctx.correlationId,
     );
   }
@@ -58,6 +58,7 @@ export const GET = defineRoute('GET /api/reports/attendance-monthly', async (req
       },
       {
         sheet: `Rekap ${bulan}-${parsed.data.year}`,
+        // lang: id — spreadsheet file name (ADR-040)
         fileName: `rekap-presensi-${parsed.data.year}-${bulan}.xlsx`,
         columnWidths: [16, 24, 8, 10, 8, 8, 14, 14, 14, 16, 14, 12],
       },

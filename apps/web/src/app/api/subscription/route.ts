@@ -64,7 +64,7 @@ export const POST = defineRoute('POST /api/subscription', async (req, ctx) => {
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Sebutkan modul dan status yang diinginkan.',
+      'Name the module and the desired status.',
       ctx.correlationId,
     );
   }

@@ -110,7 +110,7 @@ describe('perlindungan terhadap muatan yang tidak wajar', () => {
   it('berhenti pada struktur yang terlalu dalam', () => {
     let deep: Record<string, unknown> = { nilai: 'dasar' };
     for (let i = 0; i < 20; i += 1) deep = { lapisan: deep };
-    expect(bersih(deep)).toContain('terlalu dalam');
+    expect(bersih(deep)).toContain('[too deep]');
   });
 
   it('tidak macet pada rujukan melingkar', () => {

@@ -20,7 +20,7 @@ export const GET = defineRoute('GET /api/payroll/salary', async (req, ctx) => {
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Sebutkan employeeId.',
+      'Give an employeeId.',
       ctx.correlationId,
     );
   }
@@ -62,7 +62,7 @@ export const POST = defineRoute('POST /api/payroll/salary', async (req, ctx) => 
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Penetapan gaji tidak lengkap.',
+      'Incomplete salary assignment.',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );

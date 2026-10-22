@@ -45,7 +45,7 @@ export class PhotoError extends Error {
  */
 export function stripJpegMetadata(input: Buffer): Buffer {
   if (input.length < 4 || input[0] !== 0xff || input[1] !== 0xd8) {
-    throw new PhotoError('Berkas bukan JPEG yang sah', 'invalid_format');
+    throw new PhotoError('The file is not a valid JPEG', 'invalid_format');
   }
 
   const output: Buffer[] = [Buffer.from([0xff, 0xd8])];
@@ -118,7 +118,7 @@ const store = createBlobStore({
 export async function storePhoto(input: Buffer): Promise<StoredPhoto> {
   if (input.length > MAX_PHOTO_BYTES) {
     throw new PhotoError(
-      `Ukuran foto ${Math.round(input.length / 1024)} KB melebihi batas ${MAX_PHOTO_BYTES / 1024} KB`,
+      `Photo of ${Math.round(input.length / 1024)} KB exceeds the ${MAX_PHOTO_BYTES / 1024} KB limit`,
       'too_large',
     );
   }
@@ -134,8 +134,8 @@ export async function readPhoto(key: string): Promise<Buffer> {
   } catch (error) {
     throw new PhotoError(
       error instanceof BlobError && error.kind === 'invalid_key'
-        ? 'Kunci foto tidak sah'
-        : 'Foto tidak ditemukan atau sudah melewati masa retensi',
+        ? 'Invalid photo key'
+        : 'Photo not found, or past its retention period',
       error instanceof BlobError && error.kind === 'invalid_key' ? 'invalid_format' : 'not_found',
     );
   }
@@ -164,7 +164,7 @@ export async function deletePhoto(key: string): Promise<DeleteOutcome> {
     // compilation error.
     if (error instanceof BlobError) {
       throw new PhotoError(
-        error.kind === 'invalid_key' ? 'Kunci foto tidak sah' : error.message,
+        error.kind === 'invalid_key' ? 'Invalid photo key' : error.message,
         error.kind === 'invalid_key' ? 'invalid_format' : 'not_found',
       );
     }

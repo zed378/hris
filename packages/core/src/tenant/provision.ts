@@ -39,11 +39,11 @@ import { DEFAULT_LEAVE_TYPES, DEFAULT_PAYROLL_COMPONENTS, EventTopic } from '@hr
  * three in the morning must get exactly the same roles as the demo tenant.
  */
 const SYSTEM_ROLES = [
-  { code: 'TENANT_OWNER', name: 'Pemilik Akun', scope: 'all' as const },
+  { code: 'TENANT_OWNER', name: 'Pemilik Akun', scope: 'all' as const }, // lang: id — seeded role name (ADR-030)
   { code: 'HR_ADMIN', name: 'Admin HR', scope: 'hr' as const },
   { code: 'DEPT_HEAD', name: 'Kepala Departemen', scope: 'team' as const },
   { code: 'LINE_MANAGER', name: 'Manajer Lini', scope: 'team' as const },
-  { code: 'EMPLOYEE', name: 'Karyawan', scope: 'self' as const },
+  { code: 'EMPLOYEE', name: 'Karyawan', scope: 'self' as const }, // lang: id — seeded role name (ADR-030)
 ];
 
 /** The permissions each role scope holds, as patterns over permission codes. */
@@ -65,7 +65,7 @@ const SCOPE_MATCHERS: Record<string, (code: string) => boolean> = {
 
 export class TenantCodeTakenError extends Error {
   constructor(code: string) {
-    super(`Kode perusahaan "${code}" sudah dipakai`);
+    super(`Company code "${code}" is already in use`);
     this.name = 'TenantCodeTakenError';
   }
 }
@@ -117,7 +117,7 @@ export async function provisionTenant(
     db.permission.findMany({ select: { code: true } }),
   ]);
 
-  if (!plan?.isActive) throw new Error(`Paket "${planCode}" tidak tersedia`);
+  if (!plan?.isActive) throw new Error(`Plan "${planCode}" is not available`);
 
   const trialEndsAt = planCode === 'trial' ? new Date(Date.now() + TRIAL_DAYS * 86_400_000) : null;
   const tenantId = randomUUID();

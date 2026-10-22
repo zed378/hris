@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export const POST = definePublicRoute('POST /api/auth/refresh', async (req, ctx) => {
   const token = readRefreshCookie(req);
   if (!token) {
-    return apiError(401, ErrorCode.TOKEN_INVALID, 'Tidak ada sesi', ctx.correlationId);
+    return apiError(401, ErrorCode.TOKEN_INVALID, 'No session', ctx.correlationId);
   }
 
   try {

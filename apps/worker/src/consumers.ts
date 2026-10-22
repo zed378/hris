@@ -135,24 +135,24 @@ export const CONSUMERS: Record<EventTopic, Consumer> = {
   [EventTopic.LEAVE_REQUEST_REJECTED]: leaveDecision(false),
   [EventTopic.LEAVE_REQUEST_SUBMITTED]: {
     kind: 'drain',
-    reason: 'inbox approver realtime, F4 lanjutan',
+    reason: 'real-time approver inbox, F4 follow-up',
   },
-  [EventTopic.LEAVE_BALANCE_CHANGED]: { kind: 'drain', reason: 'widget saldo di dasbor, F6' },
+  [EventTopic.LEAVE_BALANCE_CHANGED]: { kind: 'drain', reason: 'dashboard balance widget, F6' },
 
   // The audit and metrics streams. All of it is already recorded in the database
   // in the same transaction; the events exist for consumers not yet built.
-  [EventTopic.TENANT_PROVISIONED]: { kind: 'drain', reason: 'onboarding otomatis, Fase 6' },
-  [EventTopic.TENANT_MODULE_ENABLED]: { kind: 'drain', reason: 'penagihan berbasis modul, Fase 6' },
-  [EventTopic.TENANT_MODULE_DISABLED]: { kind: 'drain', reason: 'penagihan berbasis modul, Fase 6' },
-  [EventTopic.TENANT_SUSPENDED]: { kind: 'drain', reason: 'pemberitahuan penangguhan, Fase 6' },
+  [EventTopic.TENANT_PROVISIONED]: { kind: 'drain', reason: 'automated onboarding, Phase 6' },
+  [EventTopic.TENANT_MODULE_ENABLED]: { kind: 'drain', reason: 'module-based billing, Phase 6' },
+  [EventTopic.TENANT_MODULE_DISABLED]: { kind: 'drain', reason: 'module-based billing, Phase 6' },
+  [EventTopic.TENANT_SUSPENDED]: { kind: 'drain', reason: 'suspension notice, Phase 6' },
 
-  [EventTopic.USER_LOGGED_IN]: { kind: 'drain', reason: 'metrik kesehatan tenant, Fase 6' },
-  [EventTopic.USER_LOGIN_FAILED]: { kind: 'drain', reason: 'deteksi anomali masuk, Fase 6' },
-  [EventTopic.SESSION_REVOKED]: { kind: 'drain', reason: 'sudah lengkap di audit_logs' },
-  [EventTopic.TOKEN_REUSE_DETECTED]: { kind: 'drain', reason: 'peringatan keamanan, Fase 6' },
+  [EventTopic.USER_LOGGED_IN]: { kind: 'drain', reason: 'tenant health metrics, Phase 6' },
+  [EventTopic.USER_LOGIN_FAILED]: { kind: 'drain', reason: 'login anomaly detection, Phase 6' },
+  [EventTopic.SESSION_REVOKED]: { kind: 'drain', reason: 'already complete in audit_logs' },
+  [EventTopic.TOKEN_REUSE_DETECTED]: { kind: 'drain', reason: 'security alert, Phase 6' },
 
-  [EventTopic.ACCESS_CHANGED]: { kind: 'drain', reason: 'sudah lengkap di audit_logs' },
-  [EventTopic.ROLE_ASSIGNED]: { kind: 'drain', reason: 'sudah lengkap di audit_logs' },
+  [EventTopic.ACCESS_CHANGED]: { kind: 'drain', reason: 'already complete in audit_logs' },
+  [EventTopic.ROLE_ASSIGNED]: { kind: 'drain', reason: 'already complete in audit_logs' },
 
   [EventTopic.EMPLOYEE_CREATED]: { kind: 'drain', reason: 'penyediaan akun otomatis, Fase 4' },
   [EventTopic.EMPLOYEE_IMPORT_COMMITTED]: { kind: 'drain', reason: 'ringkasan impor ke HR, Fase 4' },

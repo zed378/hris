@@ -36,7 +36,7 @@ const schema = z.object({
 export const POST = defineRoute('POST /api/users/from-employees', async (req, ctx) => {
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Data tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid data', ctx.correlationId);
   }
 
   try {

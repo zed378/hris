@@ -23,7 +23,7 @@ export const GET = defineRoute('GET /api/payroll/runs/export', async (req, ctx) 
   const url = new URL(req.url);
   const parsed = schema.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Sebutkan runId', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Give a runId', ctx.correlationId);
   }
 
   let result;
@@ -43,12 +43,13 @@ export const GET = defineRoute('GET /api/payroll/runs/export', async (req, ctx) 
       },
     );
   } catch {
-    return apiError(404, ErrorCode.NOT_FOUND, 'Run tidak ditemukan', ctx.correlationId);
+    return apiError(404, ErrorCode.NOT_FOUND, 'Run not found', ctx.correlationId);
   }
 
   return xlsxResponse(result, {
+    // lang: id — spreadsheet sheet and file names (ADR-040)
     sheet: 'Rekap Gaji',
-    fileName: `gaji-${result.runNumber.replace(/\//g, '-')}.xlsx`,
+    fileName: `gaji-${result.runNumber.replace(/\//g, '-')}.xlsx`, // lang: id — spreadsheet file name (ADR-040)
     columnWidths: [16, 24, 16, 22, 24, 16, 16, 16],
   });
 });

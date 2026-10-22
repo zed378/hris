@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { uploadAttachment, LeaveError, MAX_ATTACHMENT_BYTES } from '@hrms/core/leave';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 
@@ -26,8 +26,10 @@ export const POST = defineRoute('POST /api/leave/attachments', async (req, ctx) 
     return apiError(
       404,
       ErrorCode.NOT_FOUND,
-      'Akun Anda belum terhubung ke data karyawan. Hubungi admin HR.',
+      'This account is not linked to an employee record',
       ctx.correlationId,
+      undefined,
+      ErrorReason.ACCOUNT_NOT_LINKED,
     );
   }
 
@@ -35,7 +37,14 @@ export const POST = defineRoute('POST /api/leave/attachments', async (req, ctx) 
   const file = form?.get('file');
 
   if (!(file instanceof File)) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Berkas tidak ada', ctx.correlationId);
+    return apiError(
+      400,
+      ErrorCode.VALIDATION_FAILED,
+      'Missing file',
+      ctx.correlationId,
+      undefined,
+      ErrorReason.FILE_MISSING,
+    );
   }
 
   // Diperiksa sebelum dibaca ke memori. Membaca dulu lalu menolak berarti
@@ -44,8 +53,10 @@ export const POST = defineRoute('POST /api/leave/attachments', async (req, ctx) 
     return apiError(
       413,
       ErrorCode.VALIDATION_FAILED,
-      `Ukuran berkas melebihi batas ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB.`,
+      `File exceeds the ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB limit.`,
       ctx.correlationId,
+      { maxBytes: [String(MAX_ATTACHMENT_BYTES)] },
+      ErrorReason.FILE_TOO_LARGE,
     );
   }
 

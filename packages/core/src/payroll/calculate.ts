@@ -76,7 +76,7 @@ export async function buildSnapshot(
     where: { id: employeeId, tenantId },
     select: { joinDate: true },
   });
-  if (!employee) throw new PayrollError('Karyawan tidak ditemukan', 'not_found', employeeId);
+  if (!employee) throw new PayrollError('Employee not found', 'not_found', employeeId);
 
   // Unpaid leave is counted separately: it is the only leave type that reduces
   // wages, and merging it with absence would erase the difference between
@@ -201,8 +201,9 @@ export async function calculatePayslip(
         // differs per person; the component only provides a fallback.
         amount = assigned.get(component.code) ?? component.amount ?? ZERO;
         explanation = assigned.has(component.code)
+          // lang: id — payslip calculation trace employees read (ADR-040)
           ? 'Nilai tetap dari struktur gaji karyawan'
-          : 'Nilai tetap bawaan komponen';
+          : 'Nilai tetap bawaan komponen'; // lang: id — payslip trace (ADR-040)
         break;
       }
 
@@ -211,7 +212,7 @@ export async function calculatePayslip(
         amount = perDay.times(shot.hariHadir);
         inputs['tarif_per_hari'] = perDay.toString();
         inputs['HARI_HADIR'] = String(shot.hariHadir);
-        explanation = `${perDay.toString()} × ${shot.hariHadir} hari hadir`;
+        explanation = `${perDay.toString()} × ${shot.hariHadir} hari hadir`; // lang: id — payslip trace (ADR-040)
         break;
       }
 
@@ -234,6 +235,7 @@ export async function calculatePayslip(
         amount = baseDecimal.times(rate);
         inputs[component.baseComponentCode ?? 'dasar'] = baseDecimal.toString();
         inputs['tarif'] = rate.toString();
+        // lang: id — payslip calculation trace employees read (ADR-040)
         explanation = `${rate.times(100).toString()}% dari ${component.baseComponentCode}`;
         break;
       }
@@ -246,7 +248,7 @@ export async function calculatePayslip(
           // The employee's name is included: a thousand-person run that fails
           // without naming anyone forces HR to guess which row is the problem.
           throw new PayrollError(
-            `Komponen "${component.code}" gagal dihitung: ` +
+            `Component "${component.code}" failed to calculate: ` +
               (error instanceof FormulaError ? error.message : String(error)),
             'calculation_failed',
             employeeId,
@@ -267,7 +269,7 @@ export async function calculatePayslip(
 
       default:
         amount = ZERO;
-        explanation = 'Metode tidak dikenali';
+        explanation = 'Unknown calculation method';
     }
 
     // Rounded to whole rupiah on every line, not only on the total. Rounding only
@@ -379,11 +381,11 @@ export async function startRun(
   runId: string,
 ): Promise<{ periodYear: number; periodMonth: number; pending: string[] }> {
   const run = await tx.payrollRun.findFirst({ where: { id: runId, tenantId } });
-  if (!run) throw new PayrollError('Run tidak ditemukan', 'not_found');
+  if (!run) throw new PayrollError('Run not found', 'not_found');
 
   if (run.status !== 'DRAFT' && run.status !== 'CALCULATING' && run.status !== 'FAILED') {
     throw new PayrollError(
-      `Run berstatus ${run.status} tidak dapat dihitung ulang. Batalkan dan buat run baru.`,
+      `A run in status ${run.status} cannot be recalculated. Cancel it and create a new run.`,
       'invalid_state',
     );
   }
@@ -450,7 +452,7 @@ export async function calculateBatch(
     } catch (error) {
       failures.push({
         employeeId,
-        reason: error instanceof Error ? error.message : 'Gagal dihitung',
+        reason: error instanceof Error ? error.message : 'Calculation failed',
       });
       continue;
     }
@@ -535,7 +537,7 @@ export async function finishRun(
       calculatedAt: new Date(),
       lastError:
         failures.length > 0
-          ? `${failures.length} karyawan gagal dihitung. Lihat rincian pada hasil run.`
+          ? `${failures.length} employee(s) failed to calculate. See the run's results for details.`
           : null,
     },
   });

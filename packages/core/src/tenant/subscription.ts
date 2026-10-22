@@ -118,12 +118,12 @@ export async function setModuleEnabled(
 ): Promise<ToggleResult> {
   const module = await tx.module.findUnique({ where: { code: moduleCode } });
   if (!module) {
-    throw new SubscriptionError(`Modul "${moduleCode}" tidak dikenal.`, 'not_found');
+    throw new SubscriptionError(`Unknown module "${moduleCode}".`, 'not_found');
   }
 
   if (module.isCore) {
     throw new SubscriptionError(
-      `Modul "${module.name}" adalah bagian inti sistem dan tidak dapat dinonaktifkan.`,
+      `Module "${module.name}" is part of the core system and cannot be disabled.`,
       'core_module',
     );
   }
@@ -141,8 +141,8 @@ export async function setModuleEnabled(
 
     if (!planModules.has(moduleCode)) {
       throw new SubscriptionError(
-        `Modul "${module.name}" tidak termasuk paket langganan Anda. ` +
-          'Naikkan paket terlebih dahulu.',
+        `Module "${module.name}" is not included in the subscribed plan. ` +
+          'Upgrade the plan first.',
         'not_in_plan',
       );
     }
@@ -203,8 +203,8 @@ export async function setModuleEnabled(
           select: { name: true },
         });
         throw new SubscriptionError(
-          `Modul "${dependentModule?.name ?? dependent}" membutuhkan "${module.name}". ` +
-            `Nonaktifkan "${dependentModule?.name ?? dependent}" terlebih dahulu.`,
+          `Module "${dependentModule?.name ?? dependent}" requires "${module.name}". ` +
+            `Disable "${dependentModule?.name ?? dependent}" first.`,
           'has_dependents',
         );
       }

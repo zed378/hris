@@ -104,7 +104,30 @@ Every error from every plane has one shape:
 
 `code` is the contract; `message` is **English prose for developers and logs** and may change (ADR-030). **The frontend never shows `message` to a user** — it maps `code` to Indonesian text of its own (`TASKS` `PF-20`). `details` appears only on validation failures, keyed by field, from `zod`'s `flatten().fieldErrors`.
 
-**Planned** (`TASKS` `P6-24`): an optional `reason` — a stable `SCREAMING_SNAKE` identifier refining `code` where one code covers several user-facing refusals (for example `LEAVE_SELF_APPROVAL` under `CONFLICT`) — with its parameters in `details`, and validation `details` carrying issue codes and bounds rather than sentences. Login failures stay a single `INVALID_CREDENTIALS` with no reason (`SECURITY/02` §12).
+**`reason`** (ADR-037, since `P6-24`): an optional stable `SCREAMING_SNAKE` identifier refining `code` where one code covers refusals a user must be told apart, with parameters in `details` as string arrays. Defined once in `ErrorReason` (`packages/contracts/src/errors.ts`). Login failures stay a single `INVALID_CREDENTIALS` with no reason (`SECURITY/02` §12). Validation `details` are still Zod's per-field messages (English); issue codes and bounds in their place are `PF-09`.
+
+| Reason | Under | `details` |
+|---|---|---|
+| `ACCOUNT_NOT_LINKED` | `NOT_FOUND` | — |
+| `ACTION_TOKEN_INVALID` | `TOKEN_INVALID` | — |
+| `FILE_MISSING` | `VALIDATION_FAILED` | — |
+| `FILE_TOO_LARGE` | `VALIDATION_FAILED` | `maxBytes` |
+| `FILE_TYPE_NOT_ACCEPTED` | `CONFLICT` | — |
+| `DUPLICATE_VALUE` | `CONFLICT` | `field` |
+| `PUNCH_EVIDENCE_REQUIRED` | `VALIDATION_FAILED` | `missing` (`location`, `photo`) |
+| `PUNCH_EVIDENCE_REQUIRED_OFF_NETWORK` | `VALIDATION_FAILED` | `missing` |
+| `ATTENDANCE_PERIOD_CLOSED` | `CONFLICT` | `period` (`MM/YYYY`) |
+| `PUNCH_DUPLICATE` | — (answered 200) | — |
+| `LEAVE_INVALID_RANGE` | `CONFLICT` | — |
+| `LEAVE_ATTACHMENT_REQUIRED` | `CONFLICT` | — |
+| `LEAVE_ATTACHMENT_IN_USE` | `CONFLICT` | — |
+| `LEAVE_NOT_ENTITLED` | `PERMISSION_DENIED` | `minServiceMonths`, `serviceMonths` |
+| `LEAVE_NO_WORKING_DAYS` | `CONFLICT` | — |
+| `LEAVE_INSUFFICIENT_BALANCE` | `CONFLICT` | `available`, `requested` |
+| `LEAVE_OVERLAP` | `CONFLICT` | — |
+| `LEAVE_APPROVER_NOT_ELIGIBLE` | `CONFLICT` | — |
+| `LEAVE_SELF_APPROVAL` | `PERMISSION_DENIED` | — |
+| `LEAVE_ALREADY_DECIDED` | `CONFLICT` | — |
 
 ### Error codes
 
@@ -120,6 +143,7 @@ Defined once in `packages/contracts/src/errors.ts`:
 | `TOKEN_REUSE_DETECTED` | 401 | A rotated refresh token was used again — treated as theft |
 | `MODULE_NOT_SUBSCRIBED` | 402 | P8 |
 | `PERMISSION_DENIED` | 403 | P9 |
+| `PERMISSION_CEILING` | 403 | Conferring more than the actor holds, or touching the owner's access (P6-13, ADR-035) |
 | `TENANT_MISMATCH` | 403 | `X-Tenant-ID` disagrees with the token |
 | `TENANT_SUSPENDED` | 403 | Tenant is `SUSPENDED` or `CHURNED` |
 | `ACCOUNT_SUSPENDED` | 403 | User account suspended |

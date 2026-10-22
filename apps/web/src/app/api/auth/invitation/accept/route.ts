@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode, passwordSchema } from '@hrms/contracts';
+import { ErrorCode, passwordSchema, ErrorReason } from '@hrms/contracts';
 import { acceptInvitation, ActionTokenError } from '@hrms/core/auth';
 import { definePublicRoute, apiError } from '@/lib/define-route.ts';
 
@@ -20,7 +20,7 @@ export const POST = definePublicRoute('POST /api/auth/invitation/accept', async 
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Kata sandi minimal 12 karakter',
+      'Password must be at least 12 characters',
       ctx.correlationId,
     );
   }
@@ -29,7 +29,14 @@ export const POST = definePublicRoute('POST /api/auth/invitation/accept', async 
     return NextResponse.json(await acceptInvitation(parsed.data, ctx));
   } catch (error) {
     if (error instanceof ActionTokenError) {
-      return apiError(400, ErrorCode.TOKEN_INVALID, error.message, ctx.correlationId);
+      return apiError(
+        400,
+        ErrorCode.TOKEN_INVALID,
+        error.message,
+        ctx.correlationId,
+        undefined,
+        ErrorReason.ACTION_TOKEN_INVALID,
+      );
     }
     throw error;
   }

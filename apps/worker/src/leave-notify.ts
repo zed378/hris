@@ -35,6 +35,26 @@ export interface LeaveNotifyPayload {
   totalDays?: number;
 }
 
+/**
+ * The push text for a leave decision — Indonesian (ADR-034), and thin: no
+ * reason and no comment, because a lock screen is readable by anyone nearby.
+ * Pure, so `notification-language.test.ts` can pin its language.
+ */
+export function leavePushMessage(
+  approved: boolean,
+  payload: Pick<LeaveNotifyPayload, 'startDate' | 'endDate' | 'totalDays'>,
+): { title: string; body: string } {
+  const dateRange =
+    payload.startDate === payload.endDate
+      ? payload.startDate
+      : `${payload.startDate} s.d. ${payload.endDate}`;
+
+  return {
+    title: approved ? 'Pengajuan cuti Anda disetujui' : 'Pengajuan cuti Anda ditolak',
+    body: `${dateRange} · ${payload.totalDays ?? 0} hari`,
+  };
+}
+
 export async function notifyLeaveDecision(
   tenantId: string,
   payload: LeaveNotifyPayload,
@@ -61,14 +81,8 @@ export async function notifyLeaveDecision(
       });
       if (!user) return { sent: 0, pruned: 0 };
 
-      const dateRange =
-        payload.startDate === payload.endDate
-          ? payload.startDate
-          : `${payload.startDate} to ${payload.endDate}`;
-
       const result = await sendPush(tx, tenantId, user.id, {
-        title: approved ? 'Your leave has been approved' : 'Your leave has been rejected',
-        body: `${dateRange} · ${payload.totalDays ?? 0} days`,
+        ...leavePushMessage(approved, payload),
         // Tagged by request: a second attempt for the SAME decision overrides
         // the first notification instead of stacking above it.
         tag: `leave:${payload.requestId ?? 'x'}`,

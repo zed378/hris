@@ -84,13 +84,13 @@ export async function generateSchedules(
   const end = utcDate(input.endDate);
 
   if (end < start) {
-    throw new ScheduleError('Tanggal selesai mendahului tanggal mulai', 'invalid_range');
+    throw new ScheduleError('End date precedes start date', 'invalid_range');
   }
 
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
   if (days > MAX_RANGE_DAYS) {
     throw new ScheduleError(
-      `Rentang ${days} hari melampaui batas ${MAX_RANGE_DAYS} hari sekali bangkit.`,
+      `A range of ${days} days exceeds the ${MAX_RANGE_DAYS}-day limit per generation.`,
       'range_too_long',
     );
   }
@@ -99,7 +99,7 @@ export async function generateSchedules(
   if (dayOff.size >= 7) {
     // Seven days off is not a schedule; it is a way of marking that someone does
     // not work at all, and its path is deactivating the employee, not scheduling.
-    throw new ScheduleError('Seluruh hari ditandai libur — tidak ada hari kerja', 'all_days_off');
+    throw new ScheduleError('Every day is marked off — there are no working days', 'all_days_off');
   }
 
   if (input.shiftId) {
@@ -107,7 +107,7 @@ export async function generateSchedules(
       where: { id: input.shiftId, tenantId, isActive: true },
       select: { id: true },
     });
-    if (!shift) throw new ScheduleError('Shift tidak ditemukan atau tidak aktif', 'not_found');
+    if (!shift) throw new ScheduleError('Shift not found or inactive', 'not_found');
   }
 
   const employees = await tx.employee.findMany({
@@ -115,7 +115,7 @@ export async function generateSchedules(
     select: { id: true, joinDate: true, resignDate: true },
   });
   if (employees.length === 0) {
-    throw new ScheduleError('Tidak ada karyawan yang cocok', 'not_found');
+    throw new ScheduleError('No matching employees', 'not_found');
   }
 
   const result: GenerateResult = {

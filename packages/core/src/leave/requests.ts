@@ -150,8 +150,10 @@ function toView(row: {
 /** A human-readable request number: `CUTI-2026-000123`. */
 async function nextRequestNumber(tx: TenantClient, tenantId: string, year: number): Promise<string> {
   const count = await tx.leaveRequest.count({
+    // lang: id — request-number prefix stored in data
     where: { tenantId, requestNumber: { startsWith: `CUTI-${year}-` } },
   });
+  // lang: id — request-number prefix stored in data
   return `CUTI-${year}-${String(count + 1).padStart(6, '0')}`;
 }
 
@@ -170,7 +172,7 @@ export async function submitRequest(
   actorUserId: string,
 ): Promise<RequestView> {
   if (input.endDate < input.startDate) {
-    throw new LeaveError('End date precedes start date', 'invalid_state');
+    throw new LeaveError('End date precedes start date', 'invalid_state', 'LEAVE_INVALID_RANGE');
   }
 
   const type = await tx.leaveType.findFirst({
@@ -198,6 +200,7 @@ export async function submitRequest(
       throw new LeaveError(
         `${type.name} requires an attachment, e.g. a doctor's note. Upload the file first.`,
         'invalid_state',
+        'LEAVE_ATTACHMENT_REQUIRED',
       );
     }
     // Throws when the key is fabricated, belongs to someone else, or has already
@@ -225,6 +228,8 @@ export async function submitRequest(
        `${type.name} can only be requested after ${type.minServiceMonths} months of service. ` +
          `At the leave date, tenure is only ${Math.floor(monthsOfService)} months.`,
       'not_entitled',
+      'LEAVE_NOT_ENTITLED',
+      { minServiceMonths: [String(type.minServiceMonths)], serviceMonths: [String(Math.floor(monthsOfService))] },
     );
   }
 
@@ -254,6 +259,7 @@ export async function submitRequest(
     throw new LeaveError(
        'The selected range contains no working days — the entire range is weekend or holiday.',
       'invalid_state',
+      'LEAVE_NO_WORKING_DAYS',
     );
   }
 
@@ -277,6 +283,8 @@ export async function submitRequest(
       throw new LeaveError(
         `Insufficient ${type.name} balance: ${balance.availableDays} days available, ${totalDays} days requested.`,
         'insufficient_balance',
+        'LEAVE_INSUFFICIENT_BALANCE',
+        { available: [String(balance.availableDays)], requested: [String(totalDays)] },
       );
     }
   }
@@ -306,6 +314,7 @@ export async function submitRequest(
     'The selected approver lacks authority to approve leave. ' +
       'Choose from the available approvers.',
       'invalid_state',
+      'LEAVE_APPROVER_NOT_ELIGIBLE',
     );
   }
 
@@ -342,6 +351,7 @@ export async function submitRequest(
       throw new LeaveError(
         'There is already a leave request covering one of these dates.',
         'overlap',
+        'LEAVE_OVERLAP',
       );
     }
     throw error;
@@ -467,6 +477,7 @@ export async function decideRequest(
     'You cannot decide your own leave request. ' +
       'Nominate a different approver when submitting, or have HR decide.',
       'forbidden',
+      'LEAVE_SELF_APPROVAL',
     );
   }
 
@@ -488,6 +499,7 @@ export async function decideRequest(
     throw new LeaveError(
       `This request has already been ${fresh?.status === 'APPROVED' ? 'approved' : 'decided'} previously.`,
       'invalid_state',
+      'LEAVE_ALREADY_DECIDED',
     );
   }
 
@@ -618,7 +630,7 @@ export async function cancelRequest(
     throw new LeaveError('Only the requester can cancel', 'forbidden');
   }
   if (request.status !== 'PENDING') {
-    throw new LeaveError('Only requests not yet decided can be cancelled', 'invalid_state');
+    throw new LeaveError('Only requests not yet decided can be cancelled', 'invalid_state', 'LEAVE_ALREADY_DECIDED');
   }
 
   const totalDays = Number(request.totalDays);

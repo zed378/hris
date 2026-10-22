@@ -28,6 +28,7 @@ export interface ColumnSpec {
   aliases: string[];
 }
 
+// lang: id-begin — column labels and aliases of the Indonesian import template (ADR-040)
 export const EMPLOYEE_COLUMNS: ColumnSpec[] = [
   {
     field: 'employeeNumber',
@@ -115,6 +116,7 @@ export const EMPLOYEE_COLUMNS: ColumnSpec[] = [
     aliases: ['alamat', 'address', 'alamat rumah', 'alamat domisili'],
   },
 ];
+// lang: id-end
 
 /** Normalises a column header so "No. Telepon " and "no telepon" match. */
 export function normalizeHeader(value: string): string {
@@ -228,7 +230,7 @@ export function parseExcelDate(value: unknown): { date: string | null; error: st
 
   if (typeof value === 'number') {
     if (value < 1 || value > 60_000) {
-      return { date: null, error: 'Angka tanggal di luar rentang yang wajar' };
+      return { date: null, error: 'Date serial number out of a plausible range' };
     }
     // Excel serial: days since 1899-12-30. That offset already accounts for the
     // 1900 leap year bug Excel deliberately keeps for compatibility.
@@ -252,20 +254,20 @@ export function parseExcelDate(value: unknown): { date: string | null; error: st
     return buildDate(Number(dmy[3]), month, day);
   }
 
-  return { date: null, error: `Format tanggal tidak dikenali: "${text}"` };
+  return { date: null, error: `Unrecognised date format: "${text}"` };
 }
 
 function buildDate(year: number, month: number, day: number): { date: string | null; error: string | null } {
-  if (month < 1 || month > 12) return { date: null, error: `Bulan tidak sah: ${month}` };
-  if (day < 1 || day > 31) return { date: null, error: `Tanggal tidak sah: ${day}` };
+  if (month < 1 || month > 12) return { date: null, error: `Invalid month: ${month}` };
+  if (day < 1 || day > 31) return { date: null, error: `Invalid day: ${day}` };
 
   const date = new Date(Date.UTC(year, month - 1, day));
   // Catches 31 February: Date shifts an invalid date into the next month without
   // complaint, so the result has to be checked back against the input.
   if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
-    return { date: null, error: `Tanggal tidak ada dalam kalender: ${day}/${month}/${year}` };
+    return { date: null, error: `No such calendar date: ${day}/${month}/${year}` };
   }
-  if (year < 1900 || year > 2100) return { date: null, error: `Tahun di luar rentang: ${year}` };
+  if (year < 1900 || year > 2100) return { date: null, error: `Year out of range: ${year}` };
 
   return { date: date.toISOString().slice(0, 10), error: null };
 }
@@ -287,8 +289,8 @@ function buildDate(year: number, month: number, day: number): { date: string | n
  * paths. It is used earlier here purely so the message can point at the row.
  */
 const MASKED_MESSAGE =
-  'Nilai tersamar (*) — berkas ini diekspor tanpa izin melihat data lengkap. ' +
-  'Minta ekspor ulang dari pengguna yang berizin, atau kosongkan kolomnya.';
+  'Masked value (*) — this file was exported without permission to see full data. ' +
+  'Ask a permitted user to export it again, or leave the column empty.';
 
 function parseGender(value: unknown): 'MALE' | 'FEMALE' | null {
   const text = cellText(value).toLowerCase();
@@ -312,25 +314,25 @@ export function validateRow(
   const fullName = cellText(at('fullName'));
 
   if (employeeNumber === '') {
-    errors.push({ field: 'employeeNumber', message: 'Nomor karyawan wajib diisi' });
+    errors.push({ field: 'employeeNumber', message: 'Employee number is required' });
   }
   if (fullName === '') {
-    errors.push({ field: 'fullName', message: 'Nama lengkap wajib diisi' });
+    errors.push({ field: 'fullName', message: 'Full name is required' });
   } else if (fullName.length < 2) {
-    errors.push({ field: 'fullName', message: 'Nama lengkap terlalu pendek' });
+    errors.push({ field: 'fullName', message: 'Full name is too short' });
   }
 
   const join = parseExcelDate(at('joinDate'));
   if (join.error) errors.push({ field: 'joinDate', message: join.error });
   else if (join.date === null) {
-    errors.push({ field: 'joinDate', message: 'Tanggal masuk wajib diisi' });
+    errors.push({ field: 'joinDate', message: 'Join date is required' });
   }
 
   const birth = parseExcelDate(at('birthDate'));
   if (birth.error) errors.push({ field: 'birthDate', message: birth.error });
 
   if (join.date && birth.date && birth.date >= join.date) {
-    errors.push({ field: 'birthDate', message: 'Tanggal lahir harus sebelum tanggal masuk' });
+    errors.push({ field: 'birthDate', message: 'Date of birth must be before the join date' });
   }
 
   const nationalId = cellText(at('nationalId'));
@@ -345,14 +347,14 @@ export function validateRow(
     if (!/^\d{16}$/.test(digits)) {
       errors.push({
         field: 'nationalId',
-        message: `NIK biasanya 16 digit angka (ditemukan ${digits.length} karakter). Periksa kembali.`,
+        message: `A NIK is normally 16 digits (found ${digits.length} characters). Check it again.`,
       });
     }
   }
 
   const email = cellText(at('email'));
   if (email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.push({ field: 'email', message: `Email tidak sah: "${email}"` });
+    errors.push({ field: 'email', message: `Invalid email: "${email}"` });
   }
 
   const taxId = cellText(at('taxId'));

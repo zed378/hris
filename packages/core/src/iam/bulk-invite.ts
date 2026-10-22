@@ -128,7 +128,7 @@ export async function inviteEmployeesAsUsers(
     } catch (error) {
       result.failed.push({
         employeeId: employee.id,
-        reason: error instanceof Error ? error.message : 'Undangan gagal',
+        reason: error instanceof Error ? error.message : 'Invitation failed',
       });
     }
   }

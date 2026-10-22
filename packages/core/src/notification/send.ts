@@ -191,7 +191,7 @@ export async function deliverNotification(
     tenantId,
     async (tx): Promise<{ plan: Plan; logId: string } | { skipped: string }> => {
       const plan = await planDelivery(tx, tenantId, topic, payload);
-      if (!plan) return { skipped: 'tidak ada penerima' };
+      if (!plan) return { skipped: 'no recipient' };
 
       try {
         const log = await tx.notificationLog.create({

@@ -1,4 +1,4 @@
-import { EventTopic } from '@hrms/contracts';
+import { EventTopic, type ErrorReason } from '@hrms/contracts';
 import { writeAudit, publishEvent, Prisma, type TenantClient } from '@hrms/db';
 import { readPolicy } from './policy.ts';
 import { assessTrust, haversineMeters, type TrustFlag } from './trust.ts';
@@ -22,6 +22,9 @@ export class PunchError extends Error {
   constructor(
     message: string,
     readonly kind: 'not_found' | 'duplicate' | 'locked' | 'blocked',
+    /** Which refusal, for the frontend's own text (ADR-037). */
+    readonly reason?: ErrorReason,
+    readonly details?: Record<string, string[]>,
   ) {
     super(message);
     this.name = 'PunchError';
@@ -80,7 +83,7 @@ export async function recordPunch(
     where: { id: input.employeeId, tenantId },
     select: { id: true },
   });
-  if (!employee) throw new PunchError('Karyawan tidak ditemukan', 'not_found');
+  if (!employee) throw new PunchError('Employee not found', 'not_found');
 
   const timeZone = await tenantTimeZone(tx, tenantId);
 
@@ -136,7 +139,7 @@ export async function recordPunch(
    * minutes the result read like a tenant policy that did not work.
    */
   if (!input.dedupeKey) {
-    throw new PunchError('Ketukan tanpa kunci dedupe tidak dapat diproses', 'not_found');
+    throw new PunchError('A punch without a dedupe key cannot be processed', 'not_found');
   }
 
   const alreadyRecorded = await tx.punchLog.findFirst({
@@ -217,10 +220,12 @@ export async function recordPunch(
     });
 
     if (closed) {
+      const period = `${String(closed.month).padStart(2, '0')}/${closed.year}`;
       throw new PunchError(
-        `Periode ${String(closed.month).padStart(2, '0')}/${closed.year} sudah ditutup. ` +
-          'Koreksi pada periode tertutup tidak lagi mengubah angka yang dipakai payroll.',
+        `Period ${period} is closed. A correction in a closed period no longer changes the figures payroll used.`,
         'locked',
+        'ATTENDANCE_PERIOD_CLOSED',
+        { period: [period] },
       );
     }
   }
@@ -243,16 +248,17 @@ export async function recordPunch(
    * is the problem.
    */
   if (policy.onPermissionDenied === 'BLOCK' && input.source !== 'DEVICE' && input.source !== 'MANUAL') {
-    const kurang: string[] = [];
-    if (policy.requireLocation && distanceM === null) kurang.push('lokasi');
-    if (policy.requirePhoto && !photoKey) kurang.push('foto');
+    const missing: string[] = [];
+    if (policy.requireLocation && distanceM === null) missing.push('location');
+    if (policy.requirePhoto && !photoKey) missing.push('photo');
 
-    if (kurang.length > 0) {
+    if (missing.length > 0) {
       throw new PunchError(
-        `Presensi membutuhkan ${kurang.join(' dan ')}. ` +
-          'Aktifkan izinnya di setelan peramban, gunakan mesin absensi, ' +
-          'atau minta HR memasukkan koreksi manual.',
+        `A punch requires ${missing.join(' and ')}. Enable the permission in the browser ` +
+          'settings, use the attendance machine, or ask HR to enter a manual correction.',
         'blocked',
+        'PUNCH_EVIDENCE_REQUIRED',
+        { missing },
       );
     }
   }
@@ -286,15 +292,17 @@ export async function recordPunch(
     !office.matched
   ) {
     const missing: string[] = [];
-    if (policy.requireLocation && distanceM === null) missing.push('lokasi');
-    if (policy.requirePhoto && !photoKey) missing.push('foto');
+    if (policy.requireLocation && distanceM === null) missing.push('location');
+    if (policy.requirePhoto && !photoKey) missing.push('photo');
 
     if (missing.length > 0) {
       throw new PunchError(
-        `Presensi tanpa ${missing.join(' dan ')} hanya dapat dilakukan dari jaringan kantor. ` +
-          'Sambungkan perangkat ke jaringan kantor, aktifkan izinnya di setelan peramban, ' +
-          'gunakan mesin absensi, atau minta HR memasukkan koreksi manual.',
+        `A punch without ${missing.join(' and ')} is accepted only from the office network. ` +
+          'Connect to the office network, enable the permission in the browser settings, ' +
+          'use the attendance machine, or ask HR to enter a manual correction.',
         'blocked',
+        'PUNCH_EVIDENCE_REQUIRED_OFF_NETWORK',
+        { missing },
       );
     }
   }
@@ -431,10 +439,7 @@ export async function recordPunch(
       // This transaction is already aborted, so nothing more can be read here.
       // The caller translates it into a success response: from the client's point
       // of view, its punch really was recorded.
-      throw new PunchError(
-        'Presensi ini sudah tercatat',
-        'duplicate',
-      );
+      throw new PunchError('This punch is already recorded', 'duplicate', 'PUNCH_DUPLICATE');
     }
     throw error;
   }
@@ -464,7 +469,7 @@ export async function reviewPunch(
     where: { id: decision.punchId, tenantId },
     select: { id: true, review: true, employeeId: true },
   });
-  if (!punch) throw new PunchError('Data presensi tidak ditemukan', 'not_found');
+  if (!punch) throw new PunchError('Punch not found', 'not_found');
 
   await tx.punchLog.update({
     where: { id: decision.punchId },

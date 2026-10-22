@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
  */
 export const GET = defineRoute('GET /api/attendance/photo/[key]', async (_req, ctx) => {
   const key = ctx.params['key'];
-  if (!key) return apiError(400, ErrorCode.VALIDATION_FAILED, 'Kunci tidak ada', ctx.correlationId);
+  if (!key) return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing key', ctx.correlationId);
 
   const punch = await ctx.tx.punchLog.findFirst({
     where: { tenantId: ctx.tenantId, photoKey: key },
@@ -27,7 +27,7 @@ export const GET = defineRoute('GET /api/attendance/photo/[key]', async (_req, c
   });
 
   if (!punch) {
-    return apiError(404, ErrorCode.NOT_FOUND, 'Foto tidak ditemukan', ctx.correlationId);
+    return apiError(404, ErrorCode.NOT_FOUND, 'Photo not found', ctx.correlationId);
   }
 
   const canReviewAll = ctx.access.permissions.includes('attendance.review.handle');
@@ -39,7 +39,7 @@ export const GET = defineRoute('GET /api/attendance/photo/[key]', async (_req, c
       select: { id: true },
     });
     if (!me || me.id !== punch.employeeId) {
-      return apiError(403, ErrorCode.PERMISSION_DENIED, 'Bukan foto Anda', ctx.correlationId);
+      return apiError(403, ErrorCode.PERMISSION_DENIED, 'Not your photo', ctx.correlationId);
     }
     isOwner = true;
   }

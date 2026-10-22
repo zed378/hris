@@ -30,7 +30,7 @@ const arg = process.argv[2];
 const asOf = arg ? new Date(`${arg}T00:00:00.000Z`) : new Date();
 
 if (Number.isNaN(asOf.getTime())) {
-  console.error('Tanggal tidak valid. Format: YYYY-MM-DD');
+  console.error('Invalid date. Format: YYYY-MM-DD');
   process.exit(1);
 }
 

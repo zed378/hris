@@ -14,11 +14,11 @@ const APPROVE = 'payroll.run.approve';
 export const GET = defineRoute('GET /api/payroll/runs/[id]', async (_req, ctx) => {
   const runId = ctx.params['id'];
   if (!runId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id run tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing run id', ctx.correlationId);
   }
 
   const run = await ctx.tx.payrollRun.findFirst({ where: { id: runId, tenantId: ctx.tenantId } });
-  if (!run) return apiError(404, ErrorCode.NOT_FOUND, 'Run tidak ditemukan', ctx.correlationId);
+  if (!run) return apiError(404, ErrorCode.NOT_FOUND, 'Run not found', ctx.correlationId);
 
   const payslips = await ctx.tx.payslip.findMany({
     where: { tenantId: ctx.tenantId, runId },
@@ -76,12 +76,12 @@ const actionSchema = z.discriminatedUnion('action', [
 export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) => {
   const runId = ctx.params['id'];
   if (!runId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id run tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing run id', ctx.correlationId);
   }
 
   const parsed = actionSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Aksi tidak dikenal.', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Unknown action.', ctx.correlationId);
   }
 
   try {
@@ -107,15 +107,15 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
         select: { status: true },
       });
       if (!run) {
-        return apiError(404, ErrorCode.NOT_FOUND, 'Run tidak ditemukan', ctx.correlationId);
+        return apiError(404, ErrorCode.NOT_FOUND, 'Run not found', ctx.correlationId);
       }
       if (run.status !== 'DRAFT' && run.status !== 'FAILED') {
         return apiError(
           409,
           ErrorCode.CONFLICT,
           run.status === 'CALCULATING'
-            ? 'Run ini sedang dihitung. Muat ulang halaman untuk melihat kemajuannya.'
-            : `Run berstatus ${run.status} tidak dapat dihitung ulang. Batalkan dan buat run baru.`,
+            ? 'This run is being calculated. Reload the page to see its progress.'
+            : `A run in status ${run.status} cannot be recalculated. Cancel it and create a new run.`,
           ctx.correlationId,
         );
       }
@@ -137,7 +137,7 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
           runId,
           status: 'CALCULATING',
           message:
-            'Perhitungan dijalankan di latar belakang. Muat ulang halaman untuk melihat kemajuannya.',
+            'Calculation runs in the background. Reload the page to see its progress.',
         },
         { status: 202 },
       );
@@ -148,7 +148,7 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
         return apiError(
           403,
           ErrorCode.PERMISSION_DENIED,
-          'Persetujuan run membutuhkan izin tersendiri.',
+          'Approving a run needs its own permission.',
           ctx.correlationId,
         );
       }
@@ -161,7 +161,7 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
         return apiError(
           409,
           ErrorCode.CONFLICT,
-          `Hanya run yang sudah dihitung dapat disetujui. Status saat ini: ${run?.status ?? 'tidak ada'}.`,
+          `Only a calculated run can be approved. Current status: ${run?.status ?? 'none'}.`,
           ctx.correlationId,
         );
       }
@@ -197,7 +197,7 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
         return apiError(
           403,
           ErrorCode.PERMISSION_DENIED,
-          'Menandai run terbayar membutuhkan izin persetujuan run.',
+          'Marking a run paid needs the run approval permission.',
           ctx.correlationId,
         );
       }
@@ -210,7 +210,7 @@ export const POST = defineRoute('POST /api/payroll/runs/[id]', async (req, ctx) 
         return apiError(
           409,
           ErrorCode.CONFLICT,
-          `Hanya run yang sudah disetujui dapat ditandai terbayar. Status saat ini: ${run?.status ?? 'tidak ada'}.`,
+          `Only an approved run can be marked paid. Current status: ${run?.status ?? 'none'}.`,
           ctx.correlationId,
         );
       }

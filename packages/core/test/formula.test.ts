@@ -112,15 +112,15 @@ describe('fungsi', () => {
   it('menolak fungsi yang tidak ada dalam daftar putih', () => {
     // Including the ones that sound harmless. An allowlist closes the whole
     // surface at once; a blocklist is always one name behind.
-    expect(() => hitung('sqrt(16)')).toThrow(/tidak tersedia/);
+    expect(() => hitung('sqrt(16)')).toThrow(/is not available/);
     expect(() => hitung('eval("1")')).toThrow(FormulaError);
     expect(() => hitung('constructor(1)')).toThrow(FormulaError);
   });
 
   it('menolak jumlah argumen yang salah', () => {
-    expect(() => hitung('round(5)')).toThrow(/membutuhkan 2 argumen/);
-    expect(() => hitung('if(1, 2)')).toThrow(/membutuhkan 3 argumen/);
-    expect(() => hitung('min()')).toThrow(/sekurangnya satu argumen/);
+    expect(() => hitung('round(5)')).toThrow(/needs 2 arguments/);
+    expect(() => hitung('if(1, 2)')).toThrow(/needs 3 arguments/);
+    expect(() => hitung('min()')).toThrow(/at least one argument/);
   });
 });
 
@@ -141,36 +141,36 @@ describe('penolakan masukan berbahaya', () => {
   });
 
   it('menolak karakter yang bukan bagian ekspresi', () => {
-    expect(() => hitung('1; drop table gaji')).toThrow(/tidak dikenali/);
+    expect(() => hitung('1; drop table gaji')).toThrow(/Unrecognised character/);
     expect(() => hitung('`x`')).toThrow(FormulaError);
     expect(() => hitung('{}')).toThrow(FormulaError);
   });
 
   it('menolak ekspresi yang terlalu panjang', () => {
-    expect(() => hitung('1+'.repeat(600) + '1')).toThrow(/terlalu panjang/);
+    expect(() => hitung('1+'.repeat(600) + '1')).toThrow(/too long/);
   });
 
   it('menolak kurung bersarang yang terlalu dalam', () => {
-    expect(() => hitung('('.repeat(40) + '1' + ')'.repeat(40))).toThrow(/terlalu dalam/);
+    expect(() => hitung('('.repeat(40) + '1' + ')'.repeat(40))).toThrow(/nested too deeply/);
   });
 
   it('menolak pembagian nol alih-alih menghasilkan Infinity', () => {
     // An Infinity flowing into a payslip is worse than a run that stops and says
     // the formula is wrong.
-    expect(() => hitung('100 / 0')).toThrow(/Pembagian dengan nol/);
+    expect(() => hitung('100 / 0')).toThrow(/Division by zero/);
     expect(() => hitung('100 / (A - A)', { A: 5 })).toThrow(FormulaError);
   });
 
   it('menolak titik sebagai pemisah ribuan', () => {
     // `1.000.000` is typed by someone used to the Indonesian format. Accepting it
     // as NaN would propagate NaN all the way to the payslip.
-    expect(() => hitung('1.000.000')).toThrow(/pemisah ribuan/);
+    expect(() => hitung('1.000.000')).toThrow(/thousands separator/);
   });
 
   it('menolak formula yang tidak lengkap', () => {
-    expect(() => hitung('2 +')).toThrow(/berakhir lebih awal/);
+    expect(() => hitung('2 +')).toThrow(/ends earlier than expected/);
     expect(() => hitung('(2 + 3')).toThrow(FormulaError);
-    expect(() => hitung('2 3')).toThrow(/sisa yang tidak dapat dibaca/);
+    expect(() => hitung('2 3')).toThrow(/Unreadable text after the formula/);
   });
 });
 
@@ -246,11 +246,11 @@ describe('evaluasi malas pada if', () => {
   it('tetap melempar bila cabang yang TERPILIH bermasalah', () => {
     // Laziness is not leniency: the branch genuinely used is still fully checked.
     // diperiksa penuh.
-    expect(() => hitung('if(1, 1/0, 42)')).toThrow(/Pembagian dengan nol/);
+    expect(() => hitung('if(1, 1/0, 42)')).toThrow(/Division by zero/);
   });
 
   it('tetap memeriksa jumlah argumen', () => {
-    expect(() => hitung('if(1, 2)')).toThrow(/membutuhkan 3 argumen/);
+    expect(() => hitung('if(1, 2)')).toThrow(/needs 3 arguments/);
   });
 
   it('masih terdaftar sebagai fungsi yang tersedia', () => {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { importDevicePunches, DeviceImportError } from '@hrms/core/attendance';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 
@@ -36,7 +36,14 @@ export const POST = defineRoute('POST /api/attendance/device-import', async (req
 
   const file = form.get('file');
   if (!(file instanceof File)) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'File not found.', ctx.correlationId);
+    return apiError(
+      400,
+      ErrorCode.VALIDATION_FAILED,
+      'File not found.',
+      ctx.correlationId,
+      undefined,
+      ErrorReason.FILE_MISSING,
+    );
   }
   if (file.size > MAX_FILE_BYTES) {
     return apiError(
@@ -44,6 +51,8 @@ export const POST = defineRoute('POST /api/attendance/device-import', async (req
       ErrorCode.VALIDATION_FAILED,
       `File size ${Math.round(file.size / 1024 / 1024)} MB exceeds the ${MAX_FILE_BYTES / 1024 / 1024} MB limit.`,
       ctx.correlationId,
+      { maxBytes: [String(MAX_FILE_BYTES)] },
+      ErrorReason.FILE_TOO_LARGE,
     );
   }
 

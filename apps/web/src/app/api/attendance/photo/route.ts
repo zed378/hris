@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { storePhoto, PhotoError, MAX_PHOTO_BYTES } from '@hrms/core/attendance';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 
@@ -22,14 +22,21 @@ export const POST = defineRoute('POST /api/attendance/photo', async (req, ctx) =
   const file = form?.get('photo');
 
   if (!(file instanceof File)) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Sertakan berkas foto', ctx.correlationId);
+    return apiError(
+      400,
+      ErrorCode.VALIDATION_FAILED,
+      'Include a photo file',
+      ctx.correlationId,
+      undefined,
+      ErrorReason.FILE_MISSING,
+    );
   }
 
   if (file.size > MAX_PHOTO_BYTES) {
     return apiError(
       413,
       ErrorCode.VALIDATION_FAILED,
-      `Foto terlalu besar. Maksimal ${MAX_PHOTO_BYTES / 1024} KB.`,
+      `Photo too large. Maximum ${MAX_PHOTO_BYTES / 1024} KB.`,
       ctx.correlationId,
     );
   }

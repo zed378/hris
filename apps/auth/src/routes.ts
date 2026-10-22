@@ -187,7 +187,7 @@ export const ROUTES: Record<string, RouteRule> = {
         return NO_CONTENT;
       } catch (error) {
         if (error instanceof ActionTokenError) {
-          return fail(400, ErrorCode.TOKEN_INVALID, error.message, ctx.correlationId);
+          return fail(400, ErrorCode.TOKEN_INVALID, error.message, ctx.correlationId, undefined, 'ACTION_TOKEN_INVALID');
         }
         throw error;
       }
@@ -212,7 +212,7 @@ export const ROUTES: Record<string, RouteRule> = {
         return json(200, await acceptInvitation(parsed.data, ctx));
       } catch (error) {
         if (error instanceof ActionTokenError) {
-          return fail(400, ErrorCode.TOKEN_INVALID, error.message, ctx.correlationId);
+          return fail(400, ErrorCode.TOKEN_INVALID, error.message, ctx.correlationId, undefined, 'ACTION_TOKEN_INVALID');
         }
         throw error;
       }

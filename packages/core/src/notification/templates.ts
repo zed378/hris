@@ -1,5 +1,10 @@
 /**
- * Email templates.
+ * Email templates — in Indonesian (ADR-034).
+ *
+ * The one backend output written for people to read outside the frontend, so
+ * the one place in the backend that speaks Indonesian. Words follow
+ * `docs/UI-UX/13` §4. `notification-language.test.ts` pins the language so a
+ * future translation pass cannot switch it silently, as one once did.
  *
  * Plain text, not HTML. Three reasons, and the third is decisive:
  * plain text filters better through spam filters, reads in any email client, and
@@ -30,23 +35,23 @@ export function passwordResetEmail(input: {
   const expires = formatDateTime(input.expiresAt);
 
   return {
-    subject: `Password reset — ${input.tenantName}`,
+    subject: `Atur ulang kata sandi — ${input.tenantName}`,
     text: [
-      `Hello ${input.fullName},`,
+      `Halo ${input.fullName},`,
       '',
-      `We received a request to reset the password for your account on ${input.tenantName}.`,
+      `Kami menerima permintaan untuk mengatur ulang kata sandi akun Anda di ${input.tenantName}.`,
       '',
-      'Open the following link to set a new password:',
+      'Buka tautan berikut untuk menetapkan kata sandi baru:',
       appUrl(`/reset-password?token=${input.token}`),
       '',
-      `This link is valid until ${expires} and can be used only once.`,
+      `Tautan ini berlaku sampai ${expires} dan hanya dapat dipakai sekali.`,
       '',
       // This is the line that makes a password reset email useful as a security
       // signal: the recipient who did not request it now knows someone is trying.
-      'If you did not make this request, ignore this email — your password has not changed.',
-      'However, if this repeats, alert your company\'s HR department.',
+      'Bila Anda tidak meminta ini, abaikan surel ini — kata sandi Anda tidak berubah.',
+      'Namun bila ini terulang, beri tahu bagian HR perusahaan Anda.',
       '',
-      'After the password is changed, all your sessions on other devices will end.',
+      'Setelah kata sandi diganti, semua sesi Anda di perangkat lain akan berakhir.',
     ].join('\n'),
   };
 }
@@ -59,25 +64,25 @@ export function invitationEmail(input: {
   expiresAt: string;
 }): RenderedEmail {
   return {
-    subject: `Join invitation — ${input.tenantName}`,
+    subject: `Undangan bergabung — ${input.tenantName}`,
     text: [
-      `Hello ${input.fullName},`,
+      `Halo ${input.fullName},`,
       '',
-      `You have been invited to access the HR system for ${input.tenantName}.`,
+      `Anda diundang untuk memakai sistem HR ${input.tenantName}.`,
       '',
-      'Open the following link to set your password:',
+      'Buka tautan berikut untuk menetapkan kata sandi Anda:',
       appUrl(`/accept-invitation?token=${input.token}`),
       '',
-      `This link is valid until ${formatDateTime(input.expiresAt)}.`,
+      `Tautan ini berlaku sampai ${formatDateTime(input.expiresAt)}.`,
       '',
-      'When you sign in later, you will need three things:',
-      `  Company code  : ${input.tenantCode}`,
-      '  Email         : this email address',
-      '  Password      : that you set via the link above',
+      'Saat masuk nanti, Anda membutuhkan tiga hal:',
+      `  Kode perusahaan : ${input.tenantCode}`,
+      '  Surel           : alamat surel ini',
+      '  Kata sandi      : yang Anda tetapkan lewat tautan di atas',
       '',
       // The company code is what most people get wrong on the first login attempt.
       // Stating it here saves one support ticket per new user.
-      'Save that company code — it is needed every time you sign in.',
+      'Simpan kode perusahaan itu — ia diperlukan setiap kali Anda masuk.',
     ].join('\n'),
   };
 }
@@ -91,10 +96,10 @@ export function invitationEmail(input: {
  * not a minor inaccuracy.
  */
 function remainingText(daysLeft: number): string {
-  if (daysLeft < 0) return 'EXPIRED';
-  if (daysLeft === 0) return 'expires TODAY';
-  if (daysLeft === 1) return 'expires TOMORROW';
-  return `expires in ${daysLeft} days`;
+  if (daysLeft < 0) return 'SUDAH BERAKHIR';
+  if (daysLeft === 0) return 'berakhir HARI INI';
+  if (daysLeft === 1) return 'berakhir BESOK';
+  return `berakhir dalam ${daysLeft} hari`;
 }
 
 export function contractExpiringEmail(input: {
@@ -110,16 +115,16 @@ export function contractExpiringEmail(input: {
   const expired = input.threshold === 'EXPIRED';
 
   const subject = expired
-    ? `ACTION REQUIRED: contract for ${input.employeeName} has expired`
-    : `Contract for ${input.employeeName} ${remainingText(input.daysLeft)}`;
+    ? `PERLU TINDAKAN: kontrak ${input.employeeName} sudah berakhir`
+    : `Kontrak ${input.employeeName} ${remainingText(input.daysLeft)}`;
 
   const body = [
-    `The following employment contract ${remainingText(input.daysLeft)}:`,
+    `Kontrak kerja berikut ${remainingText(input.daysLeft)}:`,
     '',
-    `  Employee        : ${input.employeeName} (${input.employeeNumber})`,
-    `  Contract number : ${input.contractNumber}`,
-    `  Type            : ${input.contractType}`,
-    `  Expiry date     : ${formatDate(input.endDate)}`,
+    `  Karyawan        : ${input.employeeName} (${input.employeeNumber})`,
+    `  Nomor kontrak   : ${input.contractNumber}`,
+    `  Jenis           : ${input.contractType}`,
+    `  Tanggal berakhir: ${formatDate(input.endDate)}`,
     '',
   ];
 
@@ -128,22 +133,22 @@ export function contractExpiringEmail(input: {
     // expired does not merely "need renewal" — its legal status changes, and
     // that change is irreversible.
     body.push(
-      `This contract expired ${Math.abs(input.daysLeft)} days ago and has not been actioned.`,
+      `Kontrak ini berakhir ${Math.abs(input.daysLeft)} hari lalu dan belum ditindaklanjuti.`,
       '',
-      'A PKWT left expired without renewal or formal closure may be deemed converted',
-      'to a permanent employee (PKWTT) by law. This conversion is irreversible.',
-      'Contact your legal department or senior HR immediately.',
+      'PKWT yang dibiarkan berakhir tanpa perpanjangan atau pengakhiran resmi dapat',
+      'dianggap beralih menjadi karyawan tetap (PKWTT) demi hukum. Peralihan ini tidak',
+      'dapat dibatalkan. Hubungi bagian hukum atau HR senior sekarang.',
     );
   } else {
     body.push(
-      'Action required: renew, convert to permanent employee, or close according',
-      'to the terms. A decision must be made before the date above.',
+      'Perlu tindakan: perpanjang, angkat menjadi karyawan tetap, atau akhiri sesuai',
+      'ketentuan. Keputusan harus diambil sebelum tanggal di atas.',
     );
   }
 
-  body.push('', 'See contracts expiring soon:', appUrl('/employees/contracts'));
+  body.push('', 'Lihat kontrak yang akan berakhir:', appUrl('/employees/contracts'));
 
-  return { subject, text: [`Hello,`, '', ...body].join('\n') };
+  return { subject, text: [`Halo,`, '', ...body].join('\n') };
 }
 
 /**
@@ -167,16 +172,16 @@ export function documentExpiringEmail(input: {
   const expired = input.threshold === 'EXPIRED';
 
   const subject = expired
-    ? `ACTION REQUIRED: ${input.kind} for ${input.employeeName} has expired`
-    : `${input.kind} for ${input.employeeName} ${remainingText(input.daysLeft)}`;
+    ? `PERLU TINDAKAN: ${input.kind} ${input.employeeName} sudah berakhir`
+    : `${input.kind} ${input.employeeName} ${remainingText(input.daysLeft)}`;
 
   const body = [
-    `The following document ${remainingText(input.daysLeft)}:`,
+    `Dokumen berikut ${remainingText(input.daysLeft)}:`,
     '',
-    `  Employee        : ${input.employeeName} (${input.employeeNumber})`,
-    `  Document type   : ${input.kind}`,
-    `  Title           : ${input.title}`,
-    `  Expires         : ${formatDate(input.expiresAt)}`,
+    `  Karyawan        : ${input.employeeName} (${input.employeeNumber})`,
+    `  Jenis dokumen   : ${input.kind}`,
+    `  Judul           : ${input.title}`,
+    `  Berlaku sampai  : ${formatDate(input.expiresAt)}`,
     '',
   ];
 
@@ -185,15 +190,15 @@ export function documentExpiringEmail(input: {
 
   if (expired) {
     body.push(
-      `This document expired ${Math.abs(input.daysLeft)} days ago and has not been updated.`,
+      `Dokumen ini berakhir ${Math.abs(input.daysLeft)} hari lalu dan belum diperbarui.`,
     );
   } else {
-    body.push('Renewal should start now — some permits take weeks to process.');
+    body.push('Perpanjangan sebaiknya dimulai sekarang — sebagian izin butuh berminggu-minggu.');
   }
 
-  body.push('', 'See employee documents:', appUrl('/employees/documents'));
+  body.push('', 'Lihat dokumen karyawan:', appUrl('/employees/documents'));
 
-  return { subject, text: [`Hello,`, '', ...body].join('\n') };
+  return { subject, text: [`Halo,`, '', ...body].join('\n') };
 }
 
 /**
@@ -208,19 +213,19 @@ function consequenceText(kind: string): string | null {
     case 'KITAS':
     case 'IMTA':
       return (
-        'An expired KITAS/IMTA means a foreign worker is working without a permit.\n' +
-        'Under Indonesian Immigration Law No. 6/2011, this is a criminal offence\n' +
-        'against the company and may result in deportation for the individual.'
+        'KITAS/IMTA yang berakhir berarti tenaga kerja asing bekerja tanpa izin.\n' +
+        'Menurut UU Keimigrasian No. 6/2011, ini tindak pidana bagi perusahaan dan\n' +
+        'dapat berujung deportasi bagi yang bersangkutan.'
       );
     case 'SIM':
       return (
-        'An expired driver\'s licence means driving without a permit. Vehicle insurance\n' +
-        'claims can be denied on the first accident, and liability falls to the company.'
+        'SIM yang berakhir berarti mengemudi tanpa izin. Klaim asuransi kendaraan dapat\n' +
+        'ditolak pada kecelakaan pertama, dan tanggung jawabnya jatuh ke perusahaan.'
       );
     case 'SERTIFIKAT':
       return (
-        'An expired competency certificate can invalidate eligibility for\n' +
-        'work that requires it.'
+        'Sertifikat kompetensi yang berakhir dapat menggugurkan kelayakan untuk\n' +
+        'pekerjaan yang mensyaratkannya.'
       );
     default:
       return null;
@@ -230,8 +235,8 @@ function consequenceText(kind: string): string | null {
 function formatDate(iso: string): string {
   const [year, month, day] = iso.slice(0, 10).split('-');
   const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
   ];
   return `${Number(day)} ${months[Number(month) - 1]} ${year}`;
 }

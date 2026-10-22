@@ -219,9 +219,8 @@ export class InvalidIdentifierError extends Error {
     readonly received: string,
   ) {
     super(
-      `Kolom ${field} berisi karakter yang tidak mungkin ada pada nomor identitas: ` +
-        `"${received.slice(0, 24)}". NIK, NPWP, dan nomor rekening hanya terdiri dari ` +
-        'angka dan huruf.',
+      `Field ${field} contains characters no identity number can have: ` +
+        `"${received.slice(0, 24)}". NIK, NPWP, and account numbers are letters and digits only.`,
     );
     this.name = 'InvalidIdentifierError';
   }
@@ -230,9 +229,9 @@ export class InvalidIdentifierError extends Error {
 export class MaskedValueError extends Error {
   constructor(readonly field: string) {
     super(
-      `Kolom ${field} berisi nilai tersamar, bukan nilai sebenarnya. ` +
-        'Nilai ini berasal dari tampilan atau ekspor tanpa izin melihat data lengkap. ' +
-        'Kosongkan kolomnya, atau minta nilai aslinya dari pengguna yang berizin.',
+      `Field ${field} holds a masked value, not the real one. ` +
+        'This value comes from a view or export without permission to see full data. ' +
+        'Leave the column empty, or ask a permitted user for the real value.',
     );
     this.name = 'MaskedValueError';
   }

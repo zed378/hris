@@ -30,8 +30,8 @@ if (!process.env['PII_ENCRYPTION_KEYS_OLD']) {
   // an operator who forgot to configure the ring looks like. The distinction is
   // theirs to make, so it is stated rather than decided.
   console.warn(
-    'PII_ENCRYPTION_KEYS_OLD kosong. Bila rotasi belum selesai, baris yang masih ' +
-      'memakai kunci lama akan terhitung sebagai TIDAK TERBACA, bukan dirotasi.',
+    'PII_ENCRYPTION_KEYS_OLD is empty. If rotation has not finished, rows still ' +
+      'under the old key will be counted as UNREADABLE, not rotated.',
   );
 }
 

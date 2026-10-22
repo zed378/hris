@@ -56,7 +56,7 @@ export const PUT = defineRoute('PUT /api/attendance/policy', async (req, ctx) =>
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Kebijakan tidak sah. Ambang 0–100, retensi foto 1–730 hari.',
+      'Invalid policy. Threshold 0–100, photo retention 1–730 days.',
       ctx.correlationId,
     );
   }

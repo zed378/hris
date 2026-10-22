@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
 import { reviewPunch, PunchError } from '@hrms/core/attendance';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { punchErrorResponse } from '@/lib/punch-error.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,7 +78,7 @@ export const POST = defineRoute('POST /api/attendance/review', async (req, ctx) 
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Keputusan tinjauan wajib menyertakan alasan minimal 4 karakter',
+      'A review decision needs a reason of at least 4 characters',
       ctx.correlationId,
     );
   }
@@ -91,9 +92,7 @@ export const POST = defineRoute('POST /api/attendance/review', async (req, ctx) 
     );
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    if (error instanceof PunchError) {
-      return apiError(404, ErrorCode.NOT_FOUND, error.message, ctx.correlationId);
-    }
+    if (error instanceof PunchError) return punchErrorResponse(error, ctx.correlationId);
     throw error;
   }
 });

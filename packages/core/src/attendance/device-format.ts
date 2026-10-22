@@ -55,6 +55,7 @@ const ALIASES: Record<DeviceColumn, string[]> = {
     'scantime',
     'logtime',
   ],
+  // lang: id — column names as attendance machines export them
   date: ['date', 'tanggal', 'tgl', 'checkdate', 'workdate'],
   time: ['time', 'jam', 'waktuscan', 'checktimeonly'],
   status: ['status', 'state', 'verifikasi', 'verify', 'checktype', 'inout', 'keterangan', 'tipe'],
@@ -99,10 +100,10 @@ export function detectDeviceColumns(headers: string[]): DeviceColumnMapping {
   });
 
   const missing: string[] = [];
-  if (index.employeeNumber === -1) missing.push('nomor karyawan (PIN / User ID / NIK)');
+  if (index.employeeNumber === -1) missing.push('employee number (PIN / User ID / NIK)');
   // The time may arrive as one column or as a separate date and time.
   if (index.dateTime === -1 && (index.date === -1 || index.time === -1)) {
-    missing.push('waktu (kolom DateTime, atau kolom Tanggal dan Jam)');
+    missing.push('time (a DateTime column, or Date and Time columns)');
   }
 
   return { index, missing, headers };

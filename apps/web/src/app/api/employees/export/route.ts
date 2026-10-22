@@ -47,6 +47,7 @@ export const GET = defineRoute('GET /api/employees/export', async (req, ctx) => 
   );
 
   const buffer = await writeXlsxFile(sheet as never, {
+    // lang: id — spreadsheet sheet name (ADR-040)
     sheet: 'Data Karyawan',
     columns: EMPLOYEE_COLUMNS.map((column) => ({
       width: column.field === 'address' ? 40 : column.field === 'fullName' ? 24 : 18,
@@ -58,6 +59,7 @@ export const GET = defineRoute('GET /api/employees/export', async (req, ctx) => 
   return new Response(new Uint8Array(buffer), {
     headers: {
       'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      // lang: id — spreadsheet file name (ADR-040)
       'content-disposition': `attachment; filename="karyawan-${stamp}.xlsx"`,
       // Jumlah baris dikembalikan sebagai header supaya klien dapat memberi tahu
       // pengguna bila hasilnya terpotong — hal yang tidak terlihat dari berkas

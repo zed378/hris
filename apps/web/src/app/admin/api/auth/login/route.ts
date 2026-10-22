@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 const schema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1).max(128),
-  totp: z.string().regex(/^\d{6}$/, 'Kode TOTP harus 6 digit'),
+  totp: z.string().regex(/^\d{6}$/, 'The TOTP code must be 6 digits'),
 });
 
 export const POST = definePublicAdminRoute('POST /admin/api/auth/login', async (req, ctx) => {
@@ -18,7 +18,7 @@ export const POST = definePublicAdminRoute('POST /admin/api/auth/login', async (
   if (!parsed.success) {
     // Sengaja tidak membedakan "TOTP tidak diisi" dari "kredensial salah":
     // keduanya kegagalan yang sama bagi pemanggil.
-    return adminError(401, ErrorCode.INVALID_CREDENTIALS, 'Kredensial tidak sah', ctx.correlationId);
+    return adminError(401, ErrorCode.INVALID_CREDENTIALS, 'Invalid credentials', ctx.correlationId);
   }
 
   try {

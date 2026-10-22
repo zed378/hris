@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { readBalances, adjustBalance, readLedger, LeaveError } from '@hrms/core/leave';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 import { leaveErrorResponse } from '@/lib/leave-error.ts';
@@ -34,8 +34,10 @@ export const GET = defineRoute('GET /api/leave/balances', async (req, ctx) => {
       return apiError(
         404,
         ErrorCode.NOT_FOUND,
-        'Akun Anda belum terhubung ke data karyawan.',
+        'This account is not linked to an employee record',
         ctx.correlationId,
+        undefined,
+        ErrorReason.ACCOUNT_NOT_LINKED,
       );
     }
     employeeId = me.id;
@@ -43,7 +45,7 @@ export const GET = defineRoute('GET /api/leave/balances', async (req, ctx) => {
     return apiError(
       403,
       ErrorCode.PERMISSION_DENIED,
-      'Tidak berizin melihat saldo karyawan lain',
+      'Not permitted to view another employee\'s balance',
       ctx.correlationId,
     );
   }
@@ -74,7 +76,7 @@ export const POST = defineRoute('POST /api/leave/balances', async (req, ctx) => 
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Penyesuaian saldo wajib menyertakan jumlah hari dan alasan.',
+      'A balance adjustment needs a number of days and a reason.',
       ctx.correlationId,
     );
   }

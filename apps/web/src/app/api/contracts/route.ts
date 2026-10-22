@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { createContract, ContractError } from '@hrms/core/employee';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 import { Prisma } from '@hrms/db';
@@ -23,7 +23,7 @@ export const POST = defineRoute('POST /api/contracts', async (req, ctx) => {
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data kontrak tidak lengkap',
+      'Incomplete contract data',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -39,7 +39,14 @@ export const POST = defineRoute('POST /api/contracts', async (req, ctx) => {
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return apiError(409, ErrorCode.CONFLICT, 'Nomor kontrak sudah dipakai', ctx.correlationId);
+      return apiError(
+        409,
+        ErrorCode.CONFLICT,
+        'Contract number already in use',
+        ctx.correlationId,
+        { field: ['contractNumber'] },
+        ErrorReason.DUPLICATE_VALUE,
+      );
     }
     if (error instanceof ContractError) {
       const status = error.kind === 'not_found' ? 404 : error.kind === 'invalid' ? 400 : 409;

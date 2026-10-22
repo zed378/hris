@@ -18,9 +18,9 @@ import type { ActorContext } from './employees.ts';
  */
 
 export const REMINDER_THRESHOLDS = [
-  { key: 'D90', days: 90, label: '90 hari lagi' },
-  { key: 'D30', days: 30, label: '30 hari lagi' },
-  { key: 'D7', days: 7, label: '7 hari lagi' },
+  { key: 'D90', days: 90, label: 'in 90 days' },
+  { key: 'D30', days: 30, label: 'in 30 days' },
+  { key: 'D7', days: 7, label: 'in 7 days' },
 ] as const;
 
 export type ReminderThreshold = 'D90' | 'D30' | 'D7' | 'EXPIRED';
@@ -55,14 +55,14 @@ export async function createContract(
   // impor Excel, skrip pemeliharaan — tidak dapat melewatinya.
   if (input.type === 'PKWTT' && input.endDate) {
     throw new ContractError(
-      'PKWTT adalah kontrak tetap dan tidak memiliki tanggal berakhir.',
+      'PKWTT is a permanent contract and has no end date.',
       'invalid',
     );
   }
   if (input.type !== 'PKWTT' && !input.endDate) {
     throw new ContractError(
-      `${input.type} wajib memiliki tanggal berakhir. Kontrak berjangka tanpa tanggal berakhir ` +
-        'dianggap PKWTT demi hukum.',
+      `${input.type} requires an end date. A fixed-term contract without one ` +
+        'is a PKWTT by operation of law.',
       'invalid',
     );
   }
@@ -71,7 +71,7 @@ export async function createContract(
     where: { id: input.employeeId, tenantId },
     select: { id: true },
   });
-  if (!employee) throw new ContractError('Karyawan tidak ditemukan', 'not_found');
+  if (!employee) throw new ContractError('Employee not found', 'not_found');
 
   const contract = await tx.employeeContract.create({
     data: {

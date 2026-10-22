@@ -42,7 +42,7 @@ export const POST = defineRoute('POST /api/users', async (req, ctx) => {
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data undangan tidak lengkap',
+      'Incomplete invitation data',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );

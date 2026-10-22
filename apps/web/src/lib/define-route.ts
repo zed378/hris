@@ -2,7 +2,7 @@ import { log, runWithContext, incrementCounter, observeDuration, clientAddress }
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { withTenant, type TenantClient } from '@hrms/db';
-import { ErrorCode, type ApiError } from '@hrms/contracts';
+import { ErrorCode, type ApiError, type ErrorReason } from '@hrms/contracts';
 import { verifyAccessToken, TokenVerificationError } from '@hrms/core/auth';
 import { decideAccess, type EffectiveAccess } from '@hrms/core/iam';
 import {
@@ -53,8 +53,10 @@ function fail(
   message: string,
   correlationId: string,
   details?: Record<string, string[]>,
+  reason?: ErrorReason,
 ): NextResponse<ApiError> {
   const body: ApiError = { error: { code, message, correlationId } };
+  if (reason) body.error.reason = reason;
   if (details) body.error.details = details;
   return NextResponse.json(body, { status });
 }
@@ -243,7 +245,7 @@ function build(
         return fail(
           401,
           outcome.expired ? ErrorCode.TOKEN_EXPIRED : ErrorCode.TOKEN_INVALID,
-          outcome.expired ? 'Token akses kedaluwarsa' : 'Token akses tidak sah',
+          outcome.expired ? 'Token akses kedaluwarsa' : 'Invalid access token',
           ctx.correlationId,
         );
       }
@@ -302,7 +304,7 @@ function build(
           return fail(
             401,
             ErrorCode.TOKEN_STALE,
-            'Hak akses Anda berubah. Token disegarkan otomatis — coba lagi.',
+            'Access changed since this token was issued. Refresh it and retry.',
             ctx.correlationId,
           );
         }
@@ -311,7 +313,7 @@ function build(
           return fail(
             402,
             ErrorCode.MODULE_NOT_SUBSCRIBED,
-            `Paket langganan Anda belum mencakup modul "${routeRule.module}"`,
+            `The subscribed plan does not include the "${routeRule.module}" module`,
             ctx.correlationId,
           );
         }
@@ -319,7 +321,7 @@ function build(
         return fail(
           403,
           ErrorCode.PERMISSION_DENIED,
-          'Anda tidak memiliki hak akses untuk tindakan ini',
+          'You do not have permission for this action',
           ctx.correlationId,
         );
       }
@@ -368,7 +370,7 @@ function build(
       return fail(
         403,
         ErrorCode.TENANT_MISMATCH,
-        'Header X-Tenant-ID tidak cocok dengan sesi',
+        'X-Tenant-ID header does not match the session',
         ctx.correlationId,
       );
     }
@@ -396,8 +398,8 @@ function build(
       const response = fail(
         429,
         ErrorCode.RATE_LIMITED,
-        `Permintaan dari organisasi Anda melebihi ${TENANT_QUOTA_MAX} per menit. ` +
-        'Coba lagi sebentar lagi.',
+        `Requests from this tenant exceed ${TENANT_QUOTA_MAX} per minute. ` +
+        'Try again shortly.',
         ctx.correlationId,
       );
       response.headers.set('retry-after', String(quota.resetSeconds));
@@ -527,7 +529,7 @@ function build(
       return fail(
         500,
         ErrorCode.INTERNAL,
-        'Terjadi kesalahan pada sistem',
+        'Internal error',
         ctx.correlationId,
       );
     }

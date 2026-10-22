@@ -34,19 +34,19 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 
 const KEY_HINT =
-  'Bangkitkan dengan: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"';
+  'Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"';
 
 export function parseKey(raw: string, name: string): Buffer {
   const key = Buffer.from(raw.trim(), 'base64');
   if (key.length !== 32) {
-    throw new Error(`${name} harus 32 byte dalam base64 (saat ini ${key.length} byte).`);
+    throw new Error(`${name} must be 32 bytes in base64 (got ${key.length} bytes).`);
   }
   return key;
 }
 
 export function keyFrom(name: string): Buffer {
   const raw = process.env[name];
-  if (!raw) throw new Error(`${name} belum dipasang. ${KEY_HINT}`);
+  if (!raw) throw new Error(`${name} is not set. ${KEY_HINT}`);
   return parseKey(raw, name);
 }
 
@@ -80,9 +80,9 @@ export function isSealed(value: string): boolean {
 export class UndecryptableError extends Error {
   constructor(readonly keysTried: number) {
     super(
-      `Data terenkripsi tidak dapat dibaca oleh ${keysTried} kunci yang terpasang. ` +
-        'Kemungkinan kunci lama dicabut sebelum rotasi selesai, ' +
-        'atau baris ini berasal dari basis data lain.',
+      `Encrypted data is unreadable with the ${keysTried} configured key(s). ` +
+        'Most likely an old key was removed before rotation finished, ' +
+        'or this row comes from another database.',
     );
     this.name = 'UndecryptableError';
   }
@@ -91,7 +91,7 @@ export class UndecryptableError extends Error {
 export function open(encoded: string, primaryName: string, oldName: string): string {
   const [version, ivPart, tagPart, dataPart] = encoded.split('.');
   if (version !== 'v1' || !ivPart || !tagPart || !dataPart) {
-    throw new Error('Format data terenkripsi tidak dikenal');
+    throw new Error('Unknown encrypted data format');
   }
 
   const iv = Buffer.from(ivPart, 'base64url');

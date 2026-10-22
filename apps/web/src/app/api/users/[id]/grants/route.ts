@@ -37,7 +37,7 @@ export const PUT = defineRoute('PUT /api/users/[id]/grants', async (req, ctx) =>
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Data hak akses tidak sah. Alasan wajib diisi minimal 8 karakter.',
+      'Invalid grant. A reason of at least 8 characters is required.',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -45,7 +45,7 @@ export const PUT = defineRoute('PUT /api/users/[id]/grants', async (req, ctx) =>
 
   const userId = ctx.params['id'];
   if (!userId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Id pengguna tidak ada', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Missing user id', ctx.correlationId);
   }
 
   try {
@@ -72,7 +72,7 @@ export const DELETE = defineRoute('DELETE /api/users/[id]/grants', async (req, c
   const parsed = deleteSchema.safeParse(await req.json().catch(() => null));
   const userId = ctx.params['id'];
   if (!parsed.success || !userId) {
-    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Data tidak sah', ctx.correlationId);
+    return apiError(400, ErrorCode.VALIDATION_FAILED, 'Invalid data', ctx.correlationId);
   }
 
   try {

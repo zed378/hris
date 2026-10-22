@@ -5,6 +5,7 @@ import {
   passwordSchema,
   tenantCodeSchema,
   emailSchema,
+  ErrorReason,
 } from '@hrms/contracts';
 import { ROUTE_MANIFEST, type RouteId, type RouteRule } from './route-manifest.ts';
 
@@ -77,10 +78,10 @@ const okResponse = z.object({ ok: z.boolean() });
  */
 export const DOCS: Partial<Record<RouteId, EndpointDoc>> = {
   'POST /api/tenants/register': {
-    summary: 'Mendaftarkan tenant baru beserta pemilik pertamanya',
+    summary: 'Registers a new tenant with its first owner',
     description:
-      'Satu-satunya jalur yang membuat tenant. Dibatasi laju ketat: pendaftaran ' +
-      'tanpa batas adalah cara termurah membanjiri basis data dengan tenant palsu.',
+      'The only path that creates a tenant. Tightly rate-limited: unlimited ' +
+      'registration is the cheapest way to flood the database with fake tenants.',
     request: z.object({
       tenantCode: tenantCodeSchema,
       tenantName: z.string(),
@@ -90,70 +91,71 @@ export const DOCS: Partial<Record<RouteId, EndpointDoc>> = {
     }),
   },
   'POST /api/auth/login': {
-    summary: 'Menukar kredensial dengan access token',
+    summary: 'Exchanges credentials for an access token',
     description:
-      'Refresh token TIDAK ikut di badan balasan. Ia hanya hidup sebagai cookie ' +
-      'httpOnly, sehingga JavaScript halaman tidak pernah memegangnya dan karena ' +
-      'itu tidak dapat menyimpannya ke tempat yang bertahan (docs/PLAN/11 §5.3).',
+      'The refresh token is NOT in the response body. It lives only in an ' +
+      'httpOnly cookie, so page JavaScript never holds it and cannot persist it ' +
+      '(docs/PLAN/11 §5.3). Every failure is one INVALID_CREDENTIALS with no reason.',
     request: loginRequestSchema,
     response: tokenResponse,
   },
   'POST /api/auth/refresh': {
-    summary: 'Memperbarui access token memakai cookie refresh',
+    summary: 'Renews the access token using the refresh cookie',
     description:
-      'Refresh token dirotasi pada setiap pemakaian. Token yang sudah digantikan ' +
-      'lalu dipakai lagi adalah indikasi pencurian, dan dijawab TOKEN_REUSE_DETECTED.',
+      'The refresh token rotates on every use. A token that was already replaced ' +
+      'and is used again indicates theft, and is answered TOKEN_REUSE_DETECTED.',
     request: refreshRequestSchema.partial(),
     response: tokenResponse,
   },
-  'POST /api/auth/logout': { summary: 'Mengakhiri sesi dan menghapus cookie refresh' },
+  'POST /api/auth/logout': { summary: 'Ends the session and clears the refresh cookie' },
   'POST /api/auth/password/forgot': {
-    summary: 'Meminta tautan atur ulang kata sandi',
+    summary: 'Requests a password reset link',
     description:
-      'Selalu 204, termasuk untuk alamat yang tidak terdaftar. Balasan yang ' +
-      'membedakan keduanya mengubah endpoint ini menjadi alat pencacah alamat ' +
-      'surel karyawan sebuah perusahaan.',
+      'Always 204, including for an address that is not registered. A reply ' +
+      'telling the two apart turns this endpoint into a tool for enumerating a ' +
+      'company\'s employee email addresses.',
     request: z.object({ tenantCode: tenantCodeSchema, email: emailSchema }),
   },
   'POST /api/auth/password/reset': {
-    summary: 'Menetapkan kata sandi baru dengan token dari surel',
+    summary: 'Sets a new password with the token from the email',
+    description: 'An invalid, expired, or used token is TOKEN_INVALID with reason ACTION_TOKEN_INVALID.',
     request: z.object({ token: z.string(), newPassword: passwordSchema }),
   },
   'POST /api/auth/invitation/accept': {
-    summary: 'Menerima undangan dan menetapkan kata sandi pertama',
+    summary: 'Accepts an invitation and sets the first password',
+    description: 'An invalid, expired, or used token is TOKEN_INVALID with reason ACTION_TOKEN_INVALID.',
     request: z.object({ token: z.string(), password: passwordSchema }),
   },
-  'GET /api/health': { summary: 'Liveness — apakah proses ini hidup' },
+  'GET /api/health': { summary: 'Liveness — whether this process is alive' },
   'GET /api/ready': {
-    summary: 'Readiness — apakah instance ini layak menerima lalu lintas',
+    summary: 'Readiness — whether this instance should receive traffic',
     description:
-      'Berbeda tujuan dari /api/health. Readiness memutuskan apakah lalu lintas ' +
-      'DIALIRKAN ke sini; liveness memutuskan apakah prosesnya DIBUNUH.',
+      'A different purpose from /api/health. Readiness decides whether traffic is ' +
+      'ROUTED here; liveness decides whether the process is KILLED.',
   },
   'GET /api/metrics': {
-    summary: 'Metrik Prometheus',
+    summary: 'Prometheus metrics',
     description:
-      'Menjawab 404 kecuali METRICS_TOKEN dipasang, dan 404 juga untuk token ' +
-      'yang salah. Hanya metrik teknis — tidak ada pengenal tenant di mana pun.',
+      'Answers 404 unless METRICS_TOKEN is set, and 404 for a wrong token too. ' +
+      'Technical metrics only — no tenant identifier anywhere.',
   },
   'GET /api/.well-known/jwks.json': {
-    summary: 'Kunci publik untuk memverifikasi access token',
+    summary: 'Public keys for verifying access tokens',
     description:
-      'Publik menurut definisinya. Kunci publik memungkinkan verifikasi tanda ' +
-      'tangan tanpa kemampuan membuatnya (docs/PLAN/14 §6).',
+      'Public by definition. A public key allows verifying a signature without ' +
+      'the ability to create one (docs/PLAN/14 §6).',
   },
   'GET /api/openapi.json': {
-    summary: 'Dokumen OpenAPI ini sendiri',
-    description: 'Membutuhkan izin core.settings.manage.',
+    summary: 'This OpenAPI document',
+    description: 'Requires core.settings.manage.',
   },
-  'GET /api/dashboard': { summary: 'Ringkasan dasbor, dicakup oleh izin pemanggil' },
+  'GET /api/dashboard': { summary: 'Dashboard summary, scoped by the caller\'s permissions' },
   'GET /api/dashboard/trends': {
-    summary: 'Tren bulanan enam bulan terakhir',
-    query: [{ name: 'months', description: 'Jumlah bulan, 1–24. Default 6.' }],
+    summary: 'Monthly trends over the last six months',
+    query: [{ name: 'months', description: 'Number of months, 1–24. Default 6.' }],
   },
 
-  // --- Added by P6-18.2 (2026-10-22). English per ADR-030; the entries above
-  // move to English in P6-24. Each summary was written from the handler, not the path.
+  // Each summary was written from the handler, not the path (P6-18.2).
   'GET /api/users': { summary: 'Lists the tenant\'s users with their roles and last login' },
   'POST /api/users': {
     summary: 'Invites a user by email; they set their own password',
@@ -356,6 +358,8 @@ const errorSchema = z.object({
     code: z.string(),
     message: z.string(),
     correlationId: z.string().uuid(),
+    /** Refines `code` where users must be told refusals apart (ADR-037). */
+    reason: z.enum(Object.values(ErrorReason) as [ErrorReason, ...ErrorReason[]]).optional(),
     details: z.record(z.string(), z.array(z.string())).optional(),
   }),
 });
@@ -401,29 +405,29 @@ function parseRouteId(routeId: string): { method: string; path: string; params: 
 function gatewayResponses(rule: RouteRule): Record<string, unknown> {
   if (rule.public) {
     return {
-      '400': { description: 'Permintaan tidak sah', ...jsonBody(errorSchema) },
-      '429': { description: 'Melebihi batas laju', ...jsonBody(errorSchema) },
+      '400': { description: 'Invalid request', ...jsonBody(errorSchema) },
+      '429': { description: 'Rate limit exceeded', ...jsonBody(errorSchema) },
     };
   }
 
   return {
     '401': {
       description:
-        'Token tidak ada, tidak sah, kedaluwarsa (TOKEN_EXPIRED), atau basi ' +
-        'karena hak akses berubah (TOKEN_STALE). Klien menyegarkan lalu mengulang.',
+        'Token missing, invalid, expired (TOKEN_EXPIRED), or stale because access ' +
+        'changed (TOKEN_STALE). The client refreshes and retries.',
       ...jsonBody(errorSchema),
     },
     '402': {
-      description: `Tenant tidak berlangganan modul "${rule.module}" (P8).`,
+      description: `The tenant does not subscribe to the "${rule.module}" module (P8).`,
       ...jsonBody(errorSchema),
     },
     '403': {
       description: rule.permission
-        ? `Tidak memegang izin ${rule.permission} (P9).`
-        : 'Header X-Tenant-ID tidak cocok dengan sesi.',
+        ? `The caller does not hold ${rule.permission} (P9).`
+        : 'X-Tenant-ID header does not match the session.',
       ...jsonBody(errorSchema),
     },
-    '429': { description: 'Melebihi kuota tenant', ...jsonBody(errorSchema) },
+    '429': { description: 'Tenant quota exceeded', ...jsonBody(errorSchema) },
   };
 }
 
@@ -454,10 +458,10 @@ export function buildOpenApiDocument({
       description: [
         doc?.description,
         rule.public
-          ? '**Tanpa autentikasi.**'
-          : `**Izin:** ${rule.permission ?? 'cukup terautentikasi'}`,
+          ? '**No authentication.**'
+          : `**Permission:** ${rule.permission ?? 'any authenticated user'}`,
         rule.rateLimit
-          ? `**Batas laju:** ${rule.rateLimit.max} per ${rule.rateLimit.windowSeconds} detik, per alamat.`
+          ? `**Rate limit:** ${rule.rateLimit.max} per ${rule.rateLimit.windowSeconds} seconds, per address.`
           : undefined,
       ]
         .filter(Boolean)
@@ -465,8 +469,8 @@ export function buildOpenApiDocument({
       security: rule.public ? [] : [{ bearerAuth: [] }],
       responses: {
         [method === 'post' ? '201' : '200']: doc?.response
-          ? { description: 'Berhasil', ...jsonBody(doc.response) }
-          : { description: 'Berhasil' },
+          ? { description: 'Success', ...jsonBody(doc.response) }
+          : { description: 'Success' },
         ...gatewayResponses(rule),
       },
     };
@@ -501,15 +505,18 @@ export function buildOpenApiDocument({
       version,
       description:
         plane === 'tenant'
-          ? 'API bidang tenant. Setiap permintaan terikat pada satu tenant lewat klaim ' +
-            '`tid` di dalam token; header X-Tenant-ID boleh dikirim tetapi hanya ' +
-            'MENGONFIRMASI, tidak pernah menjadi sumbernya.\n\n' +
-            'Dokumen ini digenerate dari ROUTE_MANIFEST dan skema Zod yang ' +
-            'benar-benar dipakai server, bukan ditulis terpisah.'
-          : 'API control plane. Audience token berbeda (`hrms-admin`) dan tidak ' +
-            'pernah diterima gateway tenant (P11).',
+          ? 'The tenant-plane API. Every request is bound to one tenant through the ' +
+            '`tid` claim in the token; an X-Tenant-ID header may be sent but only ' +
+            'CONFIRMS it, never sources it.\n\n' +
+            'Errors carry a stable `code` and, where one code covers several ' +
+            'refusals, a `reason` (ADR-037). `message` is English for developers ' +
+            'and is never shown to users.\n\n' +
+            'Generated from ROUTE_MANIFEST and the Zod schemas the server ' +
+            'actually uses, not written separately.'
+          : 'The control-plane API. A different token audience (`hrms-admin`), never ' +
+            'accepted by the tenant gateway (P11).',
     },
-    servers: [{ url: '/', description: 'Origin yang sama dengan aplikasi' }],
+    servers: [{ url: '/', description: 'Same origin as the application' }],
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -518,8 +525,8 @@ export function buildOpenApiDocument({
           bearerFormat: 'JWT',
           description:
             plane === 'tenant'
-              ? 'Access token dari POST /api/auth/login. Berumur 15 menit.'
-              : 'Access token dari POST /admin/api/auth/login. Wajib TOTP.',
+              ? 'Access token from POST /api/auth/login. Lives 15 minutes.'
+              : 'Access token from POST /admin/api/auth/login. TOTP required.',
         },
       },
       schemas: { Error: jsonSchema(errorSchema) },

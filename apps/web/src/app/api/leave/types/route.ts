@@ -52,7 +52,7 @@ export const POST = defineRoute('POST /api/leave/types', async (req, ctx) => {
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Jenis cuti tidak lengkap.',
+      'Incomplete leave type.',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );

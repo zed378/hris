@@ -31,7 +31,7 @@ class ConsoleTransport implements EmailTransport {
     console.log(
       [
         '',
-        '┌─ EMAIL (tidak dikirim — transport: console) ─────────────────',
+        '┌─ EMAIL (not sent — transport: console) ─────────────────────',
         `│ Kepada : ${message.to}`,
         `│ Subjek : ${message.subject}`,
         '├──────────────────────────────────────────────────────────────',

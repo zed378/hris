@@ -82,7 +82,7 @@ function isSensitiveKey(key: string): boolean {
 }
 
 export function redact(value: unknown, depth = 0): unknown {
-  if (depth > MAX_DEPTH) return '[terlalu dalam]';
+  if (depth > MAX_DEPTH) return '[too deep]';
 
   if (typeof value === 'string') {
     return value.length > MAX_STRING ? `${value.slice(0, MAX_STRING)}…[dipotong]` : value;

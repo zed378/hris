@@ -782,6 +782,31 @@ Numbers are sequential and permanent. A superseded ADR stays, with its status up
 
 ---
 
+## ADR-040 — Generated documents stay Indonesian
+
+| | |
+|---|---|
+| **Date** | 2026-10-22 |
+| **Status** | Accepted — extends ADR-034's reasoning; open to the user's review |
+| **Task** | P6-24 |
+| **Deciders** | Agent |
+| **Reconstructed** | No |
+
+**Context** — ADR-030 makes the backend English, and ADR-034 exempts emails and push because people read them outside the frontend. The backend also produces other things people read outside the frontend:
+- spreadsheets: exports, the import template, recaps;
+- the column names the importers recognise;
+- the calculation trace printed on a payslip;
+- ledger notes in a balance history;
+- identifiers stored in data (`CUTI-`, `GAJI`, consent version keys).
+
+**Decision** — these stay Indonesian. Each such literal is marked where it stands with `// lang: id — <reason>`, or a `lang: id-begin` … `id-end` block, so the language guard can tell content from a leftover. Stored identifiers never change: rewriting them would orphan existing rows.
+
+**Alternatives considered** — English spreadsheets: rejected, since HR prints and files them, and the import template must match what HR types. Moving all such text to the frontend: rejected, because a spreadsheet is produced server-side.
+
+**Consequences** — the guard's exemptions are visible in the code, one reason per line.
+
+---
+
 ## Decisions Pending
 
 Each moves into the log when decided. The open question holds the detail and a recommendation. Answered on 2026-09-14: `OQ-01` → ADR-030, `OQ-11` → ADR-031, `OQ-03` → ADR-032 (making `OQ-04` and `OQ-10` unnecessary), `OQ-05` → ADR-033, `OQ-15` → ADR-034.

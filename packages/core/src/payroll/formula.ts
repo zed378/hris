@@ -61,7 +61,7 @@ const OPERATORS = new Set(['+', '-', '*', '/', '%', '<', '>', '=', '!', '&', '|'
 function tokenize(source: string): Token[] {
   if (source.length > MAX_LENGTH) {
     throw new FormulaError(
-      `Formula terlalu panjang: ${source.length} karakter, batasnya ${MAX_LENGTH}.`,
+      `Formula too long: ${source.length} characters, the limit is ${MAX_LENGTH}.`,
       'syntax',
     );
   }
@@ -87,7 +87,7 @@ function tokenize(source: string): Token[] {
       // would propagate NaN all the way to the payslip.
       if ((text.match(/\./g) ?? []).length > 1) {
         throw new FormulaError(
-          `Angka "${text}" tidak sah. Jangan pakai titik sebagai pemisah ribuan.`,
+          `Invalid number "${text}". Do not use a dot as a thousands separator.`,
           'syntax',
           i,
         );
@@ -135,7 +135,7 @@ function tokenize(source: string): Token[] {
       continue;
     }
 
-    throw new FormulaError(`Karakter "${char}" tidak dikenali dalam formula.`, 'syntax', i);
+    throw new FormulaError(`Unrecognised character "${char}" in the formula.`, 'syntax', i);
   }
 
   tokens.push({ type: 'end', value: '', position: source.length });
@@ -203,7 +203,7 @@ function parse(tokens: Token[]): Node {
       depth += 1;
       if (depth > MAX_DEPTH) {
         throw new FormulaError(
-          `Tanda kurung bersarang terlalu dalam (batas ${MAX_DEPTH}).`,
+          `Parentheses nested too deeply (limit ${MAX_DEPTH}).`,
           'syntax',
           token.position,
         );
@@ -211,7 +211,7 @@ function parse(tokens: Token[]): Node {
       const inner = parseExpression(0);
       const closing = next();
       if (closing.type !== 'rparen') {
-        throw new FormulaError('Tanda kurung tutup tidak ditemukan.', 'syntax', closing.position);
+        throw new FormulaError('Closing parenthesis not found.', 'syntax', closing.position);
       }
       depth -= 1;
       return inner;
@@ -236,7 +236,7 @@ function parse(tokens: Token[]): Node {
         const closing = next();
         if (closing.type !== 'rparen') {
           throw new FormulaError(
-            `Pemanggilan fungsi ${token.value}(…) tidak ditutup.`,
+            `The call to ${token.value}(…) is not closed.`,
             'syntax',
             closing.position,
           );
@@ -249,8 +249,8 @@ function parse(tokens: Token[]): Node {
 
     throw new FormulaError(
       token.type === 'end'
-        ? 'Formula berakhir lebih awal dari yang diharapkan.'
-        : `Tidak mengharapkan "${token.value}" di posisi ini.`,
+        ? 'The formula ends earlier than expected.'
+        : `Did not expect "${token.value}" here.`,
       'syntax',
       token.position,
     );
@@ -280,7 +280,7 @@ function parse(tokens: Token[]): Node {
   const trailing = peek();
   if (trailing.type !== 'end') {
     throw new FormulaError(
-      `Ada sisa yang tidak dapat dibaca setelah formula: "${trailing.value}".`,
+      `Unreadable text after the formula: "${trailing.value}".`,
       'syntax',
       trailing.position,
     );
@@ -396,7 +396,7 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
         // An ERROR, not zero. The reason is at the head of this file.
         const known = Object.keys(scope).sort().join(', ');
         throw new FormulaError(
-          `Variabel "${node.name}" tidak dikenal. Yang tersedia: ${known || '(tidak ada)'}.`,
+          `Unknown variable "${node.name}". Available: ${known || '(none)'}.`,
           'unknown_identifier',
           node.position,
         );
@@ -404,7 +404,7 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
       const value = scope[node.name]!;
       if (typeof value !== 'number' && !(value instanceof Prisma.Decimal)) {
         throw new FormulaError(
-          `Variabel "${node.name}" bukan angka.`,
+          `Variable "${node.name}" is not a number.`,
           'unknown_identifier',
           node.position,
         );
@@ -430,7 +430,7 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
         case '/':
           if (right.isZero()) {
             throw new FormulaError(
-              'Pembagian dengan nol. Periksa pembagi pada formula ini.',
+              'Division by zero. Check the divisor in this formula.',
               'math',
               node.position,
             );
@@ -438,7 +438,7 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
           return left.dividedBy(right);
         case '%':
           if (right.isZero()) {
-            throw new FormulaError('Sisa bagi dengan nol.', 'math', node.position);
+            throw new FormulaError('Modulo by zero.', 'math', node.position);
           }
           return left.modulo(right);
         case '<':
@@ -458,7 +458,7 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
         case '||':
           return bool(!left.isZero() || !right.isZero());
         default:
-          throw new FormulaError(`Operator "${node.operator}" tidak didukung.`, 'syntax');
+          throw new FormulaError(`Unsupported operator "${node.operator}".`, 'syntax');
       }
     }
 
@@ -467,7 +467,7 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
       if (node.name === 'if') {
         if (node.args.length !== IF_ARITY) {
           throw new FormulaError(
-            `Fungsi if membutuhkan ${IF_ARITY} argumen, diberikan ${node.args.length}.`,
+            `Function if needs ${IF_ARITY} arguments, got ${node.args.length}.`,
             'arity',
             node.position,
           );
@@ -479,7 +479,7 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
       const spec = FUNCTIONS[node.name];
       if (!spec) {
         throw new FormulaError(
-          `Fungsi "${node.name}" tidak tersedia. Yang ada: ${AVAILABLE_FUNCTIONS.join(', ')}.`,
+          `Function "${node.name}" is not available. Available: ${AVAILABLE_FUNCTIONS.join(', ')}.`,
           'unknown_function',
           node.position,
         );
@@ -488,14 +488,14 @@ function evaluate(node: Node, scope: FormulaScope): Prisma.Decimal {
       if (spec.arity === 'variadic') {
         if (node.args.length === 0) {
           throw new FormulaError(
-            `Fungsi ${node.name} membutuhkan sekurangnya satu argumen.`,
+            `Function ${node.name} needs at least one argument.`,
             'arity',
             node.position,
           );
         }
       } else if (node.args.length !== spec.arity) {
         throw new FormulaError(
-          `Fungsi ${node.name} membutuhkan ${spec.arity} argumen, diberikan ${node.args.length}.`,
+          `Function ${node.name} needs ${spec.arity} arguments, got ${node.args.length}.`,
           'arity',
           node.position,
         );
@@ -547,7 +547,7 @@ export function checkFormula(expression: string, availableVariables: string[]): 
       variables: [],
       functions: [],
       error: {
-        message: error instanceof Error ? error.message : 'Formula tidak dapat dibaca.',
+        message: error instanceof Error ? error.message : 'The formula cannot be read.',
         position: error instanceof FormulaError ? error.position : undefined,
       },
     };
@@ -583,7 +583,7 @@ export function checkFormula(expression: string, availableVariables: string[]): 
       variables: [...variables],
       functions: [...functions],
       error: {
-        message: `Variabel "${unknownVariable}" tidak tersedia. Yang dapat dipakai: ${availableVariables.sort().join(', ')}.`,
+        message: `Variable "${unknownVariable}" is not available. Usable: ${availableVariables.sort().join(', ')}.`,
       },
     };
   }
@@ -597,7 +597,7 @@ export function checkFormula(expression: string, availableVariables: string[]): 
       variables: [...variables],
       functions: [...functions],
       error: {
-        message: `Fungsi "${unknownFunction}" tidak tersedia. Yang ada: ${AVAILABLE_FUNCTIONS.join(', ')}.`,
+        message: `Function "${unknownFunction}" is not available. Available: ${AVAILABLE_FUNCTIONS.join(', ')}.`,
       },
     };
   }

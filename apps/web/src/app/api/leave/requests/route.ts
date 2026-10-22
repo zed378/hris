@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ErrorCode } from '@hrms/contracts';
+import { ErrorCode, ErrorReason } from '@hrms/contracts';
 import { submitRequest, listRequests, LeaveError } from '@hrms/core/leave';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
 import { leaveErrorResponse } from '@/lib/leave-error.ts';
@@ -49,8 +49,10 @@ export const GET = defineRoute('GET /api/leave/requests', async (req, ctx) => {
     return apiError(
       404,
       ErrorCode.NOT_FOUND,
-      'Akun Anda belum terhubung ke data karyawan. Hubungi admin HR.',
+      'This account is not linked to an employee record',
       ctx.correlationId,
+      undefined,
+      ErrorReason.ACCOUNT_NOT_LINKED,
     );
   }
 
@@ -82,7 +84,7 @@ export const POST = defineRoute('POST /api/leave/requests', async (req, ctx) => 
     return apiError(
       400,
       ErrorCode.VALIDATION_FAILED,
-      'Pengajuan cuti tidak lengkap. Jenis, tanggal, alasan, dan penyetuju wajib diisi.',
+      'Incomplete leave request. Type, dates, reason, and approver are required.',
       ctx.correlationId,
       parsed.error.flatten().fieldErrors as Record<string, string[]>,
     );
@@ -96,8 +98,10 @@ export const POST = defineRoute('POST /api/leave/requests', async (req, ctx) => 
     return apiError(
       404,
       ErrorCode.NOT_FOUND,
-      'Akun Anda belum terhubung ke data karyawan. Hubungi admin HR.',
+      'This account is not linked to an employee record',
       ctx.correlationId,
+      undefined,
+      ErrorReason.ACCOUNT_NOT_LINKED,
     );
   }
 

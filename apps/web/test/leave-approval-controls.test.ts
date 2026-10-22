@@ -70,7 +70,7 @@ async function call(
   as: Person,
   body: unknown,
   params: Record<string, string> = {},
-): Promise<{ status: number; body: { id?: string; status?: string; error?: { code: string } } }> {
+): Promise<{ status: number; body: { id?: string; status?: string; error?: { code: string; reason?: string } } }> {
   const response = await handler(
     new Request('http://localhost/api/leave/requests', {
       method: 'POST',
@@ -184,6 +184,7 @@ describe('self-approval is refused without exception (§5(b))', () => {
     const res = await call(decide, p, { approve: true, comment: 'approving my own' }, { id });
 
     expect(res.status).toBe(403);
+    expect(res.body.error?.reason).toBe('LEAVE_SELF_APPROVAL');
     expect(await balanceOf(p)).toEqual(before);
     expect(await decisionAudits(id)).toBe(0);
     const row = await owner.leaveRequest.findUniqueOrThrow({ where: { id }, select: { status: true } });
@@ -204,6 +205,7 @@ describe('the approver must hold the approval permission (§5(c))', () => {
     const res = await request(MANAGER, STAFF);
 
     expect(res.status).toBe(409);
+    expect(res.body.error?.reason).toBe('LEAVE_APPROVER_NOT_ELIGIBLE');
     expect(await owner.leaveRequest.count({ where: { tenantId: TENANT } })).toBe(0);
   });
 });

@@ -10,6 +10,17 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — P6-24: English backend, refusal reasons, Indonesian emails
+
+**Changed** — ([spec](./specs/P6-24-english-backend-reasons.md), ADR-037, ADR-040)
+- About 300 backend string literals translated to English: API errors, validation messages, logs, and worker output. Content people read stays Indonesian and is marked in place (`// lang: id`): spreadsheets, the import template, payslip traces, ledger notes, and stored identifiers (ADR-040).
+- `error.reason` (`ErrorReason` in `packages/contracts`) on every refusal in the `docs/UI-UX/04` flows, with parameters in `details`; listed in `docs/PLAN/15` §6 and documented in the OpenAPI error schema.
+- Emails and the leave push are Indonesian again (ADR-034); `notification-language.test.ts` and `leave-push-language.test.ts` pin them.
+- `backend-english.test.ts` guards the language using the TypeScript parser.
+- The audit API returns `actor.kind` instead of made-up display names.
+
+**Known gap** — until `PF-20` maps codes and reasons, pages that render a server message show English.
+
 ### 2026-10-22 — PS-08: HS256 removed
 
 **Security** — ([spec](./specs/PS-08-end-hs256.md), ADR-038)
