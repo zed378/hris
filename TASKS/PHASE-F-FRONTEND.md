@@ -315,6 +315,7 @@ The pages and components are listed in `docs/UI-UX/07-PAGE-INVENTORY.md` and `06
 3. Field-level validation text generated from Zod issue codes and bounds (`too_small`, `minimum: 12` → "Minimal 12 karakter"), shared with `PF-09`.
 4. Translate the frontend's own English strings back to Indonesian: `apps/web/src/lib/push.ts` results, the `session.tsx` fallback, and any other found by the test in the DoD.
 5. Keep `error.message` available to developers: logged to the browser console in development builds only.
+6. `PERMISSION_CEILING` (P6-13, ADR-035) — the roles and special-access screens: "Anda tidak dapat memberikan izin yang tidak Anda miliki" with the codes from `details.permissions`, or, for `details.role = ["TENANT_OWNER"]`, that only the account owner can change the owner's access.
 
 **Definition of Done**
 - A test fails if any page or component renders `.message` from an `ApiError` or a response body; seen to fail against the current code.

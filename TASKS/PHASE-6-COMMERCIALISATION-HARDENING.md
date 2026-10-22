@@ -106,7 +106,7 @@
 
 | | |
 |---|---|
-| **Status** | TODO |
+| **Status** | DONE — 2026-10-22 ([record](../MEMORY/records/2026-10-22-permission-ceiling.md), ADR-035) |
 | **Priority** | P1 |
 | **Depends on** | — |
 | **Plan refs** | `docs/SECURITY/02` §5(a), `docs/PLAN/05`, risk F12 |

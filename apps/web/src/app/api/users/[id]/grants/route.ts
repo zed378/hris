@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ErrorCode } from '@hrms/contracts';
 import { setUserGrant, removeUserGrant, IamError } from '@hrms/core/iam';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { iamErrorResponse } from '@/lib/iam-error.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,9 +63,7 @@ export const PUT = defineRoute('PUT /api/users/[id]/grants', async (req, ctx) =>
       ),
     );
   } catch (error) {
-    if (error instanceof IamError) {
-      return apiError(404, ErrorCode.NOT_FOUND, error.message, ctx.correlationId);
-    }
+    if (error instanceof IamError) return iamErrorResponse(error, ctx.correlationId);
     throw error;
   }
 });
@@ -91,9 +90,7 @@ export const DELETE = defineRoute('DELETE /api/users/[id]/grants', async (req, c
       ),
     );
   } catch (error) {
-    if (error instanceof IamError) {
-      return apiError(404, ErrorCode.NOT_FOUND, error.message, ctx.correlationId);
-    }
+    if (error instanceof IamError) return iamErrorResponse(error, ctx.correlationId);
     throw error;
   }
 });

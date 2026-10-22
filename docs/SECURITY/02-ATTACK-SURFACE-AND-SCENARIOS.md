@@ -86,10 +86,10 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | Scenario | (a) A user holding `iam.role.manage` adds `payroll.run.execute` to their own role, or a holder of `iam.grant.manage` grants it to themselves directly. (b) A manager approves their own leave. (c) A requester nominates an approver who does not hold the approval permission. (d) A DENY grant is ignored because a role grants the same permission |
 | Impact | Access beyond intent; fraudulent leave or pay |
 | Likelihood | Medium |
-| Mitigation | (b) self-approval refused without exception, including for HR administrators. (c) the approver must actually hold the permission. (d) DENY beats roles in `resolveEffectiveAccess`. Every role and grant change bumps the access version |
+| Mitigation | (a) a permission ceiling (ADR-035, `packages/core/src/iam/ceiling.ts`): nobody but a `TENANT_OWNER` holder confers a permission they do not hold — role additions, GRANTs, lifting a DENY, invitations into a role — or changes the owner role or an owner's grants; refused `403 PERMISSION_CEILING`. (b) self-approval refused without exception, including for HR administrators. (c) the approver must actually hold the permission. (d) DENY beats roles in `resolveEffectiveAccess`. Every role and grant change bumps the access version |
 | Detection | Audit rows on role, grant, and approval changes. No alert on them |
 | Response | Revoke; review the audit trail for everything the escalated access touched |
-| Status | (c)(d) **Mitigated** (`leave-approver.test.ts`, `gateway.test.ts` DENY precedence). (b) **Mitigated** in code — no automated test of self-approval refusal. (a) **Partial** — audited (`iam.role.permissions_changed`) and the access version bumps, but there is no ceiling: a role or grant administrator can confer any permission, including on themselves; no "cannot grant what you do not hold" rule exists. By default only `TENANT_OWNER` (who already holds every permission) has `iam.role.manage` and `iam.grant.manage`, so the gap opens when a tenant delegates role management to a custom role |
+| Status | (c)(d) **Mitigated** (`leave-approver.test.ts`, `gateway.test.ts` DENY precedence). (b) **Mitigated** in code — no automated test of self-approval refusal. (a) **Mitigated** — 2026-10-22 (`P6-13`): `apps/web/test/permission-ceiling.test.ts` drives each abuse case, including the owner lockout, through the real route handlers |
 
 ## 6. Subscription Bypass
 
@@ -357,7 +357,7 @@ Status values: **Mitigated** (control exists and is tested) · **Partial** (cont
 | 2 | Authentication attacks | Partial — no MFA |
 | 3 | Tokens and sessions | Mitigated · HS256 still verifies |
 | **4** | **`X-Forwarded-For` spoofing** | **Open** |
-| 5 | Privilege escalation, self-approval | Partial — no permission ceiling; self-approval untested |
+| 5 | Privilege escalation, self-approval | Mitigated (ceiling) · Partial — self-approval untested |
 | 6 | Subscription bypass | Mitigated |
 | 7 | Attendance evidence fraud | Partial by design |
 | 8 | Personal data exposure | Mitigated · **unmask views not audited** |

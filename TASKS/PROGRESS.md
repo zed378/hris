@@ -2,8 +2,8 @@
 
 The single status board. Updated in the same commit as the work it describes (`00-TASK-CONVENTIONS.md` §4 item 12).
 
-**Last updated**: 2026-09-14 — `OQ-01`, `OQ-03`, `OQ-05`, `OQ-11`, `OQ-15` answered; `P6-24` and `PF-20` added
-**Overall**: 77 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 0 since
+**Last updated**: 2026-10-22 — `P6-13` DONE (permission ceiling; ADR-035)
+**Overall**: 78 / 152 tasks done — 77 of them delivered before this board existed (`DONE (retro)`), 1 since
 **Gates**: A untested · B untested · C not met · D not reached
 
 > **Read this first.** Phases 0–6 and service-split stages 1–7 were built between 2026-08-18 and 2026-09-01, before
@@ -194,7 +194,7 @@ In order. Each is unblocked today.
 | P6-10 | WhatsApp | L | P3 | BLOCKED | WhatsApp account |
 | P6-11 | Reference-licence credit | M | P3 | BLOCKED | `OQ-13` |
 | P6-12 | Browser security headers | M | **P0** | TODO | — |
-| P6-13 | Permission ceiling | M | P1 | TODO | — |
+| P6-13 | Permission ceiling | M | P1 | DONE | — |
 | P6-14 | Encrypt superuser TOTP; audit logins | M | P1 | TODO | — |
 | P6-15 | Constant-time internal secret | S | P2 | TODO | — |
 | P6-16 | First four alerts | M | P1 | BLOCKED | `OQ-06`, `OQ-09` |

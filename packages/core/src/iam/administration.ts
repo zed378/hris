@@ -1,6 +1,10 @@
 import { writeAudit, publishEvent, type TenantClient } from '@hrms/db';
 import { EventTopic } from '@hrms/contracts';
 import { bumpAccessVersion } from './resolve-access.ts';
+import { assertCanConfer } from './ceiling.ts';
+import { IamError } from './errors.ts';
+
+export { IamError };
 
 /**
  * Antarmuka administrasi peran, hak akses khusus, dan pengguna (docs/PLAN/05 §7).
@@ -14,16 +18,6 @@ import { bumpAccessVersion } from './resolve-access.ts';
  * itu paling mungkin terbuka justru pada saat seseorang sedang mencabut akses
  * dengan tergesa — yaitu saat ia paling tidak boleh terbuka (docs/PLAN/05 §5.3).
  */
-
-export class IamError extends Error {
-  constructor(
-    message: string,
-    readonly kind: 'not_found' | 'conflict' | 'forbidden',
-  ) {
-    super(message);
-    this.name = 'IamError';
-  }
-}
 
 export interface ActorContext {
   actorUserId: string;
@@ -96,12 +90,44 @@ export async function inviteUser(
   input: { email: string; fullName: string; roleCode: string },
   ctx: ActorContext,
 ): Promise<{ userId: string }> {
-  const role = await tx.role.findUnique({
-    where: { tenantId_code: { tenantId, code: input.roleCode } },
-    select: { id: true },
-  });
-  if (!role) throw new IamError(`Peran "${input.roleCode}" tidak ditemukan`, 'not_found');
+  const role = await findAssignableRole(tx, tenantId, input.roleCode, ctx.actorUserId);
+  return createInvitedUser(tx, tenantId, role.id, input, ctx);
+}
 
+/**
+ * The role an invitation would assign, once the permission ceiling allows it.
+ *
+ * Assigning a role confers every permission on it, so the whole role must be
+ * within what the actor holds (P6-13). Separate from `createInvitedUser` so the
+ * bulk invitation checks once per call rather than once per employee.
+ */
+export async function findAssignableRole(
+  tx: TenantClient,
+  tenantId: string,
+  roleCode: string,
+  actorUserId: string,
+): Promise<{ id: string }> {
+  const role = await tx.role.findUnique({
+    where: { tenantId_code: { tenantId, code: roleCode } },
+    select: { id: true, permissions: { select: { permissionCode: true } } },
+  });
+  if (!role) throw new IamError(`Peran "${roleCode}" tidak ditemukan`, 'not_found');
+
+  await assertCanConfer(tx, tenantId, actorUserId, {
+    permissions: role.permissions.map((p) => p.permissionCode),
+    roleCode,
+  });
+  return { id: role.id };
+}
+
+/** Creates the INVITED user. The caller has already passed `findAssignableRole`. */
+export async function createInvitedUser(
+  tx: TenantClient,
+  tenantId: string,
+  roleId: string,
+  input: { email: string; fullName: string; roleCode: string },
+  ctx: ActorContext,
+): Promise<{ userId: string }> {
   const existing = await tx.user.findUnique({
     where: { tenantId_email: { tenantId, email: input.email } },
     select: { id: true },
@@ -122,7 +148,7 @@ export async function inviteUser(
   });
 
   await tx.userRole.create({
-    data: { tenantId, userId: user.id, roleId: role.id, assignedBy: ctx.actorUserId },
+    data: { tenantId, userId: user.id, roleId, assignedBy: ctx.actorUserId },
   });
   await tx.accessVersion.create({ data: { tenantId, userId: user.id, version: 1 } });
 
@@ -208,6 +234,13 @@ export async function setRolePermissions(
 
   const before = role.permissions.map((p) => p.permissionCode).sort();
 
+  // Only additions are capped (P6-13): removals must always be possible, and a
+  // permission already on the role is not the actor's to answer for.
+  await assertCanConfer(tx, tenantId, ctx.actorUserId, {
+    permissions: requested.filter((code) => !before.includes(code)),
+    roleCode: role.code,
+  });
+
   await tx.rolePermission.deleteMany({ where: { roleId } });
   await tx.rolePermission.createMany({
     data: requested.map((permissionCode) => ({ tenantId, roleId, permissionCode })),
@@ -276,6 +309,14 @@ export async function setUserGrant(
   if (!user) throw new IamError('Pengguna tidak ditemukan', 'not_found');
   if (!permission) throw new IamError('Permission tidak dikenal', 'not_found');
 
+  // A DENY confers nothing, so only a GRANT is capped — but the owner check
+  // applies to both, since a DENY is exactly how a delegate would lock the
+  // owner out (P6-13).
+  await assertCanConfer(tx, tenantId, ctx.actorUserId, {
+    permissions: input.effect === 'GRANT' ? [input.permissionCode] : [],
+    targetUserId: input.userId,
+  });
+
   await tx.userPermissionGrant.upsert({
     where: {
       userId_permissionCode: { userId: input.userId, permissionCode: input.permissionCode },
@@ -325,6 +366,18 @@ export async function removeUserGrant(
   input: { userId: string; permissionCode: string },
   ctx: ActorContext,
 ): Promise<{ accessVersion: number }> {
+  const existing = await tx.userPermissionGrant.findFirst({
+    where: { tenantId, userId: input.userId, permissionCode: input.permissionCode },
+    select: { effect: true },
+  });
+  if (!existing) throw new IamError('Hak akses khusus tidak ditemukan', 'not_found');
+
+  // Lifting a DENY restores the permission, so it is capped like a GRANT (P6-13).
+  await assertCanConfer(tx, tenantId, ctx.actorUserId, {
+    permissions: existing.effect === 'DENY' ? [input.permissionCode] : [],
+    targetUserId: input.userId,
+  });
+
   const removed = await tx.userPermissionGrant.deleteMany({
     where: { tenantId, userId: input.userId, permissionCode: input.permissionCode },
   });

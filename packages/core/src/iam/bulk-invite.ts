@@ -1,5 +1,5 @@
 import { type TenantClient } from '@hrms/db';
-import { inviteUser, IamError, type ActorContext } from './administration.ts';
+import { findAssignableRole, createInvitedUser, type ActorContext } from './administration.ts';
 
 /**
  * Inviting employees to become users, in bulk.
@@ -58,11 +58,9 @@ export async function inviteEmployeesAsUsers(
   input: BulkInviteInput,
   ctx: ActorContext,
 ): Promise<BulkInviteResult> {
-  const role = await tx.role.findUnique({
-    where: { tenantId_code: { tenantId, code: input.roleCode } },
-    select: { id: true },
-  });
-  if (!role) throw new IamError(`Peran "${input.roleCode}" tidak ditemukan`, 'not_found');
+  // Checked once, before the loop: a refusal by the permission ceiling (P6-13)
+  // refuses the whole call rather than landing in `failed` once per employee.
+  const role = await findAssignableRole(tx, tenantId, input.roleCode, ctx.actorUserId);
 
   const employees = await tx.employee.findMany({
     where: {
@@ -115,9 +113,10 @@ export async function inviteEmployeesAsUsers(
     }
 
     try {
-      const { userId } = await inviteUser(
+      const { userId } = await createInvitedUser(
         tx,
         tenantId,
+        role.id,
         { email, fullName: employee.fullName, roleCode: input.roleCode },
         ctx,
       );

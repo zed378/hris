@@ -5,6 +5,7 @@ import { listUsers, inviteUser, IamError } from '@hrms/core/iam';
 import { issueActionToken } from '@hrms/core/auth';
 import { publishEvent } from '@hrms/db';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { iamErrorResponse } from '@/lib/iam-error.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,11 +78,7 @@ export const POST = defineRoute('POST /api/users', async (req, ctx) => {
 
     return NextResponse.json({ userId, status: 'INVITED' }, { status: 201 });
   } catch (error) {
-    if (error instanceof IamError) {
-      const status = error.kind === 'conflict' ? 409 : 404;
-      const code = error.kind === 'conflict' ? ErrorCode.CONFLICT : ErrorCode.NOT_FOUND;
-      return apiError(status, code, error.message, ctx.correlationId);
-    }
+    if (error instanceof IamError) return iamErrorResponse(error, ctx.correlationId);
     throw error;
   }
 });

@@ -215,7 +215,7 @@ Found while writing `docs/SECURITY/`. Each is a risk in `docs/PLAN/22` and a tas
 | F1 | `X-Forwarded-For` first entry trusted: office-network verification and per-address rate limits bypassable | `P3-12` | **P0** |
 | F5 | No CSP, HSTS, `X-Content-Type-Options`, frame-ancestors | `P6-12` | P0 |
 | F11 | Unmasked PII viewed in employee list/detail writes no audit row | `P2-08` | P0 |
-| F12 | No permission ceiling for role and grant administrators | `P6-13` | P1 |
+| F12 | ~~No permission ceiling for role and grant administrators~~ — closed 2026-10-22 (ADR-035) | `P6-13` | P1 |
 | F13 | Superuser TOTP secrets in plaintext; superuser logins not audited | `P6-14` | P1 |
 | — | Internal secret compared with `!==` | `P6-15` | P2 |
 | F2 | No CI: no dependency or secret scanning | `P0-09` | P0 |

@@ -31,6 +31,12 @@ export const ErrorCode = {
   MODULE_NOT_SUBSCRIBED: 'MODULE_NOT_SUBSCRIBED',
   /** Modul dilanggan, tetapi pengguna tidak memegang permission-nya. HTTP 403. */
   PERMISSION_DENIED: 'PERMISSION_DENIED',
+  /**
+   * The actor may administer access but tried to confer more than they hold, or
+   * to change the owner's access (P6-13). HTTP 403. `details.permissions` lists
+   * what they lack, or `details.role` is `["TENANT_OWNER"]`.
+   */
+  PERMISSION_CEILING: 'PERMISSION_CEILING',
 
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   NOT_FOUND: 'NOT_FOUND',

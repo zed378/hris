@@ -911,7 +911,7 @@ WHERE g.revoked_at IS NULL;
 
 | Risk | Mitigation |
 |------|------------|
-| **Privilege escalation** — an admin grants themselves a permission they do not hold | Validation in `grantMenuToUser`: only a holder of `iam.grant.any` may grant beyond their own permissions |
+| **Privilege escalation** — an admin grants themselves a permission they do not hold | **As built (ADR-035):** a permission ceiling in `packages/core/src/iam/ceiling.ts` — nobody but a `TENANT_OWNER` holder confers a permission they do not hold (role additions, GRANTs, lifting a DENY, invitations into a role), or changes the owner role or an owner's grants. There is no `iam.grant.any` permission: the owner role is the only exemption |
 | **Eternal grants** — temporary access that is never revoked | The expiry scheduler + the review report + the 90-day reminder |
 | A menu is hidden but the API is open | A menu is always tied to permissions; the backend guard is the real enforcer |
 | A stale cache after a revocation | The access version is bumped inside the same transaction → the old cache is instantly unreachable |

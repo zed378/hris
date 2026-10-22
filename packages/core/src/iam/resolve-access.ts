@@ -11,6 +11,36 @@ export interface EffectiveAccess {
 }
 
 /**
+ * Steps 1–3 of the precedence in `resolveEffectiveAccess`: roles, plus unexpired GRANTs, minus DENYs.
+ *
+ * Separate from the subscription filter because the permission ceiling
+ * (`ceiling.ts`) needs exactly this set and nothing else. Both callers share
+ * this one function so that "what a user holds" cannot come to mean two
+ * different things — a ceiling computed by a drifted copy would be a ceiling
+ * with a hole in it. The caller is responsible for excluding expired grants.
+ */
+export function applyPrecedence(
+  userRoles: ReadonlyArray<{ role: { permissions: ReadonlyArray<{ permissionCode: string }> } }>,
+  grants: ReadonlyArray<{ permissionCode: string; effect: string }>,
+): Set<string> {
+  // 1 + 2
+  const granted = new Set<string>();
+  for (const { role } of userRoles) {
+    for (const { permissionCode } of role.permissions) granted.add(permissionCode);
+  }
+  for (const grant of grants) {
+    if (grant.effect === 'GRANT') granted.add(grant.permissionCode);
+  }
+
+  // 3 — DENY wins, applied after every addition.
+  for (const grant of grants) {
+    if (grant.effect === 'DENY') granted.delete(grant.permissionCode);
+  }
+
+  return granted;
+}
+
+/**
  * Computes one user's effective access (docs/PLAN/05 §4).
  *
  * Its precedence, in order — and the order decides the result:
@@ -84,19 +114,7 @@ export async function resolveEffectiveAccess(
     ...enabledTenantModules.map((m) => m.moduleCode).filter((code) => inPlan.has(code)),
   ]);
 
-  // 1 + 2
-  const granted = new Set<string>();
-  for (const { role } of userRoles) {
-    for (const { permissionCode } of role.permissions) granted.add(permissionCode);
-  }
-  for (const grant of grants) {
-    if (grant.effect === 'GRANT') granted.add(grant.permissionCode);
-  }
-
-  // 3 — DENY wins, applied after every addition.
-  for (const grant of grants) {
-    if (grant.effect === 'DENY') granted.delete(grant.permissionCode);
-  }
+  const granted = applyPrecedence(userRoles, grants);
 
   // 4 — filter by subscription. A permission belonging to an unknown module falls
   // away too: that state should be impossible, and failing closed is the safe choice.

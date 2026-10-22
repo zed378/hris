@@ -10,6 +10,14 @@ Entries before 2026-09-13 are **reconstructed** from commit messages and `docs/P
 
 ## Unreleased
 
+### 2026-10-22 — P6-13: Permission ceiling
+
+**Security** — ([record](./records/2026-10-22-permission-ceiling.md), ADR-035)
+- Nobody but a `TENANT_OWNER` holder confers a permission they do not hold (role additions, GRANTs, lifting a DENY, invitations) or changes the owner's access. Refused `403 PERMISSION_CEILING`. Closes risk F12.
+- `ErrorCode.PERMISSION_CEILING` added to `packages/contracts`.
+- IAM routes share one `IamError` mapping; conflicts on the role and grant routes no longer surface as 404.
+- `apps/web/test/permission-ceiling.test.ts` — 16 cases through the real handlers; 11 failed before the change.
+
 ### 2026-10-21 — P0-09: CI pipeline
 
 **Fixed** — ([record](./records/2026-10-21-ci-pipeline.md))

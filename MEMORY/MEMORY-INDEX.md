@@ -10,6 +10,7 @@ Add a line here when writing a record — an unindexed record is a record nobody
 
 | Date | Task | Record | Hook |
 |---|---|---|---|
+| 2026-10-22 | P6-13 | [Permission ceiling](./records/2026-10-22-permission-ceiling.md) | A delegate holding `iam.role.manage` could add any permission to their own role, or empty `TENANT_OWNER` and lock the owner out — the test proved the lockout. Now only the owner confers beyond what they hold; ADR-035 |
 | 2026-09-14 | — | [Answers to OQ-01, OQ-03, OQ-11](./records/2026-09-14-open-question-answers.md) | Backend English, frontend Indonesian and never showing server messages; API docs behind a superuser and a hashed key; the auth split stops. Two new tasks, one new question (emails and push), and the capacity question rewritten because it was unclear |
 | 2026-09-13 | — | [Documentation set](./records/2026-09-13-documentation-set.md) | `docs/PLAN/15–23`, `SECURITY/`, `UI-UX/`, `TASKS/`, `MEMORY/`, `CLAUDE.md`, `AGENTS.md`. Seventeen findings recorded and not fixed — the worst a client-controlled address that defeats office-network verification. Also a table of sixteen claims I wrote and the code contradicted |
 | 2026-09-13 | — | [Two AI tools in one working tree](./records/2026-09-13-concurrent-agent-commits.md) | A build broken by nobody's intended edit, a test failing on translated prose, a product decision (the language users read) made by a translation pass, and a comment claiming a test that did not exist. Why commits stage explicit paths |

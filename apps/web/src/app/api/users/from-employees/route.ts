@@ -5,6 +5,7 @@ import { inviteEmployeesAsUsers, IamError } from '@hrms/core/iam';
 import { issueActionToken } from '@hrms/core/auth';
 import { publishEvent } from '@hrms/db';
 import { defineRoute, apiError } from '@/lib/define-route.ts';
+import { iamErrorResponse } from '@/lib/iam-error.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -88,14 +89,7 @@ export const POST = defineRoute('POST /api/users/from-employees', async (req, ct
       { status: 201 },
     );
   } catch (error) {
-    if (error instanceof IamError) {
-      return apiError(
-        error.kind === 'not_found' ? 404 : 409,
-        error.kind === 'not_found' ? ErrorCode.NOT_FOUND : ErrorCode.CONFLICT,
-        error.message,
-        ctx.correlationId,
-      );
-    }
+    if (error instanceof IamError) return iamErrorResponse(error, ctx.correlationId);
     throw error;
   }
 });

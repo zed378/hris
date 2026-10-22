@@ -679,6 +679,33 @@ Numbers are sequential and permanent. A superseded ADR stays, with its status up
 
 ---
 
+## ADR-035 — Permission ceiling: nobody but the owner confers what they do not hold
+
+| | |
+|---|---|
+| **Date** | 2026-10-22 |
+| **Status** | Accepted — amends `docs/PLAN/05` §9 |
+| **Task** | P6-13 |
+| **Deciders** | Agent, under the task's DoD; open to the user's review |
+| **Reconstructed** | No |
+
+**Context** — `docs/PLAN/05` §9 planned an `iam.grant.any` permission gating grants beyond one's own. It was never built: any holder of `iam.role.manage` or `iam.grant.manage` could confer anything, including on themselves, and could DENY the owner's own IAM permissions or empty the `TENANT_OWNER` role (risk F12, `docs/SECURITY/02` §5(a)). The abuse-case test demonstrated the lockout: after a delegate emptied the owner role, the owner's next IAM request was refused.
+
+**Decision** — `assertCanConfer` in `packages/core/src/iam/ceiling.ts`, called by every function that confers access:
+1. A holder of the `TENANT_OWNER` role is exempt.
+2. Anyone else may confer only permissions they hold — roles plus unexpired GRANTs minus DENYs, **before** the subscription filter. Conferring is: permissions added to a role, a GRANT, lifting a DENY, and assigning a role by invitation.
+3. Removing access is never capped: DENY, removing a GRANT, removing permissions from a role.
+4. Anyone else may not change the `TENANT_OWNER` role, assign it, or set or remove a grant on an owner.
+5. Refusal: 403 `PERMISSION_CEILING`, `details.permissions` or `details.role`.
+
+**Alternatives considered** — an `iam.grant.any` permission as planned: rejected — it is one more permission that itself needs a ceiling, and the owner already holds everything. Comparing against effective (subscription-filtered) permissions: rejected — a delegate could not invite employees into the standard `EMPLOYEE` role while payroll is unsubscribed, because it carries `payroll.payslip.read.own`. Refusing self-grants outright (card step 3): not done — with the ceiling, a self-grant can only confer what one already holds, so the rule would close nothing.
+
+**Consequences** — a tenant that already delegated IAM to a custom role loses the ability, through that role, to confer permissions it does not hold; the owner still can. `ErrorCode.PERMISSION_CEILING` needs Indonesian text (`PF-20`). The IAM routes now share one `IamError` mapping, which also fixes conflicts surfacing as 404 on the role and grant routes.
+
+**Plan impact** — `docs/PLAN/05` §9 amended; `docs/SECURITY/02` §5 and risk F12 updated.
+
+---
+
 ## Decisions Pending
 
 Each moves into the log when decided. The open question holds the detail and a recommendation. Answered on 2026-09-14: `OQ-01` → ADR-030, `OQ-11` → ADR-031, `OQ-03` → ADR-032 (making `OQ-04` and `OQ-10` unnecessary), `OQ-05` → ADR-033, `OQ-15` → ADR-034.
@@ -696,4 +723,3 @@ Each moves into the log when decided. The open question holds the detail and a r
 | `P6-24` spec | The shape of `reason` and of validation `details` | `P6-24`, `PF-20` |
 | `P3-12` spec | Trusted-hop count versus `X-Real-IP`; what to do with punches already marked `OFFICE_IP_VERIFIED` | `P3-12` |
 | `P2-08` spec | Whether unmasking becomes opt-in per request | `P2-08` |
-| `P6-13` spec | The permission-ceiling rule, and whether self-grants are refused | `P6-13` |
